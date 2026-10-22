@@ -1,0 +1,14 @@
+# Render "Blueprint": lets Render set everything up for you.
+# Render dashboard -> New -> Blueprint -> pick your GitHub repo (this file must be at the repo root).
+services:
+  - type: web
+    name: stadium-soccer
+    runtime: node
+    plan: free            # free plan: sleeps after 15 min with nobody playing, ~1 min to wake up
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

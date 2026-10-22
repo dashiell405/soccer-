@@ -1,0 +1,27 @@
+# Fly.io settings. Run `fly launch --copy-config` in this folder (needs a Fly account + card).
+# Change "app" to a unique name if Fly says it's taken.
+app = "stadium-soccer-change-me"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"    # stops when nobody is connected (saves money)
+  auto_start_machines = true
+  min_machines_running = 0
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 200
+    hard_limit = 250
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

@@ -1,0 +1,17 @@
+{
+  "name": "stadium-soccer",
+  "version": "1.2.0",
+  "description": "Stadium Soccer - Home Screen app. Play the computer offline (quick match, cup, penalty shootout), or 1v1 / 2v2 online on different devices.",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "debug": "node server.js --debug"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
