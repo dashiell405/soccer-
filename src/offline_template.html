@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Soccer Showdown 2 - Stadium Edition</title>
+<!--
+  =====================================================================
+   SOCCER SHOWDOWN 2  -  "Stadium Edition"
+  ---------------------------------------------------------------------
+   A single-file HTML5 soccer game. Everything (HTML, CSS, JavaScript,
+   graphics and sounds) is in this one file, so it works offline:
+   just open it in a browser.
+
+   Features:
+     * 5-a-side teams, big stadium, camera + minimap, ball with height
+     * shots with a power bar, passes, lobs, sprint + stamina, tackles
+     * throw-ins, corners, goal kicks, free kicks, PENALTIES
+     * yellow + red cards (sent-off players leave: play a man down)
+     * OFFSIDE with the assistant referee's flag (can be switched off)
+     * 16 teams + your own custom team, home / away kits
+     * CUP mode (8-team knockout with a bracket and a trophy)
+     * PENALTY SHOOTOUT mode (1 player or 2 players)
+     * skill moves (step-over, roulette, rainbow flick, burst)
+     * goal celebrations, confetti, crowd noise and a referee whistle
+
+   How this file is organised (search for the "====" headers):
+     HTML + CSS          - the menus and the touch buttons
+     GAME LOGIC          - settings, teams, players, ball, AI, rules
+                           (the SAME code the online server runs)
+     SOUND               - sound effects made with the Web Audio API
+     DRAWING             - stadium, players, ball, scoreboard, popups
+     OFFLINE SHELL       - menus, keyboard/touch, Cup + Shootout modes
+
+   This file is built from the files in src/ by build.py - edit those
+   (or edit this file directly if you just want to experiment).
+  =====================================================================
+-->
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #111;
+    color: #fff; font-family: "Trebuchet MS", Arial, sans-serif;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  canvas { position: fixed; left: 0; top: 0; display: block; }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 20; display: flex;
+    align-items: center; justify-content: center; background: rgba(0,0,0,.55);
+  }
+  .hidden { display: none !important; }
+  .panel {
+    background: rgba(12,40,22,.95); border: 3px solid #fff; border-radius: 16px;
+    padding: 16px 24px; text-align: center; max-width: 94vw; max-height: 94vh;
+    overflow: auto; box-sizing: border-box; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  }
+  h1 { margin: 0 0 2px; font-size: clamp(24px, 5vw, 44px); letter-spacing: 1px; }
+  h1 .b { color: #5aa0ff; } h1 .r { color: #ff6b6b; }
+  .sub { margin: 0 0 6px; opacity: .85; }
+  .row { margin: 7px 0; }
+  .row .label { display: inline-block; margin-right: 6px; }
+  .label { font-size: 12px; opacity: .8; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; }
+  button {
+    font: inherit; font-size: 16px; padding: 8px 15px; margin: 3px; border-radius: 10px;
+    border: 2px solid #fff; background: #245c38; color: #fff; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.15); }
+  button.selected { background: #ffd33d; color: #123; border-color: #ffd33d; }
+  button.big { font-size: 22px; padding: 10px 36px; background: #e8562a; }
+  .controls { font-size: 13px; line-height: 1.55; text-align: left; display: inline-block; margin-top: 4px; }
+  kbd { background: #fff; color: #123; border-radius: 4px; padding: 0 5px; font-family: monospace; font-size: 12px; }
+  #winTitle { font-size: clamp(30px, 6vw, 54px); margin: 0; }
+  #winScore { font-size: 24px; margin: 6px 0 4px; }
+  #winStats { font-size: 14px; opacity: .85; margin: 0 0 10px; }
+
+  #pauseBtn {
+    position: fixed; top: 8px; right: 8px; z-index: 15; width: 44px; height: 44px;
+    padding: 0; font-size: 18px; font-weight: bold; background: rgba(0,0,0,.45);
+  }
+
+  /* ---- Touch controls (phones / tablets, 1 Player mode) ---- */
+  #joyZone { position: fixed; left: 0; top: 0; width: 45%; height: 100%; z-index: 5; }
+  #joyBase {
+    position: fixed; left: 20px; bottom: 20px; width: 130px; height: 130px; z-index: 6;
+    border-radius: 50%; background: rgba(255,255,255,.10); border: 3px solid rgba(255,255,255,.5);
+    pointer-events: none;
+  }
+  #joyKnob {
+    position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px;
+    border-radius: 50%; background: rgba(255,255,255,.55);
+  }
+  .tbtn {
+    position: fixed; z-index: 6; border-radius: 50%; border: 3px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; letter-spacing: 1px; color: #fff;
+  }
+  #shootBtn { right: 18px; bottom: 22px; width: min(96px, 24vh); height: min(96px, 24vh); background: rgba(232,86,42,.6); font-size: 17px; }
+  #passBtn  { right: calc(28px + min(96px, 24vh)); bottom: 14px; width: min(72px, 18vh); height: min(72px, 18vh); background: rgba(47,123,255,.6); font-size: 14px; }
+  #sprintBtn{ right: 30px; bottom: calc(34px + min(96px, 24vh)); width: min(66px, 17vh); height: min(66px, 17vh); background: rgba(46,204,64,.55); font-size: 12px; }
+  .tbtn.pressed { background: rgba(255,211,61,.9) !important; color: #123; }
+  #rotateHint {
+    position: fixed; top: 6px; left: 50%; transform: translateX(-50%); z-index: 16;
+    background: rgba(0,0,0,.6); padding: 4px 12px; border-radius: 8px; font-size: 14px;
+  }
+
+  /* ---- New in this version: team picker, cup bracket, trophy ---- */
+  #skillBtn { right: calc(40px + min(96px, 24vh) + min(72px, 18vh)); bottom: 18px; width: min(62px, 16vh); height: min(62px, 16vh); background: rgba(155,89,182,.6); font-size: 12px; }
+  .kindRow button { min-width: 120px; }
+  .teamsRow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: stretch; }
+  .teamBtn { display: flex; align-items: center; gap: 8px; text-align: left; min-width: 210px; background: #1b4a2c; line-height: 1.25; }
+  .teamBtn .who { font-size: 11px; background: #ffd33d; color: #123; border-radius: 6px; padding: 1px 5px; font-weight: bold; }
+  .vs { align-self: center; font-weight: bold; opacity: .8; }
+  .kit { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin-right: 3px; }
+  .kit i { display: block; width: 100%; border: 1px solid rgba(0,0,0,.35); box-sizing: border-box; }
+  .kit i:first-child { border-radius: 4px 4px 1px 1px; }
+  .code { font-size: 12px; opacity: .8; margin-left: 4px; font-family: monospace; }
+  .stars { color: #ffd33d; font-size: 12px; letter-spacing: 1px; }
+  .stars .dim { color: rgba(255,255,255,.25); }
+  .away { font-size: 11px; background: #fff; color: #123; border-radius: 6px; padding: 0 4px; }
+  .rules label { margin: 0 10px; font-size: 15px; cursor: pointer; }
+  .rules input { transform: scale(1.3); margin-right: 5px; vertical-align: middle; }
+  #formatLine { font-size: 13px; color: #ffd33d; margin: 4px 0; }
+  #teamGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin: 8px 0; }
+  .teamTile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; margin: 0; font-size: 14px; background: #1b4a2c; }
+  .teamTile .kit { margin: 0; }
+  .teamTile.selected .stars, .teamTile.selected .stars .dim { color: #7a5a00; }
+  .customBox { border: 2px dashed rgba(255,255,255,.5); border-radius: 10px; padding: 6px 10px; margin-top: 6px; }
+  .customBox input[type=text] { font: inherit; font-size: 15px; padding: 4px 8px; border-radius: 8px; border: 0; width: 150px; }
+  .customBox input[type=color] { width: 44px; height: 30px; border: 0; padding: 0; vertical-align: middle; background: none; }
+  .customBox label { margin: 0 6px; font-size: 13px; }
+  #bracket { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 8px 0; }
+  #bracket .col { display: flex; flex-direction: column; gap: 10px; justify-content: space-around; min-width: 170px; }
+  .cm { background: rgba(0,0,0,.35); border-radius: 8px; padding: 4px 6px; text-align: left; border: 2px solid transparent; }
+  .cm.mine { border-color: #ffd33d; }
+  .cm.tbd { text-align: center; opacity: .5; padding: 14px; }
+  .ct { display: flex; align-items: center; gap: 4px; font-size: 14px; padding: 1px 0; }
+  .ct .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ct .sc { font-weight: bold; min-width: 18px; text-align: right; }
+  .ct.won { color: #9fffa0; font-weight: bold; } .ct.lost { opacity: .55; } .ct.me .nm { text-decoration: underline; }
+  #cupStatus { font-size: 18px; margin: 6px 0; }
+  #cupFormat { font-size: 13px; color: #ffd33d; }
+  #trophyCanvas { position: static; width: min(360px, 80vw); height: auto; display: block; margin: 0 auto; }
+  #trophyTeam { font-size: clamp(22px, 5vw, 36px); margin: 0; color: #ffd33d; }
+  #keysHint {
+    position: fixed; left: 8px; bottom: 8px; z-index: 14; font-size: 12px; background: rgba(0,0,0,.55);
+    padding: 4px 8px; border-radius: 8px; pointer-events: none; line-height: 1.5;
+  }
+  #pauseHelp { font-size: 12px; }
+  @media (max-height: 500px) {
+    .panel { padding: 6px 14px; }
+    .row { margin: 3px 0; }
+    h1 { font-size: 24px; }
+    button { font-size: 14px; padding: 5px 11px; margin: 2px; }
+    button.big { font-size: 18px; padding: 6px 28px; }
+    #formatLine { margin: 1px 0; font-size: 12px; }
+    .rules label { font-size: 13px; }
+    a.btnlink { font-size: 14px !important; padding: 5px 11px !important; }
+    .controls { display: none; }
+    #bracket .col { min-width: 140px; }
+    .teamBtn { min-width: 180px; padding: 4px 8px; }
+    #trophyCanvas { width: min(260px, 60vw); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- Start menu -->
+<div id="menu" class="overlay">
+  <div class="panel">
+    <h1><span class="b">SOCCER</span> <span class="r">SHOWDOWN</span> 2</h1>
+    <div class="row kindRow">
+      <button data-kind="quick" class="selected">Quick Match</button>
+      <button data-kind="cup">Cup</button>
+      <button data-kind="shootout">Penalty Shootout</button>
+    </div>
+    <div id="formatLine"></div>
+    <div class="row">
+      <button data-mode="1p" class="selected">1 Player vs Computer</button>
+      <button data-mode="2p">2 Players</button>
+    </div>
+    <div class="row teamsRow">
+      <button id="blueTeamBtn" class="teamBtn"></button>
+      <span class="vs">vs</span>
+      <button id="redTeamBtn" class="teamBtn"></button>
+    </div>
+    <div class="row" id="diffRow">
+      <span class="label">Difficulty</span>
+      <button data-diff="easy">Easy</button>
+      <button data-diff="normal" class="selected">Normal</button>
+      <button data-diff="hard">Hard</button>
+    </div>
+    <div class="row rules" id="rulesRow">
+      <label><input type="checkbox" id="ruleOffside" checked>Offside</label>
+      <label><input type="checkbox" id="ruleCards" checked>Fouls &amp; cards</label>
+    </div>
+    <div class="row"><button id="startBtn" class="big">KICK OFF</button></div>
+    <div class="row"><button id="continueCupBtn" class="hidden"></button></div>
+    <div id="controlsHelp" class="controls"></div>
+  </div>
+</div>
+
+<!-- Team picker -->
+<div id="teamPicker" class="overlay hidden">
+  <div class="panel">
+    <h1 id="pickTitle" style="font-size:26px">Pick a team</h1>
+    <div id="teamGrid"></div>
+    <div class="customBox">
+      <b>Custom team:</b>
+      <input type="text" id="customName" maxlength="16" placeholder="Team name">
+      <label>Shirt <input type="color" id="customShirt"></label>
+      <label>Shorts <input type="color" id="customShorts"></label>
+      <label>Socks <input type="color" id="customSocks"></label>
+      <button id="customSaveBtn">Use my team</button>
+    </div>
+    <div class="row"><button id="randomTeamBtn">Random team</button> <button id="pickBackBtn">Back</button></div>
+  </div>
+</div>
+
+<!-- Cup bracket -->
+<div id="cupScreen" class="overlay hidden">
+  <div class="panel">
+    <h1 style="font-size:30px">&#127942; STADIUM CUP</h1>
+    <div id="cupFormat"></div>
+    <div id="bracket"></div>
+    <div id="cupStatus"></div>
+    <div class="row">
+      <button id="cupPlayBtn" class="big">PLAY</button>
+      <button id="cupTrophyBtn" class="big hidden">&#127942; Trophy</button>
+      <button id="cupNewBtn" class="hidden">New cup</button>
+      <button id="cupMenuBtn">Main menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- Trophy ceremony -->
+<div id="trophyScreen" class="overlay hidden">
+  <div class="panel">
+    <h1>CHAMPIONS!</h1>
+    <canvas id="trophyCanvas" width="360" height="300"></canvas>
+    <p id="trophyTeam"></p>
+    <div class="row"><button id="trophyCupBtn">See the bracket</button> <button id="trophyMenuBtn" class="big">Main menu</button></div>
+  </div>
+</div>
+
+<!-- Pause screen -->
+<div id="pauseScreen" class="overlay hidden">
+  <div class="panel">
+    <h1>Paused</h1>
+    <div class="row"><button id="resumeBtn" class="big">Resume</button></div>
+    <div class="row"><button id="pauseMenuBtn">Main menu</button></div>
+    <div id="pauseHelp" class="controls"></div>
+  </div>
+</div>
+
+<!-- Winner screen -->
+<div id="winScreen" class="overlay hidden">
+  <div class="panel">
+    <p id="winTitle">Blue wins!</p>
+    <p id="winScore">5 - 0</p>
+    <p id="winStats"></p>
+    <button id="againBtn" class="big">Play again</button>
+    <button id="cupContinueBtn" class="big hidden">Continue cup</button>
+    <div class="row"><button id="menuBtn">Main menu</button></div>
+  </div>
+</div>
+
+<button id="pauseBtn" class="hidden" title="Pause (P / Esc)">II</button>
+<div id="keysHint" class="hidden"><kbd>R</kbd> skill &nbsp;<kbd>F</kbd> flick &nbsp;<kbd>Q</kbd> switch &nbsp;<kbd>P</kbd> pause &nbsp;<kbd>M</kbd> sound</div>
+
+<!-- Touch controls -->
+<div id="touchControls" class="hidden">
+  <div id="joyZone"></div>
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div id="shootBtn" class="tbtn">SHOOT</div>
+  <div id="passBtn" class="tbtn">PASS</div>
+  <div id="sprintBtn" class="tbtn">RUN</div>
+  <div id="skillBtn" class="tbtn">SKILL</div>
+</div>
+<div id="rotateHint" class="hidden">Turn your phone sideways for a bigger view</div>
+
+<script>
+/*__SCRIPTS__*/
+</script>
+</body>
+</html>

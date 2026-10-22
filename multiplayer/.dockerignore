@@ -1,0 +1,5 @@
+node_modules
+tests
+tools
+*.png
+*.zip

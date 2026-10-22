@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Stadium Soccer</title>
+<!-- Home Screen app ("PWA") settings -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0c2816">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Soccer">
+<meta name="application-name" content="Stadium Soccer">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<!--
+  SOCCER SHOWDOWN 2 - ONLINE (the page every player opens)
+  The server (server.js) sends this page. game.js = shared settings and
+  rules, client.js = lobby, controls, drawing and sound.
+-->
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #111;
+    color: #fff; font-family: "Trebuchet MS", Arial, sans-serif;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  canvas { position: fixed; left: 0; top: 0; display: block; }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 20; display: flex;
+    align-items: center; justify-content: center; background: rgba(0,0,0,.55);
+  }
+  .hidden { display: none !important; }
+  .panel {
+    background: rgba(12,40,22,.95); border: 3px solid #fff; border-radius: 16px;
+    padding: 16px 24px; text-align: center; max-width: 94vw; max-height: 94vh;
+    overflow: auto; box-sizing: border-box; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  }
+  h1 { margin: 0 0 2px; font-size: clamp(24px, 5vw, 44px); letter-spacing: 1px; }
+  h1 .b { color: #5aa0ff; } h1 .r { color: #ff6b6b; }
+  .sub { margin: 0 0 6px; opacity: .85; }
+  .row { margin: 7px 0; }
+  .label { font-size: 12px; opacity: .8; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; }
+  button {
+    font: inherit; font-size: 16px; padding: 8px 15px; margin: 3px; border-radius: 10px;
+    border: 2px solid #fff; background: #245c38; color: #fff; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.15); }
+  button.selected { background: #ffd33d; color: #123; border-color: #ffd33d; }
+  button.big { font-size: 22px; padding: 10px 36px; background: #e8562a; }
+  .controls { font-size: 13px; line-height: 1.55; text-align: left; display: inline-block; margin-top: 4px; }
+  kbd { background: #fff; color: #123; border-radius: 4px; padding: 0 5px; font-family: monospace; font-size: 12px; }
+  #winTitle { font-size: clamp(30px, 6vw, 54px); margin: 0; }
+  #winScore { font-size: 24px; margin: 6px 0 4px; }
+  #winStats { font-size: 14px; opacity: .85; margin: 0 0 10px; }
+
+  #pauseBtn {
+    position: fixed; top: 8px; right: 8px; z-index: 15; width: 44px; height: 44px;
+    padding: 0; font-size: 18px; font-weight: bold; background: rgba(0,0,0,.45);
+  }
+
+  /* ---- Touch controls (phones / tablets, 1 Player mode) ---- */
+  #joyZone { position: fixed; left: 0; top: 0; width: 45%; height: 100%; z-index: 5; }
+  #joyBase {
+    position: fixed; left: 20px; bottom: 20px; width: 130px; height: 130px; z-index: 6;
+    border-radius: 50%; background: rgba(255,255,255,.10); border: 3px solid rgba(255,255,255,.5);
+    pointer-events: none;
+  }
+  #joyKnob {
+    position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px;
+    border-radius: 50%; background: rgba(255,255,255,.55);
+  }
+  .tbtn {
+    position: fixed; z-index: 6; border-radius: 50%; border: 3px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; letter-spacing: 1px; color: #fff;
+  }
+  #shootBtn { right: 18px; bottom: 22px; width: min(96px, 24vh); height: min(96px, 24vh); background: rgba(232,86,42,.6); font-size: 17px; }
+  #passBtn  { right: calc(28px + min(96px, 24vh)); bottom: 14px; width: min(72px, 18vh); height: min(72px, 18vh); background: rgba(47,123,255,.6); font-size: 14px; }
+  #sprintBtn{ right: 30px; bottom: calc(34px + min(96px, 24vh)); width: min(66px, 17vh); height: min(66px, 17vh); background: rgba(46,204,64,.55); font-size: 12px; }
+  #skillBtn { right: calc(40px + min(96px, 24vh) + min(72px, 18vh)); bottom: 18px; width: min(62px, 16vh); height: min(62px, 16vh); background: rgba(155,89,182,.6); font-size: 12px; }
+  .tbtn.pressed { background: rgba(255,211,61,.9) !important; color: #123; }
+  #rotateHint {
+    position: fixed; top: 6px; left: 50%; transform: translateX(-50%); z-index: 16;
+    background: rgba(0,0,0,.6); padding: 4px 12px; border-radius: 8px; font-size: 14px;
+  }
+
+  /* ---- Online lobby ---- */
+  input[type=text] {
+    font: inherit; font-size: 18px; padding: 8px 12px; border-radius: 10px; border: 2px solid #fff;
+    background: #0d2a17; color: #fff; width: 200px; text-align: center; margin: 3px;
+  }
+  #codeInput { width: 110px; text-transform: uppercase; letter-spacing: 4px; font-weight: bold; }
+  .box { border: 1px solid rgba(255,255,255,.35); border-radius: 12px; padding: 8px 12px; margin: 8px 0; }
+  .msg { color: #ffd33d; min-height: 20px; font-weight: bold; }
+  .help { font-size: 13px; opacity: .85; line-height: 1.5; }
+  #roomCode { font-size: clamp(40px, 9vw, 64px); font-weight: bold; letter-spacing: 10px; color: #ffd33d; line-height: 1.1; }
+  #shareUrl { font-family: monospace; font-size: 14px; background: rgba(0,0,0,.35); padding: 2px 8px; border-radius: 6px; }
+  .teams { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 8px 0; }
+  .team { flex: 1 1 200px; max-width: 280px; border-radius: 12px; padding: 8px; }
+  .team.blue { background: rgba(31,95,214,.35); border: 2px solid #5aa0ff; }
+  .team.red { background: rgba(214,40,40,.35); border: 2px solid #ff6b6b; }
+  .team h3 { margin: 2px 0 6px; }
+  .slot { background: rgba(0,0,0,.3); border-radius: 8px; padding: 6px; margin: 4px 0; font-size: 15px; }
+  .slot.me { outline: 2px solid #ffd33d; }
+  .slot.off { opacity: .55; }
+  .slot.empty { opacity: .6; font-style: italic; font-size: 13px; }
+  .tag { font-size: 11px; background: rgba(255,255,255,.2); padding: 0 5px; border-radius: 5px; }
+  .ping { font-size: 11px; opacity: .8; }
+  button:disabled { opacity: .45; cursor: default; filter: none; }
+  /* lobby: team + rules pickers (new) */
+  .team select { font: inherit; font-size: 15px; padding: 4px 6px; border-radius: 8px; max-width: 100%; margin: 2px 0 6px; }
+  .kitDot { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,.4); vertical-align: middle; margin-right: 4px; }
+  .rules label { margin: 0 8px; font-size: 15px; cursor: pointer; }
+  .rules input { transform: scale(1.25); margin-right: 4px; vertical-align: middle; }
+  @media (max-height: 500px) { #lobby .help { font-size: 12px; } #roomCode { font-size: 36px; } .team { padding: 4px 8px; } }
+  #menuBtn {
+    position: fixed; top: 8px; right: 8px; z-index: 15; height: 40px; padding: 0 12px; font-size: 15px;
+    background: rgba(0,0,0,.45);
+  }
+  #pingBox {
+    position: fixed; top: calc(14px + env(safe-area-inset-top)); right: calc(84px + env(safe-area-inset-right)); z-index: 15; font: bold 13px monospace;
+    background: rgba(0,0,0,.5); padding: 4px 8px; border-radius: 8px; color: #7CFC8A;
+  }
+  #connBanner {
+    position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 30;
+    background: #b71c1c; padding: 8px 16px; border-radius: 10px; font-weight: bold;
+  }
+
+  /* ---- Home Screen app: no bounce, keep clear of the iPhone notch ---- */
+  html, body {
+    position: fixed; inset: 0; width: 100%; overscroll-behavior: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
+  }
+  .overlay {
+    box-sizing: border-box;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .panel { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  #joyBase   { left: calc(20px + env(safe-area-inset-left)); bottom: calc(20px + env(safe-area-inset-bottom)); }
+  #shootBtn  { right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
+  #passBtn   { right: calc(28px + min(96px, 24vh) + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); }
+  #sprintBtn { right: calc(30px + env(safe-area-inset-right)); bottom: calc(34px + min(96px, 24vh) + env(safe-area-inset-bottom)); }
+  #skillBtn  { right: calc(40px + min(96px, 24vh) + min(72px, 18vh) + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); }
+  #menuBtn { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
+  #rotateHint { top: calc(6px + env(safe-area-inset-top)); }
+  a.btnlink {
+    display: inline-block; text-decoration: none; font-size: 16px; padding: 8px 15px; margin: 3px;
+    border-radius: 10px; border: 2px solid #fff; background: #245c38; color: #fff;
+  }
+  a.btnlink.big { font-size: 20px; padding: 10px 28px; background: #1f5fd6; }
+
+  /* ---- Home screen layout (fits an iPhone held sideways) ---- */
+  .homepanel { max-width: min(900px, 96vw); }
+  .homegrid { display: flex; gap: 10px; justify-content: center; align-items: stretch; flex-wrap: wrap; }
+  .homegrid .box { margin: 4px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .offlinebox { flex: 1 1 220px; max-width: 300px; }
+  .onlinebox { flex: 2 1 400px; }
+  .or { opacity: .7; margin: 0 4px; }
+  #joinBtn { font-size: 18px; }
+  @media (max-height: 500px) {
+    .panel { padding: 8px 14px; }
+    h1 { font-size: 30px; }
+    .sub, .homehelp { display: none; }
+    button { font-size: 14px; padding: 6px 11px; margin: 2px; }
+    button.big, a.btnlink.big { font-size: 18px; padding: 8px 20px; }
+    input[type=text] { font-size: 16px; padding: 6px 10px; }
+    .row { margin: 4px 0; }
+    .box { padding: 6px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- HOME: type your name, then create a room or join one -->
+<div id="home" class="overlay">
+  <div class="panel homepanel">
+    <h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>
+    <p class="sub">5-a-side &bull; play the computer, or 1v1 / 2v2 with friends on other devices &bull; first to 5 wins!</p>
+    <div class="homegrid">
+      <div class="box offlinebox">
+        <div class="label">On this device</div>
+        <a id="offlineBtn" class="btnlink big" href="offline.html">Offline vs Computer</a>
+        <div class="help">1 player vs the computer, or 2 players on one keyboard.<br>Works with no internet.</div>
+      </div>
+      <div class="box onlinebox">
+        <div class="label">Online with friends</div>
+        <input id="nameInput" type="text" maxlength="14" placeholder="Your name" autocomplete="off">
+        <div class="row">
+          <button data-cmode="1v1" class="selected">1 vs 1</button><button data-cmode="2v2">2 vs 2</button>
+          <span class="label">&nbsp;CPU:</span><button data-cdiff="easy">Easy</button><button data-cdiff="normal" class="selected">Normal</button><button data-cdiff="hard">Hard</button>
+        </div>
+        <div class="row">
+          <button id="createBtn" class="big">Create room</button>
+          <span class="or">or</span>
+          <input id="codeInput" type="text" maxlength="4" placeholder="CODE" autocomplete="off"><button id="joinBtn">Join</button>
+        </div>
+      </div>
+    </div>
+    <div id="homeMsg" class="msg"></div>
+    <div class="help homehelp">Everybody opens this same web address on their own phone or computer, then one person creates a room and the others join with its 4-letter code.</div>
+  </div>
+</div>
+
+<!-- LOBBY: room code, teams, start button -->
+<div id="lobby" class="overlay hidden">
+  <div class="panel">
+    <div class="label">Room code</div>
+    <div id="roomCode">----</div>
+    <div class="help">Friends open <span id="shareUrl"></span> <button id="copyBtn">Copy link</button><br>or type the code on the home screen.</div>
+    <div class="row">
+      <button data-lmode="1v1">1 vs 1</button><button data-lmode="2v2">2 vs 2</button>
+      &nbsp; <span class="label">CPU:</span>
+      <button data-ldiff="easy">Easy</button><button data-ldiff="normal">Normal</button><button data-ldiff="hard">Hard</button>
+    </div>
+    <div class="row rules">
+      <button data-lmatch="match">Match (first to 5)</button><button data-lmatch="shootout">Penalty shootout</button>
+      <label><input type="checkbox" id="lobbyOffside">Offside</label>
+      <label><input type="checkbox" id="lobbyCards">Fouls &amp; cards</label>
+    </div>
+    <div class="teams">
+      <div class="team blue"><h3 id="blueTitle">Blue</h3><select id="blueTeamSel"></select><div id="blueSlots"></div><button id="blueJoin">Join</button></div>
+      <div class="team red"><h3 id="redTitle">Red</h3><select id="redTeamSel"></select><div id="redSlots"></div><button id="redJoin">Join</button></div>
+    </div>
+    <div class="help" id="specList"></div>
+    <div class="row">
+      <button id="startBtn" class="big">Start match</button>
+      <div id="waitHost" class="msg">Waiting for the host to start the match...</div>
+    </div>
+    <div class="row"><button id="specJoin">Just watch</button> <button id="leaveBtn">Leave room</button></div>
+    <div class="help">Goalies and empty slots are played by the computer. The host picks the mode, CPU level, teams and rules.</div>
+  </div>
+</div>
+
+<!-- In-game menu (online games don't pause) -->
+<div id="menuScreen" class="overlay hidden">
+  <div class="panel">
+    <h1>Menu</h1>
+    <p class="help">The match keeps going for everybody else!</p>
+    <div class="row"><button id="menuCloseBtn" class="big">Back to the game</button></div>
+    <div class="row"><button id="soundBtn">Sound: ON</button> <button id="menuLeaveBtn">Leave match</button></div>
+    <div class="help">Move WASD / Arrows &bull; Sprint Shift &bull; Shoot Space (hold) / slide<br>Pass E (tap / hold to lob) / switch &bull; Q switch &bull; M sound<br>
+      R skill move (sideways = spin, back = flick, +Shift = burst) &bull; F rainbow flick<br>Penalty: up/down aim, hold Space &bull; in goal: up/down picks a side &bull; any key skips a celebration</div>
+  </div>
+</div>
+
+<!-- Winner screen -->
+<div id="winScreen" class="overlay hidden">
+  <div class="panel">
+    <p id="winTitle">Blue wins!</p>
+    <div id="winSub" class="help"></div>
+    <p id="winScore">5 - 0</p>
+    <p id="winStats"></p>
+    <button id="rematchBtn" class="big">Rematch</button>
+    <div class="row"><button id="lobbyBtn">Back to lobby (change teams)</button></div>
+    <div id="waitHost2" class="msg">Waiting for the host to start a rematch...</div>
+    <div class="row"><button id="winLeaveBtn">Leave room</button></div>
+  </div>
+</div>
+
+<button id="menuBtn" class="hidden">Menu</button>
+<div id="pingBox" class="hidden">-- ms</div>
+<div id="connBanner" class="hidden">Connection lost &ndash; reconnecting...</div>
+
+<!-- Touch controls -->
+<div id="touchControls" class="hidden">
+  <div id="joyZone"></div>
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div id="shootBtn" class="tbtn">SHOOT</div>
+  <div id="passBtn" class="tbtn">PASS</div>
+  <div id="sprintBtn" class="tbtn">RUN</div>
+  <div id="skillBtn" class="tbtn">SKILL</div>
+</div>
+<div id="rotateHint" class="hidden">Turn your phone sideways for a bigger view</div>
+
+<script src="pwa.js"></script>
+<script src="game.js"></script>
+<script src="client.js"></script>
+</body>
+</html>
