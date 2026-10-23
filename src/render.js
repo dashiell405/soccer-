@@ -389,6 +389,41 @@ function drawFarStands() {
         { y: PITCH.top - 44, z0: 12, z1: 40 },
       ];
   rows.forEach((r, i) => drawStandFace(30, WORLD_W - 30, r.y, r.z0, r.z1, i));
+  drawStandBanners();
+}
+// A flag for each team, hung on the far stand. A few slices make the
+// cloth ripple. Low quality draws them flat so phones stay smooth.
+function drawStandBanners() {
+  if (!TEAMS.blue || !TEAMS.blue.kit) return;
+  const spots = [
+    { team: "blue", x: PITCH.cx - 340 },
+    { team: "red", x: PITCH.cx + 220 },
+  ];
+  for (const s of spots) {
+    const base = w2s(s.x, PITCH.top - 8, 34);
+    const top = w2s(s.x, PITCH.top - 8, 62);
+    let fh = Math.abs(base.y - top.y);
+    if (fh < 8 || fh > 70) continue;
+    const id = teamFlagId(s.team);
+    const art = flagCanvas(id, fh, 2, teamFlagColors(s.team));
+    const fw = fh * art.ratio;
+    const x = base.x, y = Math.min(base.y, top.y);
+    ctx.save();
+    ctx.strokeStyle = "rgba(230,230,230,0.9)";
+    ctx.lineWidth = Math.max(1.2, fh * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(x, y + fh);
+    ctx.lineTo(x, y - fh * 0.15);
+    ctx.stroke();
+    const slices = quality === "low" ? 1 : 6;
+    const sh = art.canvas.height / slices;
+    const dh = fh / slices;
+    for (let i = 0; i < slices; i++) {
+      const wave = slices === 1 ? 0 : Math.sin(viewTime * 2.1 + i * 0.65 + s.x * 0.01) * fh * 0.05 * (i / slices);
+      ctx.drawImage(art.canvas, 0, i * sh, art.canvas.width, sh + 1, x + 2 + wave, y + i * dh, fw, dh + 0.6);
+    }
+    ctx.restore();
+  }
 }
 function drawNearStands() {
   // A short lip of fans along the bottom. Tall tiers here would climb
@@ -1159,37 +1194,57 @@ function drawPenaltyAids() {
 // =====================================================================
 // HUD
 // =====================================================================
+function teamFlagId(side) { return (TEAMS[side] && TEAMS[side].id) || side; }
+function teamFlagColors(side) {
+  const k = TEAMS[side] && TEAMS[side].kit;
+  return k ? [k.shirt, k.shorts, k.socks] : null;
+}
 function drawScoreboard() {
   const pad = screenPad();
   const x = 12 + pad.left;
   const y = 10 + pad.top;
-  const h = 50;
-  ctx.font = "bold 15px Arial";
+  const h = 54;
+  ctx.font = "bold 16px Arial";
   const bName = TEAMS.blue.short || "BLU";
   const rName = TEAMS.red.short || "RED";
-  const nameW = Math.max(ctx.measureText(bName).width, ctx.measureText(rName).width);
-  const midW = nameW * 2 + 118;
-  const clockW = 78;
+  const bNameW = ctx.measureText(bName).width;
+  const rNameW = ctx.measureText(rName).width;
+  let fh = 30;
+  const bRatio = flagRatio(teamFlagId("blue"));
+  const rRatio = flagRatio(teamFlagId("red"));
+  const clockW = 74;
+  const scoreGap = 108;
+  const fit = () => 8 + fh * bRatio + 8 + bNameW + 10 + scoreGap + 10 + rNameW + 8 + fh * rRatio + 8;
+  let midW = fit();
+  const maxW = Math.max(240, VIEW_W - x - pad.right - 58);
+  if (midW + clockW > maxW) {
+    fh = Math.max(16, fh * (maxW - clockW) / midW);
+    midW = fit();
+  }
   const w = midW + clockW;
   ctx.fillStyle = "rgba(8,12,20,0.88)";
   roundRect(ctx, x, y, w, h, 8);
   ctx.fill();
-  ctx.fillStyle = TEAMS.blue.kit.shirt;
-  ctx.fillRect(x, y + 8, 5, h - 16);
-  ctx.fillStyle = TEAMS.red.kit.shirt;
-  ctx.fillRect(x + midW - 5, y + 8, 5, h - 16);
+
+  const shine = quality === "low" ? null : (viewTime % 3.4) / 3.4;
+  const flagY = y + (h - fh) / 2;
+  const bFlagW = drawFlagBadge(ctx, teamFlagId("blue"), x + 8, flagY, fh, { colors: teamFlagColors("blue"), t: shine });
+  const rFlagX = x + midW - 8 - fh * rRatio;
+  drawFlagBadge(ctx, teamFlagId("red"), rFlagX, flagY, fh, { colors: teamFlagColors("red"), t: shine });
 
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
   ctx.fillStyle = "#fff";
   ctx.font = "bold 16px Arial";
-  ctx.fillText(bName, x + 14, y + 24);
+  const bTextX = x + 8 + bFlagW + 8;
+  ctx.fillText(bName, bTextX, y + h * 0.46);
   ctx.textAlign = "right";
-  ctx.fillText(rName, x + midW - 14, y + 24);
+  const rTextX = rFlagX - 8;
+  ctx.fillText(rName, rTextX, y + h * 0.46);
   ctx.textAlign = "center";
   ctx.font = "bold 26px Arial";
   ctx.fillStyle = "#ffe14a";
-  ctx.fillText(game.score.blue + "  -  " + game.score.red, x + midW / 2, y + 25);
+  ctx.fillText(game.score.blue + "  -  " + game.score.red, x + midW / 2, y + h * 0.48);
 
   ctx.fillStyle = "rgba(255,255,255,0.08)";
   ctx.fillRect(x + midW, y, clockW, h);
@@ -1198,12 +1253,12 @@ function drawScoreboard() {
   const left = game.timeLimit ? Math.max(0, game.timeLimit - game.clock) : 0;
   if (game.timeLimit && left < 30) ctx.fillStyle = "#ff9f1c";
   const clock = game.matchType === "shootout" || game.shootout ? "PENS" : formatClock(game.timeLimit ? Math.ceil(left) : game.clock);
-  ctx.fillText(clock, x + midW + clockW / 2, y + 26);
+  ctx.fillText(clock, x + midW + clockW / 2, y + h * 0.5);
 
   ctx.font = "bold 16px Arial";
-  drawTeamCards("blue", x + 14 + ctx.measureText(bName).width + 6, y + 16, 1);
+  drawTeamCards("blue", bTextX + bNameW + 6, y + 14, 1);
   ctx.font = "bold 16px Arial";
-  drawTeamCards("red", x + midW - 14 - ctx.measureText(rName).width - 6, y + 16, -1);
+  drawTeamCards("red", rTextX - rNameW - 6, y + 14, -1);
 
   ctx.font = "bold 12px Arial";
   ctx.textAlign = "left";
@@ -1230,7 +1285,7 @@ function drawTeamCards(team, x, y, dir) {
 function drawShootoutDots(x, y) {
   const so = game.shootout;
   const n = Math.max(SHOOTOUT_KICKS, so.kicks.blue.length, so.kicks.red.length);
-  const w = 118 + n * 16;
+  const w = 168 + n * 16;
   ctx.fillStyle = "rgba(8,12,20,0.88)";
   roundRect(ctx, x, y, w, 44, 8);
   ctx.fill();
@@ -1240,11 +1295,13 @@ function drawShootoutDots(x, y) {
     const yy = y + 12 + row * 20;
     ctx.textAlign = "left";
     ctx.fillStyle = TEAMS[t].ui;
-    ctx.fillText(TEAMS[t].short, x + 8, yy);
+    const fh = 14;
+    const fw = drawFlagBadge(ctx, teamFlagId(t), x + 8, yy - fh / 2, fh, { colors: teamFlagColors(t), t: null });
+    ctx.fillText(TEAMS[t].short, x + 12 + fw, yy);
     for (let i = 0; i < n; i++) {
       const k = so.kicks[t][i];
       ctx.beginPath();
-      ctx.arc(x + 58 + i * 16, yy, 5, 0, Math.PI * 2);
+      ctx.arc(x + 78 + fw + i * 16, yy, 5, 0, Math.PI * 2);
       if (k === undefined) { ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1.4; ctx.stroke(); }
       else { ctx.fillStyle = k ? "#2ecc40" : "#ff3b3b"; ctx.fill(); }
     }
@@ -1300,8 +1357,12 @@ function drawCommentary() {
         ctx.strokeStyle = "rgba(0,0,0,0.7)";
         ctx.lineWidth = 4;
         const who = "#" + sc.num + "   " + (TEAMS[sc.team].short || "");
-        ctx.strokeText(who, VIEW_W / 2, VIEW_H * 0.4 + size * 0.55);
-        ctx.fillText(who, VIEW_W / 2, VIEW_H * 0.4 + size * 0.55);
+        const ty = VIEW_H * 0.4 + size * 0.55;
+        ctx.strokeText(who, VIEW_W / 2, ty);
+        ctx.fillText(who, VIEW_W / 2, ty);
+        const fw = ctx.measureText(who).width;
+        const fh = 22;
+        drawFlagBadge(ctx, teamFlagId(sc.team), VIEW_W / 2 - fw / 2 - fh * flagRatio(teamFlagId(sc.team)) - 10, ty - fh / 2, fh, { colors: teamFlagColors(sc.team), t: quality === "low" ? null : (viewTime % 3.4) / 3.4 });
       }
       ctx.globalAlpha = 1;
     }
@@ -1407,7 +1468,9 @@ function drawRefPopups() {
     ctx.fillText(cp.kind === "yellow" ? "YELLOW CARD" : "RED CARD", -48, -24);
     ctx.font = "bold 16px Arial";
     ctx.fillStyle = TEAMS[cp.team].ui;
-    ctx.fillText("#" + (p ? p.num : "?") + "  " + TEAMS[cp.team].short, -48, 6);
+    const fh = 18;
+    drawFlagBadge(ctx, teamFlagId(cp.team), -48, 6 - fh / 2, fh, { colors: teamFlagColors(cp.team), t: null });
+    ctx.fillText("#" + (p ? p.num : "?") + "  " + TEAMS[cp.team].short, -48 + fh * flagRatio(teamFlagId(cp.team)) + 8, 6);
     ctx.font = "13px Arial";
     ctx.fillStyle = "#ddd";
     ctx.fillText(cp.kind === "yellow" ? "Booked. One more and he is off." : cp.kind === "second" ? "Second yellow. Sent off." : "Sent off. Play a player down.", -48, 32);
@@ -1418,7 +1481,7 @@ function drawRefPopups() {
     const p = rosterList()[fl.idx];
     const x = 12 + screenPad().left, y = VIEW_H * 0.5;
     ctx.fillStyle = "rgba(6,10,16,0.78)";
-    roundRect(ctx, x, y, 250, 58, 8);
+    roundRect(ctx, x, y, 320, 58, 8);
     ctx.fill();
     const wave = Math.sin(viewTime * 12) * 3;
     ctx.strokeStyle = "#ddd";
@@ -1440,7 +1503,9 @@ function drawRefPopups() {
     ctx.fillText("OFFSIDE", x + 48, y + 20);
     ctx.font = "12px Arial";
     ctx.fillStyle = TEAMS[fl.team].ui;
-    ctx.fillText("#" + (p ? p.num : "?") + " " + TEAMS[fl.team].short + "  ·  indirect free kick", x + 48, y + 40);
+    const ofh = 16;
+    const ofw = drawFlagBadge(ctx, teamFlagId(fl.team), x + 48, y + 40 - ofh / 2, ofh, { colors: teamFlagColors(fl.team), t: null });
+    ctx.fillText("#" + (p ? p.num : "?") + " " + TEAMS[fl.team].short + "  ·  indirect free kick", x + 54 + ofw, y + 40);
   }
 }
 

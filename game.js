@@ -114,10 +114,10 @@ const TEAMMATE_AI = { speed: 0.95, think: 0.22, aimErr: 0.35, shootRange: 360, s
 // =====================================================================
 
 const TEAMS = {
-  blue: { name: "Blue", short: "BLU", ui: "#5aa0ff", dir: 1, ownGoalX: PITCH.left, targetGoalX: PITCH.right,
+  blue: { id: "blue", name: "Blue", short: "BLU", ui: "#5aa0ff", dir: 1, ownGoalX: PITCH.left, targetGoalX: PITCH.right,
           kit: { shirt: "#1f5fd6", shorts: "#ffffff", socks: "#1f5fd6", number: "#ffffff" },
           gk:  { shirt: "#2ecc40", shorts: "#111111", socks: "#2ecc40", number: "#0b3d14" } },
-  red:  { name: "Red", short: "RED", ui: "#ff6b6b", dir: -1, ownGoalX: PITCH.right, targetGoalX: PITCH.left,
+  red:  { id: "red", name: "Red", short: "RED", ui: "#ff6b6b", dir: -1, ownGoalX: PITCH.right, targetGoalX: PITCH.left,
           kit: { shirt: "#d62828", shorts: "#111111", socks: "#ffffff", number: "#ffffff" },
           gk:  { shirt: "#ffcc00", shorts: "#222222", socks: "#ffcc00", number: "#5a4300" } },
 };
@@ -189,7 +189,7 @@ function buildTeamKits(blueTeam, redTeam) {
 function applyTeamKits(k) {
   for (const t of ["blue", "red"]) {
     if (!k || !k[t]) continue;
-    Object.assign(TEAMS[t], { name: k[t].name, short: k[t].short, ui: k[t].ui, kit: { ...k[t].kit }, gk: { ...k[t].gk } });
+    Object.assign(TEAMS[t], { id: k[t].id || t, name: k[t].name, short: k[t].short, ui: k[t].ui, kit: { ...k[t].kit }, gk: { ...k[t].gk } });
   }
 }
 

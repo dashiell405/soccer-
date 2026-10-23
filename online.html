@@ -144,6 +144,27 @@
   /* lobby: team + rules pickers (new) */
   .team select { font: inherit; font-size: 15px; padding: 4px 6px; border-radius: 8px; max-width: 100%; margin: 2px 0 6px; }
   .kitDot { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,.4); vertical-align: middle; margin-right: 4px; }
+  .flagBadge {
+    display: inline-block; position: relative; vertical-align: middle; flex: 0 0 auto;
+    border-radius: 5px; overflow: hidden; line-height: 0; margin-right: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,.4), 0 0 0 1px rgba(0,0,0,.55);
+  }
+  .flagBadge img { display: block; width: 100%; height: 100%; object-fit: fill; }
+  .flagBadge .shine {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 32%, rgba(255,255,255,.42) 50%, transparent 68%);
+    background-size: 220% 100%; animation: flagShine 3.4s ease-in-out infinite;
+  }
+  .flagBadge.wave { animation: flagWave 2.8s ease-in-out infinite; transform-origin: 0% 50%; }
+  @keyframes flagShine { 0% { background-position: 130% 0; } 100% { background-position: -50% 0; } }
+  @keyframes flagWave {
+    0%, 100% { transform: skewY(0deg); }
+    50% { transform: skewY(1.3deg) scaleY(0.985); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .flagBadge.wave, .flagBadge .shine { animation: none; }
+  }
+  .team h3, #winScore { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
   .rules label { margin: 0 8px; font-size: 15px; cursor: pointer; }
   .rules input { transform: scale(1.25); margin-right: 4px; vertical-align: middle; }
   @media (max-height: 500px) { #lobby .help { font-size: 12px; } #roomCode { font-size: 36px; } .team { padding: 4px 8px; } }
