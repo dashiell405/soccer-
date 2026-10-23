@@ -14,7 +14,9 @@ Open this link on a computer, iPhone, or iPad:
 
 Hold a phone sideways. The green **KICK OFF** button starts a match.
 
-**Online play coming soon.** This website does not connect to a server. Friends on other phones are not in this version yet. Everything else works, and after the first visit it also works with no internet.
+**Play a friend online.** Tap **Play online**. One person taps **Host a game** and reads the short code (like `K7MP`). Friends tap **Join** and type it. 2 people (1 vs 1) or 4 people (2 vs 2) can play from different phones, iPads and computers. No account, and we don't run a game server.
+
+The host's screen has to stay open, because their device runs the match. If it can't connect, both of you need internet. Some school or shop Wi-Fi blocks this. Try again, or play on one device. After the first visit, the one-device game also works with no internet.
 
 ## Add it to your iPhone Home Screen
 
@@ -33,7 +35,7 @@ The game files are already in this repository. Pages is not always switched on. 
 2. Click **Settings**
 3. Click **Pages** in the left sidebar
 4. Under **Build and deployment**, set **Source** to **Deploy from a branch**
-5. Set **Branch** to **main** and the folder to **/ (root)**
+5. Set **Branch** to **none** and the folder to **/ (root)**
 6. Click **Save**
 
 Wait about a minute, then open **https://dashiell405.github.io/soccer-/** again.
@@ -45,9 +47,11 @@ The repository is **public**, which is what the free GitHub Pages plan needs. Do
 | File or folder | What it is |
 |---|---|
 | `index.html` | The game website. This is the page GitHub Pages shows. |
+| `online.html`, `online.js`, `game.js` | Play with friends. The host's browser runs the match and sends it directly to the other players (WebRTC + PeerJS). |
+| `vendor/peerjs.min.js` | A saved copy of PeerJS, used if the CDN is blocked. |
 | `manifest.webmanifest`, `sw.js`, `pwa.js`, `icons/` | The Home Screen app pieces (name, icon, and offline saving). |
 | `src/` and `build.py` | The source. After you edit those, run `python3 build.py`. |
 | `soccer.html` | The same offline game as one file you can double-click. |
-| `multiplayer/` | The Node.js server for online play later. See `multiplayer/README.md`. |
+| `multiplayer/` | An optional Node.js server for the same game on a home Wi-Fi. The website does not need it. See `multiplayer/README.md`. |
 
 Do not commit a `node_modules` folder. If you run the server, `npm install` creates it on your computer only.

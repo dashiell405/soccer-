@@ -28,7 +28,7 @@ function memberLine(m) {
   const tags = [];
   if (m.id === myId) tags.push("you");
   if (m.id === room.hostId) tags.push("host");
-  const status = m.connected ? (m.ping ? m.ping + " ms" : "") : "disconnected";
+  const status = m.connected ? (m.ping ? m.ping + " ms" : "") : "left \u2013 computer plays";
   return "<div class='slot" + (m.id === myId ? " me" : "") + (m.connected ? "" : " off") + "'><b>" + esc(m.name) + "</b>" +
     (tags.length ? " <span class='tag'>" + tags.join(", ") + "</span>" : "") +
     (status ? " <span class='ping'>" + status + "</span>" : "") + "</div>";
@@ -37,7 +37,10 @@ function memberLine(m) {
 function renderLobby() {
   const host = room.hostId === myId;
   $("roomCode").textContent = room.code;
-  $("shareUrl").textContent = location.origin + "/?room=" + room.code;
+  const link = new URL(location.href);
+  link.search = "?room=" + room.code;
+  link.hash = "";
+  $("shareUrl").textContent = link.href;
   document.querySelectorAll("[data-lmode]").forEach((b) => { b.classList.toggle("selected", b.dataset.lmode === room.mode); b.disabled = !host; });
   document.querySelectorAll("[data-ldiff]").forEach((b) => { b.classList.toggle("selected", b.dataset.ldiff === room.difficulty); b.disabled = !host; });
   document.querySelectorAll("[data-lmatch]").forEach((b) => { b.classList.toggle("selected", b.dataset.lmatch === (room.matchType || "match")); b.disabled = !host; });
@@ -67,7 +70,7 @@ function renderLobby() {
   $("specJoin").disabled = !me || !me.team;
   const humans = room.members.filter((m) => m.team).length;
   show("startBtn", host);
-  $("startBtn").textContent = humans < room.perTeam * 2 ? "Start (computer fills empty slots)" : "Start match";
+  $("startBtn").textContent = humans < room.perTeam * 2 ? "Start (computer fills the empty spots)" : "Start match";
   show("waitHost", !host);
 }
 
@@ -98,13 +101,34 @@ function toggleSound() {
   game.muted = !game.muted; Sound.setMuted(game.muted);
   $("soundBtn").textContent = game.muted ? "Sound: OFF" : "Sound: ON";
 }
-function leaveRoom() {
-  sendMsg({ t: "leave" });
+let noticeTimer = null;
+function showNotice(text, soft) {
+  const el = $("connBanner");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("soft", !!soft);
+  el.classList.remove("hidden");
+  clearTimeout(noticeTimer);
+  if (soft) noticeTimer = setTimeout(() => el.classList.add("hidden"), 7000);
+}
+function hideNotice() {
+  const el = $("connBanner");
+  if (!el) return;
+  clearTimeout(noticeTimer);
+  el.classList.add("hidden");
+}
+function clearRoom() {
   room = null; myId = null; wantRoom = null; menuOpen = false;
   game.phase = "lobby"; snaps.length = 0; controllers = [];
   try { sessionStorage.removeItem("soccerRoom"); } catch (e) { /* ignore */ }
   history.replaceState(null, "", location.pathname);
   updateScreens();
+}
+function leaveRoom() {
+  if (typeof netMarkLeaving === "function") netMarkLeaving();
+  try { sendMsg({ t: "leave" }); } catch (e) { /* already gone */ }
+  if (typeof netReset === "function") netReset();
+  clearRoom();
 }
 
 
@@ -131,8 +155,8 @@ $("createBtn").addEventListener("click", () => {
 });
 function joinByCode() {
   const name = myName(); if (!name) return;
-  const code = $("codeInput").value.trim().toUpperCase();
-  if (code.length !== 4) { $("homeMsg").textContent = "Room codes have 4 letters."; return; }
+  const code = $("codeInput").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code.length !== 4) { $("homeMsg").textContent = "The room code is 4 letters or numbers."; return; }
   Sound.init(); $("homeMsg").textContent = "";
   sendOrQueue({ t: "join", code, name });
 }
@@ -192,7 +216,7 @@ function frame(now) {
   updateCamera(dt);
   draw();
   const pb = $("pingBox");
-  pb.textContent = (ws && ws.readyState === 1 ? "\u25CF " : "\u25CB ") + pingMs + " ms";
+  pb.textContent = (netLinkUp() ? "\u25CF " : "\u25CB ") + pingMs + " ms";
   pb.style.color = pingMs < 80 ? "#7CFC8A" : pingMs < 200 ? "#ffd33d" : "#ff6b6b";
   requestAnimationFrame(frame);
 }
@@ -209,7 +233,9 @@ window.mpDebug = {
       me: a ? { index: players.indexOf(a), x: a.x, y: a.y, vx: a.vx, vy: a.vy } : null,
       myRaw: a && last ? (() => { const r = last.p[players.indexOf(a)]; return { x: r[0], y: r[1], vx: r[2], vy: r[3] }; })() : null,
       controllers: controllers.map((c) => ({ id: c.id, active: players.indexOf(c.active), cpu: c.cpu })),
-      ping: pingMs, snapshots: snaps.length, winVisible: !$("winScreen").classList.contains("hidden"),
+      ping: pingMs, link: netLinkUp(), host: netIsHost(),
+      net: typeof netDebug === "function" ? netDebug() : null,
+      snapshots: snaps.length, winVisible: !$("winScreen").classList.contains("hidden"),
       teams: { blue: TEAMS.blue.short, red: TEAMS.red.short, blueShirt: TEAMS.blue.kit.shirt, redShirt: TEAMS.red.kit.shirt },
       setpiece: game.setpiece && game.setpiece.type, indirect: !!(game.setpiece && game.setpiece.indirect),
       penalty: game.penalty ? { team: game.penalty.team, aimY: game.penalty.aimY, gkChoice: game.penalty.gkChoice, iAmTaker: game.penalty.taker === a, iAmKeeper: game.penalty.keeper === a } : null,

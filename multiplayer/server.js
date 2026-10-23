@@ -259,7 +259,7 @@ wss.on("connection", (ws) => {
       case "join": {
         if (room) return;
         const r = rooms.get(String(msg.code || "").toUpperCase().trim());
-        if (!r) { send(ws, { t: "error", msg: "Room not found. Check the 4-letter code." }); return; }
+        if (!r) { send(ws, { t: "error", msg: "No game uses that code. Ask your friend to read it again." }); return; }
         enter(r, cleanName(msg.name), typeof msg.token === "string" ? msg.token : null);
         break;
       }

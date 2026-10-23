@@ -1,6 +1,8 @@
 # Stadium Soccer ⚽ (Soccer Showdown 2 – Online)
 
-The free website (no server) is **https://dashiell405.github.io/soccer-/**. That page is the offline game, including Add to Home Screen. How to turn GitHub Pages on is in the README at the top of the repository. This folder is the online server, for friends on different devices.
+The free website is **https://dashiell405.github.io/soccer-/**. Friends can play online from that page with a room code. No account, and nobody has to run this folder. How to turn GitHub Pages on is in the README at the top of the repository.
+
+This folder is an **optional** home Wi-Fi server (a computer on the same network runs `npm start`). The website itself does not use it. On the website, the host's browser runs the match and the devices talk directly.
 
 Play soccer on **2 or 4 different devices** (phones, tablets or computers) at the same time!
 
@@ -30,7 +32,7 @@ Stadium Soccer is a **Home Screen app** (a "PWA"). Once it's hosted on an **http
 
 **Offline vs Computer** works even with no internet, once you've opened the app one time while online. That mode plays 1 player vs the computer, or 2 players on one keyboard.
 
-**Online rooms** need the server to be running.
+**Online rooms in this folder** need the server to be running. The GitHub Pages site does not: friends use a room code and the host's device runs the game.
 
 **Tip:** Over plain `http://` (like `http://192.168.x.x:3000` on your Wi-Fi), you can still add it to the Home Screen. But the no-internet part only works over **https://** — that's a rule of Safari.
 
