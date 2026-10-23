@@ -41,31 +41,43 @@
 
   .overlay {
     position: fixed; inset: 0; z-index: 20; display: flex;
-    align-items: center; justify-content: center; background: rgba(0,0,0,.55);
+    align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 30%, rgba(20,40,70,.35), rgba(0,0,0,.62));
   }
   .hidden { display: none !important; }
   .panel {
-    background: rgba(12,40,22,.95); border: 3px solid #fff; border-radius: 16px;
+    background: linear-gradient(180deg, rgba(18,28,46,.94), rgba(8,16,18,.96));
+    border: 1px solid rgba(255,255,255,.16);
+    border-top: 3px solid #e8c547;
+    border-radius: 18px;
     padding: 16px 24px; text-align: center; max-width: 94vw;
     max-height: 94vh;
     min-height: 0;
     max-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
-    overflow: auto; box-sizing: border-box; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+    overflow: auto; box-sizing: border-box;
+    box-shadow: 0 18px 50px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
     overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
   }
-  h1 { margin: 0 0 2px; font-size: clamp(24px, 5vw, 44px); letter-spacing: 1px; }
-  h1 .b { color: #5aa0ff; } h1 .r { color: #ff6b6b; }
+  .eyebrow { margin: 0 0 2px; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #e8c547; font-weight: bold; }
+  h1 { margin: 0 0 2px; font-size: clamp(26px, 5vw, 46px); letter-spacing: 1px; font-family: Impact, "Arial Black", Arial, sans-serif; font-weight: normal; }
+  h1 .b { color: #7eb6ff; } h1 .r { color: #ff6b6b; }
   .sub { margin: 0 0 6px; opacity: .85; }
   .row { margin: 7px 0; }
   .label { font-size: 12px; opacity: .8; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; }
   button, a.btnlink {
-    font: inherit; font-size: 16px; padding: 10px 15px; margin: 3px; border-radius: 10px;
-    border: 2px solid #fff; background: #245c38; color: #fff; cursor: pointer;
+    font: inherit; font-size: 16px; font-weight: 700; padding: 10px 15px; margin: 3px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.35); background: #1d4e34; color: #fff; cursor: pointer;
     min-height: 44px; touch-action: manipulation;
+    transition: filter .12s ease, transform .12s ease, background .12s ease;
   }
-  button:hover { filter: brightness(1.15); }
-  button.selected { background: #ffd33d; color: #123; border-color: #ffd33d; }
-  button.big { font-size: 22px; padding: 10px 36px; background: #e8562a; }
+  button:hover, a.btnlink:hover { filter: brightness(1.12); }
+  button:active { transform: translateY(1px); }
+  button.selected { background: linear-gradient(180deg, #ffe27a, #e6b325); color: #1a1404; border-color: #ffe27a; }
+  button.big, a.btnlink.big {
+    font-size: 22px; padding: 10px 36px; letter-spacing: 0.5px;
+    background: linear-gradient(180deg, #ff7a3c, #e23b16);
+    border: 0; box-shadow: 0 4px 0 #8a220c;
+  }
   .controls { font-size: 13px; line-height: 1.55; text-align: left; display: inline-block; margin-top: 4px; }
   kbd { background: #fff; color: #123; border-radius: 4px; padding: 0 5px; font-family: monospace; font-size: 12px; }
   #winTitle { font-size: clamp(30px, 6vw, 54px); margin: 0; }
@@ -215,6 +227,7 @@
 <!-- HOME: type your name, then create a room or join one -->
 <div id="home" class="overlay">
   <div class="panel homepanel">
+    <p class="eyebrow">Play a friend</p>
     <h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>
     <p class="sub">5-a-side &bull; play the computer, or 1v1 / 2v2 with friends on other devices &bull; first to 5 wins!</p>
     <div class="homegrid">
