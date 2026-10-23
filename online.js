@@ -89,7 +89,10 @@ const Sound = {
   ctx: null, master: null, noise: null, crowdGain: null,
 
   init() {
-    if (this.ctx) { if (this.ctx.state === "suspended") this.ctx.resume(); return; }
+    // resume() returns a promise. On a phone with no audio device it rejects,
+    // and that must not become a red error that stops the game.
+    const wake = () => { if (this.ctx && this.ctx.state === "suspended") this.ctx.resume().catch(() => {}); };
+    if (this.ctx) { wake(); return; }
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
@@ -111,6 +114,7 @@ const Sound = {
       this.crowdGain.gain.value = 0.05;
       src.connect(band).connect(this.crowdGain).connect(this.master);
       src.start();
+      wake();
     } catch (e) { this.ctx = null; }
   },
   muted: false,
@@ -1069,6 +1073,7 @@ joyZone.addEventListener("pointermove", (e) => { if (e.pointerId === touch.point
 function releaseJoystick(e) {
   if (e.pointerId !== touch.pointerId) return;
   touch.pointerId = null; touch.x = 0; touch.y = 0; joyKnob.style.transform = "";
+  joyBase.style.left = ""; joyBase.style.top = ""; joyBase.style.right = ""; joyBase.style.bottom = "";
   sendInput(true);
 }
 joyZone.addEventListener("pointerup", releaseJoystick);

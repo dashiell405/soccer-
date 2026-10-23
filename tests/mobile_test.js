@@ -93,7 +93,11 @@ function orient(spec, landscape) {
   async function openPhone(browser, spec, extra) {
     const ctx = await browser.newContext({ ...spec, ...(extra || {}), serviceWorkers: "allow" });
     const page = await ctx.newPage();
-    page.on("pageerror", (e) => fail("pageerror: " + e.message));
+    page.on("pageerror", (e) => {
+      // Headless WebKit rejects AudioContext when the machine has no sound card.
+      if (/audio device|AudioContext/i.test(e.message)) { console.log("audio warning:", e.message); return; }
+      fail("pageerror: " + e.message);
+    });
     page.on("console", (m) => { if (m.type() === "error") console.log("console", m.text().slice(0, 240)); });
     page.ctx = ctx;
     return page;
@@ -217,8 +221,31 @@ function orient(spec, landscape) {
   }
 
   async function playOffline(page, label, opts) {
+    try {
     await page.goto(BASE + "/", { waitUntil: "domcontentloaded" });
-    await page.waitForSelector("#startBtn");
+    try {
+      await page.waitForFunction(() => {
+        const el = document.getElementById("startBtn");
+        const menu = document.getElementById("menu");
+        if (!el || !menu) return false;
+        const r = el.getBoundingClientRect();
+        return getComputedStyle(menu).display !== "none" && r.width > 20 && r.height > 20;
+      }, null, { timeout: 8000 });
+    } catch (err) {
+      const dump = await page.evaluate(() => {
+        const el = document.getElementById("startBtn");
+        const r = el ? el.getBoundingClientRect() : null;
+        return {
+          url: location.href,
+          menu: document.getElementById("menu") && document.getElementById("menu").className,
+          screens: Array.from(document.querySelectorAll(".overlay")).map((e) => e.id + ":" + e.className),
+          rect: r && { w: r.width, h: r.height, y: r.y },
+          phase: window.soccerDebug ? soccerDebug.state().phase : null,
+        };
+      });
+      fail(label + ": KICK OFF not on the menu " + JSON.stringify(dump));
+      return;
+    }
     const meta = await page.evaluate(() => {
       const v = document.querySelector('meta[name="viewport"]').content;
       const panel = document.querySelector("#menu .panel");
@@ -251,8 +278,11 @@ function orient(spec, landscape) {
     const font = await page.evaluate(() => parseFloat(getComputedStyle(document.getElementById("customName")).fontSize));
     if (font < 16) fail(label + ": team name box is " + font + "px and iPhone would zoom it");
     if (opts.shots && opts.shots.teams) await shot(page, opts.shots.teams);
+    if (!(await visible(page, "#pickBackBtn"))) {
+      await page.evaluate(() => document.getElementById("pickBackBtn").scrollIntoView({ block: "center" }));
+    }
     await page.tap("#pickBackBtn");
-    await page.waitForSelector("#startBtn");
+    await page.waitForFunction(() => !document.getElementById("menu").classList.contains("hidden"), null, { timeout: 5000 });
 
     // 1 player vs computer
     await page.evaluate(() => soccerDebug.start({ mode: "1p", kind: "quick", difficulty: "easy" }));
@@ -331,7 +361,9 @@ function orient(spec, landscape) {
     if (/space|wasd/i.test(penHint)) fail(label + ": penalty hint is keyboard-only: " + penHint);
     if (opts.shots && opts.shots.pens) await shot(page, opts.shots.pens);
     console.log(label, "modes ok");
-    await page.ctx.close();
+    } finally {
+      await page.ctx.close();
+    }
   }
 
   async function playOnline(hostBrowser, guestBrowser, hostSpec, guestSpec, label, shotName) {
@@ -438,10 +470,16 @@ function orient(spec, landscape) {
   } catch (err) {
     fail("test crashed: " + (err && err.stack ? err.stack : err));
   } finally {
-    await safari.close();
-    await chrome.close();
+    // WebKit sometimes never finishes closing. Don't leave the test hanging
+    // after it has already printed the result.
+    const code = errors.length ? 1 : 0;
+    const killer = setTimeout(() => process.exit(code), 4000);
+    try { await safari.close(); } catch (e) { /* ignore */ }
+    try { await chrome.close(); } catch (e) { /* ignore */ }
     server.close();
     try { broker.close(); } catch (e) { /* already closed */ }
+    clearTimeout(killer);
+    process.exit(code);
   }
 
   if (errors.length) {

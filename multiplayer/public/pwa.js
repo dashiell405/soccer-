@@ -30,12 +30,13 @@
     // let the lobby/menu panels scroll if they're taller than the screen
     if (e.touches.length > 1 || !(e.target.closest && e.target.closest(".panel"))) e.preventDefault();
   }, { passive: false });
-  // iOS can still zoom on a quick double tap. Swallow the second tap
-  // unless the kid is typing a name or a room code.
+  // iOS zooms if you tap the pitch twice quickly. Don't do that to buttons:
+  // a second tap within a third of a second would never become a click,
+  // so Back, KICK OFF and SHOOT would feel broken.
   var lastTouchEnd = 0;
   document.addEventListener("touchend", function (e) {
     var t = e.target;
-    if (t && t.closest && t.closest("input, textarea, select")) return;
+    if (!t || t.id !== "game") return;
     var now = Date.now();
     if (now - lastTouchEnd < 320) e.preventDefault();
     lastTouchEnd = now;

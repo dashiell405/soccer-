@@ -6,7 +6,10 @@ const Sound = {
   ctx: null, master: null, noise: null, crowdGain: null,
 
   init() {
-    if (this.ctx) { if (this.ctx.state === "suspended") this.ctx.resume(); return; }
+    // resume() returns a promise. On a phone with no audio device it rejects,
+    // and that must not become a red error that stops the game.
+    const wake = () => { if (this.ctx && this.ctx.state === "suspended") this.ctx.resume().catch(() => {}); };
+    if (this.ctx) { wake(); return; }
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
@@ -28,6 +31,7 @@ const Sound = {
       this.crowdGain.gain.value = 0.05;
       src.connect(band).connect(this.crowdGain).connect(this.master);
       src.start();
+      wake();
     } catch (e) { this.ctx = null; }
   },
   muted: false,

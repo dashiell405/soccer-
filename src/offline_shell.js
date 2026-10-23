@@ -142,6 +142,9 @@ function bindPad(playerId, ids) {
   function release(e) {
     if (e.pointerId !== pad.pointerId) return;
     pad.pointerId = null; pad.x = 0; pad.y = 0; knob.style.transform = "";
+    // Put the stick back in its corner. Leaving it under the finger
+    // can park half of it off the bottom of a phone.
+    base.style.left = ""; base.style.top = ""; base.style.right = ""; base.style.bottom = "";
   }
   zone.addEventListener("pointerup", release);
   zone.addEventListener("pointercancel", release);

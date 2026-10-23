@@ -186,6 +186,7 @@ joyZone.addEventListener("pointermove", (e) => { if (e.pointerId === touch.point
 function releaseJoystick(e) {
   if (e.pointerId !== touch.pointerId) return;
   touch.pointerId = null; touch.x = 0; touch.y = 0; joyKnob.style.transform = "";
+  joyBase.style.left = ""; joyBase.style.top = ""; joyBase.style.right = ""; joyBase.style.bottom = "";
   sendInput(true);
 }
 joyZone.addEventListener("pointerup", releaseJoystick);
