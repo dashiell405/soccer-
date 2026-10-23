@@ -50,7 +50,13 @@ const controllerOf = (p) => controllers.find((c) => !c.cpu && c.active === p) ||
 const isHumanControlled = (p) => !!controllerOf(p);
 const inMatch = () => ["setpiece", "play", "dead", "goal", "shootout", "pkflight"].includes(game.phase);
 const memberName = (id) => { const m = room && room.members.find((x) => x.id === id); return m ? m.name : "?"; };
-const isTouchDevice = ("ontouchstart" in window) || (window.matchMedia && matchMedia("(pointer: coarse)").matches);
+const isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && matchMedia("(pointer: coarse)").matches);
+const isPortrait = () => {
+  const vv = window.visualViewport;
+  const w = (vv && vv.width) || window.innerWidth;
+  const h = (vv && vv.height) || window.innerHeight;
+  return h > w;
+};
 const touchActive = () => isTouchDevice;
 const $ = (id) => document.getElementById(id);
 

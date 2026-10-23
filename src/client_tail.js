@@ -16,8 +16,7 @@ function updateScreens() {
   show("touchControls", playing && isTouchDevice && !!(me && me.team) && !menuOpen);
   show("menuBtn", playing);
   show("pingBox", inRoom);
-  const portrait = window.innerHeight > window.innerWidth;
-  show("rotateHint", isTouchDevice && portrait && playing);
+  show("rotateHint", isTouchDevice && isPortrait());
   if (state === "lobby") renderLobby();
   if (inRoom && (state === "win" || game.phase === "win")) renderWin();
 }
@@ -186,7 +185,10 @@ $("copyBtn").addEventListener("click", () => {
   if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { $("copyBtn").textContent = "Copied!"; }, () => {});
 });
 // Sound can only start after a tap / key press (browser rule)
-window.addEventListener("pointerdown", () => Sound.init(), { once: true });
+window.addEventListener("pointerdown", () => Sound.init());
+if (isTouchDevice && $("matchHelp")) {
+  $("matchHelp").innerHTML = "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob). <b>RUN</b> sprints. <b>SKILL</b> does a trick.<br>Penalty: slide up or down, then hold SHOOT. In goal: slide up or down. Tap the picture to skip a celebration.";
+}
 
 // ---- Start up ----
 (function boot() {

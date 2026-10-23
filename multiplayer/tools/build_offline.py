@@ -33,14 +33,8 @@ def pwa_css(menu_id):
     box-sizing: border-box;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }}
-  .panel {{ overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }}
-  #joyBase   {{ left: calc(20px + env(safe-area-inset-left)); bottom: calc(20px + env(safe-area-inset-bottom)); }}
-  #shootBtn  {{ right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }}
-  #passBtn   {{ right: calc(28px + min(96px, 24vh) + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); }}
-  #sprintBtn {{ right: calc(30px + env(safe-area-inset-right)); bottom: calc(34px + min(96px, 24vh) + env(safe-area-inset-bottom)); }}
-  #skillBtn  {{ right: calc(40px + min(96px, 24vh) + min(72px, 18vh) + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); }}
+  .panel {{ overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }}
   #{menu_id} {{ top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }}
-  #rotateHint {{ top: calc(6px + env(safe-area-inset-top)); }}
   a.btnlink {{
     display: inline-block; text-decoration: none; font-size: 16px; padding: 8px 15px; margin: 3px;
     border-radius: 10px; border: 2px solid #fff; background: #245c38; color: #fff;
