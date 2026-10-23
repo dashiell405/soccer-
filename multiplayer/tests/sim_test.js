@@ -60,3 +60,24 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   assert((pen.aimY < aim0 - 30 || pen.aimY <= 476.5) && pen.gkChoice === 1, 'aim moved ' + pen.aimY.toFixed(0) + ' gk ' + pen.gkChoice);
   sim.setInput('a', { shoot: true }); sim.press('a','shoot'); run(sim, 0.4); sim.setInput('a', { shoot: false }); run(sim, 0.1);
   assert(!sim.game.penalty, 'human penalty kicked, dive=' + pen.dive); run(sim, 3); console.log('   score', sim.game.score, sim.game.comment.text); }
+// 11. referee and linesmen
+{ const sim = S.createSim({}); sim.start(); sim.setAutoplay(true); run(sim, 5);
+  const ref = sim.game.officials[0], near = sim.game.officials[1], far = sim.game.officials[2];
+  const gap = Math.hypot(ref.x - sim.ball.x, ref.y - sim.ball.y);
+  assert(ref.x > 140 && ref.x < 1500 && ref.y > 140 && ref.y < 960, 'referee stays on the pitch');
+  assert(gap > 30 && gap < 230, 'referee follows the ball at a distance ' + gap.toFixed(0));
+  assert(Math.abs(near.y - 992) < 1 && Math.abs(far.y - 110) < 1, 'linesmen stay on the touchlines');
+  const snap = sim.snapshot();
+  assert(snap.of && snap.of.length === 3 && snap.of[1].length === 8 && snap.p[0].length === 14, 'snapshot carries officials without changing players');
+}
+{ const sim = S.createSim({}); sim.start(); run(sim, 1); sim.debugOffside('blue');
+  let guard = 0; while (!sim.game.flag && guard++ < 400) sim.update(1/120);
+  sim.update(1/120);
+  assert(sim.game.flag && sim.game.officials[1].sig === 5 && sim.game.officials[2].sig !== 5, 'near linesman flags the blue offside');
+}
+{ const sim = S.createSim({}); sim.start(); run(sim, 1);
+  const i = sim.roster.findIndex(p => p.team === 'red' && p.role === 'DEF');
+  sim.giveCard(i, 'yellow'); run(sim, 2.2);
+  const ref = sim.game.officials[0], p = sim.roster[i];
+  assert(ref.sig === 3 && Math.hypot(ref.x - p.x, ref.y - p.y) < 90, 'referee holds the yellow card by the player');
+}
