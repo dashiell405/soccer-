@@ -30,7 +30,16 @@
     // let the lobby/menu panels scroll if they're taller than the screen
     if (e.touches.length > 1 || !(e.target.closest && e.target.closest(".panel"))) e.preventDefault();
   }, { passive: false });
-  // (double-tap zoom is turned off by "touch-action: none" in the CSS)
+  // iOS can still zoom on a quick double tap. Swallow the second tap
+  // unless the kid is typing a name or a room code.
+  var lastTouchEnd = 0;
+  document.addEventListener("touchend", function (e) {
+    var t = e.target;
+    if (t && t.closest && t.closest("input, textarea, select")) return;
+    var now = Date.now();
+    if (now - lastTouchEnd < 320) e.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
 
   var standalone = window.navigator.standalone === true ||
     (window.matchMedia && window.matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches);

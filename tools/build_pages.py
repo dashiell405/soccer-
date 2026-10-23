@@ -68,14 +68,7 @@ def extra_css():
     box-sizing: border-box;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
-  .panel { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-  #joyBase   { left: calc(20px + env(safe-area-inset-left)); bottom: calc(20px + env(safe-area-inset-bottom)); }
-  #shootBtn  { right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
-  #passBtn   { right: calc(28px + min(96px, 24vh) + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); }
-  #sprintBtn { right: calc(30px + env(safe-area-inset-right)); bottom: calc(34px + min(96px, 24vh) + env(safe-area-inset-bottom)); }
-  #skillBtn  { right: calc(40px + min(96px, 24vh) + min(72px, 18vh) + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); }
-  #pauseBtn { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
-  #rotateHint { top: calc(6px + env(safe-area-inset-top)); }
+  .panel { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
   a.btnlink {
     display: inline-block; text-decoration: none; font-size: 16px; padding: 8px 15px; margin: 3px;
     border-radius: 10px; border: 2px solid #fff; background: #1f5fd6; color: #fff;
@@ -96,7 +89,7 @@ SW_JS = r'''/* =================================================================
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-pages-v2";
+const VERSION = "stadium-soccer-pages-v3";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -327,7 +320,7 @@ def main():
         if re.search(r'''(?:href|src|register)\s*[\(=]\s*["']/(?!/)''', text):
             raise SystemExit(rel + " has a root-absolute URL; Pages needs relative paths")
     sw = open(os.path.join(ROOT, "sw.js"), encoding="utf-8").read()
-    if "stadium-soccer-pages-v2" not in sw or "url.origin !== self.location.origin" not in sw:
+    if "stadium-soccer-pages-v3" not in sw or "url.origin !== self.location.origin" not in sw:
         raise SystemExit("service worker is missing the cache bump or the cross-origin bypass")
     online_js = open(os.path.join(ROOT, "online.js"), encoding="utf-8").read()
     if "new WebSocket" in online_js or "SOCCER" not in online_js or "stun:stun.l.google.com:19302" not in online_js:

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Soccer Showdown 2 - Stadium Edition</title>
 <!--
   =====================================================================
@@ -38,21 +38,34 @@
 -->
 <style>
   html, body {
-    margin: 0; height: 100%; overflow: hidden; background: #111;
+    margin: 0; height: 100%; height: 100dvh; overflow: hidden; background: #111;
     color: #fff; font-family: "Trebuchet MS", Arial, sans-serif;
+    position: fixed; inset: 0; width: 100%; overscroll-behavior: none;
     touch-action: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
   }
+  html.standalone, html.standalone body { min-height: 100dvh; min-height: -webkit-fill-available; background: #0c2816; }
   canvas { position: fixed; left: 0; top: 0; display: block; }
+  #safeProbe {
+    position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+    border-style: solid; border-color: transparent;
+    border-width: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
 
   .overlay {
     position: fixed; inset: 0; z-index: 20; display: flex;
     align-items: center; justify-content: center; background: rgba(0,0,0,.55);
+    box-sizing: border-box;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   .hidden { display: none !important; }
   .panel {
     background: rgba(12,40,22,.95); border: 3px solid #fff; border-radius: 16px;
-    padding: 16px 24px; text-align: center; max-width: 94vw; max-height: 94vh;
+    padding: 16px 24px; text-align: center; max-width: 94vw;
+    max-height: 94vh;
+    max-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
     overflow: auto; box-sizing: border-box; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
   }
   h1 { margin: 0 0 2px; font-size: clamp(24px, 5vw, 44px); letter-spacing: 1px; }
   h1 .b { color: #5aa0ff; } h1 .r { color: #ff6b6b; }
@@ -60,9 +73,10 @@
   .row { margin: 7px 0; }
   .row .label { display: inline-block; margin-right: 6px; }
   .label { font-size: 12px; opacity: .8; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; }
-  button {
-    font: inherit; font-size: 16px; padding: 8px 15px; margin: 3px; border-radius: 10px;
+  button, a.btnlink {
+    font: inherit; font-size: 16px; padding: 10px 15px; margin: 3px; border-radius: 10px;
     border: 2px solid #fff; background: #245c38; color: #fff; cursor: pointer;
+    min-height: 44px; touch-action: manipulation;
   }
   button:hover { filter: brightness(1.15); }
   button.selected { background: #ffd33d; color: #123; border-color: #ffd33d; }
@@ -74,37 +88,48 @@
   #winStats { font-size: 14px; opacity: .85; margin: 0 0 10px; }
 
   #pauseBtn {
-    position: fixed; top: 8px; right: 8px; z-index: 15; width: 44px; height: 44px;
-    padding: 0; font-size: 18px; font-weight: bold; background: rgba(0,0,0,.45);
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right));
+    z-index: 15; width: 44px; height: 44px; min-height: 44px;
+    padding: 0; font-size: 18px; font-weight: bold; background: rgba(0,0,0,.45); touch-action: none;
   }
 
-  /* ---- Touch controls (phones / tablets, 1 Player mode) ---- */
-  #joyZone { position: fixed; left: 0; top: 0; width: 45%; height: 100%; z-index: 5; }
-  #joyBase {
-    position: fixed; left: 20px; bottom: 20px; width: 130px; height: 130px; z-index: 6;
+  /* ---- Touch controls. One stick on the left for 1 player.
+          Two players on one phone: class "split" gives each side a stick. ---- */
+  #joyZone, #joyZone2 { position: fixed; top: 0; height: 100%; z-index: 5; touch-action: none; }
+  #joyZone { left: 0; width: 46%; }
+  #joyBase, #joyBase2 {
+    position: fixed; width: 130px; height: 130px; z-index: 6;
     border-radius: 50%; background: rgba(255,255,255,.10); border: 3px solid rgba(255,255,255,.5);
     pointer-events: none;
   }
-  #joyKnob {
+  #joyBase { left: calc(16px + env(safe-area-inset-left)); bottom: calc(16px + env(safe-area-inset-bottom)); }
+  #joyKnob, #joyKnob2 {
     position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px;
-    border-radius: 50%; background: rgba(255,255,255,.55);
+    border-radius: 50%; background: rgba(255,255,255,.55); pointer-events: none;
   }
   .tbtn {
-    position: fixed; z-index: 6; border-radius: 50%; border: 3px solid #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: bold; letter-spacing: 1px; color: #fff;
+    position: fixed; z-index: 7; border-radius: 50%; border: 3px solid #fff;
+    display: flex; align-items: center; justify-content: center; touch-action: none;
+    font-weight: bold; letter-spacing: 1px; color: #fff; padding: 0; min-height: 0;
   }
-  #shootBtn { right: 18px; bottom: 22px; width: min(96px, 24vh); height: min(96px, 24vh); background: rgba(232,86,42,.6); font-size: 17px; }
-  #passBtn  { right: calc(28px + min(96px, 24vh)); bottom: 14px; width: min(72px, 18vh); height: min(72px, 18vh); background: rgba(47,123,255,.6); font-size: 14px; }
-  #sprintBtn{ right: 30px; bottom: calc(34px + min(96px, 24vh)); width: min(66px, 17vh); height: min(66px, 17vh); background: rgba(46,204,64,.55); font-size: 12px; }
+  #shootBtn { right: calc(14px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); width: min(96px, 22vh); height: min(96px, 22vh); background: rgba(232,86,42,.6); font-size: 16px; }
+  #passBtn  { right: calc(24px + min(96px, 22vh) + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom)); width: min(72px, 17vh); height: min(72px, 17vh); background: rgba(47,123,255,.6); font-size: 13px; }
+  #sprintBtn{ right: calc(22px + env(safe-area-inset-right)); bottom: calc(28px + min(96px, 22vh) + env(safe-area-inset-bottom)); width: min(66px, 16vh); height: min(66px, 16vh); background: rgba(46,204,64,.55); font-size: 12px; }
   .tbtn.pressed { background: rgba(255,211,61,.9) !important; color: #123; }
   #rotateHint {
-    position: fixed; top: 6px; left: 50%; transform: translateX(-50%); z-index: 16;
-    background: rgba(0,0,0,.6); padding: 4px 12px; border-radius: 8px; font-size: 14px;
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    z-index: 40; pointer-events: none; max-width: min(68vw, 260px); text-align: center;
+    background: rgba(0,0,0,.75); padding: 6px 12px; border-radius: 10px; font-size: 15px;
+    border: 2px solid #ffd33d;
+  }
+  #joyZone2, #joyBase2, #shootBtn2, #passBtn2, #sprintBtn2, #skillBtn2, .padTag { display: none; }
+  .padTag {
+    position: fixed; z-index: 7; pointer-events: none; font-size: 13px; font-weight: bold;
+    background: rgba(0,0,0,.45); padding: 2px 8px; border-radius: 8px;
   }
 
   /* ---- New in this version: team picker, cup bracket, trophy ---- */
-  #skillBtn { right: calc(40px + min(96px, 24vh) + min(72px, 18vh)); bottom: 18px; width: min(62px, 16vh); height: min(62px, 16vh); background: rgba(155,89,182,.6); font-size: 12px; }
+  #skillBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); width: min(62px, 15vh); height: min(62px, 15vh); background: rgba(155,89,182,.6); font-size: 12px; }
   .kindRow button { min-width: 120px; }
   .teamsRow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: stretch; }
   .teamBtn { display: flex; align-items: center; gap: 8px; text-align: left; min-width: 210px; background: #1b4a2c; line-height: 1.25; }
@@ -125,7 +150,7 @@
   .teamTile .kit { margin: 0; }
   .teamTile.selected .stars, .teamTile.selected .stars .dim { color: #7a5a00; }
   .customBox { border: 2px dashed rgba(255,255,255,.5); border-radius: 10px; padding: 6px 10px; margin-top: 6px; }
-  .customBox input[type=text] { font: inherit; font-size: 15px; padding: 4px 8px; border-radius: 8px; border: 0; width: 150px; }
+  .customBox input[type=text] { font: inherit; font-size: 16px; padding: 8px; border-radius: 8px; border: 0; width: 150px; touch-action: manipulation; }
   .customBox input[type=color] { width: 44px; height: 30px; border: 0; padding: 0; vertical-align: middle; background: none; }
   .customBox label { margin: 0 6px; font-size: 13px; }
   #bracket { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 8px 0; }
@@ -142,29 +167,97 @@
   #trophyCanvas { position: static; width: min(360px, 80vw); height: auto; display: block; margin: 0 auto; }
   #trophyTeam { font-size: clamp(22px, 5vw, 36px); margin: 0; color: #ffd33d; }
   #keysHint {
-    position: fixed; left: 8px; bottom: 8px; z-index: 14; font-size: 12px; background: rgba(0,0,0,.55);
+    position: fixed; left: calc(8px + env(safe-area-inset-left)); bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: 14; font-size: 12px; background: rgba(0,0,0,.55);
     padding: 4px 8px; border-radius: 8px; pointer-events: none; line-height: 1.5;
   }
   #pauseHelp { font-size: 12px; }
+  input, select, textarea { font-size: 16px; touch-action: manipulation; }
+
+  /* Phone held upright: stack the buttons so they don't cover the stick. */
+  @media (max-width: 520px) {
+    .panel { padding: 8px 10px; }
+    h1 { font-size: 26px; }
+    .row { margin: 4px 0; }
+    .kindRow button { min-width: 0; }
+    .teamBtn { min-width: 0; flex: 1 1 140px; padding: 8px; }
+    #bracket { flex-direction: column; align-items: stretch; }
+    #bracket .col { min-width: 0; }
+    #joyZone { width: 48%; }
+    #joyBase { width: 116px; height: 116px; }
+    #shootBtn, #passBtn, #sprintBtn, #skillBtn {
+      right: calc(10px + env(safe-area-inset-right)); left: auto;
+      width: 64px; height: 64px; font-size: 11px;
+    }
+    #shootBtn { bottom: calc(12px + env(safe-area-inset-bottom)); }
+    #passBtn { bottom: calc(84px + env(safe-area-inset-bottom)); }
+    #sprintBtn { bottom: calc(156px + env(safe-area-inset-bottom)); }
+    #skillBtn { bottom: calc(228px + env(safe-area-inset-bottom)); }
+  }
+
+  /* Two players, phone sideways: each thumb gets a stick and four buttons. */
+  #touchControls.split #joyZone { width: 50%; }
+  #touchControls.split #joyZone2 { display: block; right: 0; left: auto; width: 50%; }
+  #touchControls.split #joyBase { width: 112px; height: 112px; left: calc(12px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom)); }
+  #touchControls.split #joyBase2 {
+    display: block; width: 112px; height: 112px;
+    right: calc(12px + env(safe-area-inset-right)); left: auto;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+  #touchControls.split #shootBtn, #touchControls.split #passBtn, #touchControls.split #sprintBtn, #touchControls.split #skillBtn,
+  #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2 {
+    width: 62px; height: 62px; font-size: 11px;
+  }
+  #touchControls.split #shootBtn { left: calc(136px + env(safe-area-inset-left)); right: auto; bottom: calc(14px + env(safe-area-inset-bottom)); width: 70px; height: 70px; }
+  #touchControls.split #passBtn { left: calc(214px + env(safe-area-inset-left)); right: auto; bottom: calc(18px + env(safe-area-inset-bottom)); }
+  #touchControls.split #sprintBtn { left: calc(136px + env(safe-area-inset-left)); right: auto; bottom: calc(92px + env(safe-area-inset-bottom)); }
+  #touchControls.split #skillBtn { left: calc(208px + env(safe-area-inset-left)); right: auto; bottom: calc(96px + env(safe-area-inset-bottom)); }
+  #touchControls.split #shootBtn2 { display: flex; right: calc(136px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); width: 70px; height: 70px; background: rgba(232,86,42,.6); }
+  #touchControls.split #passBtn2 { display: flex; right: calc(214px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); background: rgba(47,123,255,.6); }
+  #touchControls.split #sprintBtn2 { display: flex; right: calc(136px + env(safe-area-inset-right)); bottom: calc(92px + env(safe-area-inset-bottom)); background: rgba(46,204,64,.55); }
+  #touchControls.split #skillBtn2 { display: flex; right: calc(208px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
+  #touchControls.split #padTag1 { display: block; left: calc(14px + env(safe-area-inset-left)); top: calc(44px + env(safe-area-inset-top)); color: #9cc4ff; }
+  #touchControls.split #padTag2 { display: block; right: calc(14px + env(safe-area-inset-right)); top: calc(44px + env(safe-area-inset-top)); color: #ffb0b0; }
+
+  /* Two players, phone upright: stack each side so the buttons stay in their half. */
+  @media (max-width: 700px) {
+    #touchControls.split #joyBase, #touchControls.split #joyBase2 { width: 100px; height: 100px; right: auto; }
+    #touchControls.split #joyBase { left: calc(25% - 50px); bottom: calc(10px + env(safe-area-inset-bottom)); }
+    #touchControls.split #joyBase2 { display: block; left: calc(75% - 50px); bottom: calc(10px + env(safe-area-inset-bottom)); }
+    #touchControls.split #shootBtn, #touchControls.split #passBtn, #touchControls.split #sprintBtn, #touchControls.split #skillBtn,
+    #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2 {
+      width: 52px; height: 52px; font-size: 10px; right: auto;
+    }
+    #touchControls.split #passBtn { left: calc(25% - 56px); bottom: calc(122px + env(safe-area-inset-bottom)); }
+    #touchControls.split #shootBtn { left: calc(25% + 4px); bottom: calc(122px + env(safe-area-inset-bottom)); }
+    #touchControls.split #sprintBtn { left: calc(25% - 56px); bottom: calc(180px + env(safe-area-inset-bottom)); }
+    #touchControls.split #skillBtn { left: calc(25% + 4px); bottom: calc(180px + env(safe-area-inset-bottom)); }
+    #touchControls.split #passBtn2 { display: flex; left: calc(75% - 56px); bottom: calc(122px + env(safe-area-inset-bottom)); background: rgba(47,123,255,.6); }
+    #touchControls.split #shootBtn2 { display: flex; left: calc(75% + 4px); bottom: calc(122px + env(safe-area-inset-bottom)); background: rgba(232,86,42,.6); }
+    #touchControls.split #sprintBtn2 { display: flex; left: calc(75% - 56px); bottom: calc(180px + env(safe-area-inset-bottom)); background: rgba(46,204,64,.55); }
+    #touchControls.split #skillBtn2 { display: flex; left: calc(75% + 4px); bottom: calc(180px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
+  }
+
   @media (max-height: 500px) {
-    .panel { padding: 6px 14px; }
+    .panel { padding: 6px 12px; }
     .row { margin: 3px 0; }
-    h1 { font-size: 24px; }
-    button { font-size: 14px; padding: 5px 11px; margin: 2px; }
-    button.big { font-size: 18px; padding: 6px 28px; }
+    h1 { font-size: 22px; }
+    button, a.btnlink { font-size: 14px; padding: 6px 10px; margin: 2px; min-height: 36px; }
+    button.big, a.btnlink.big { font-size: 18px; padding: 8px 18px; }
     #formatLine { margin: 1px 0; font-size: 12px; }
     .rules label { font-size: 13px; }
-    a.btnlink { font-size: 14px !important; padding: 5px 11px !important; }
     .controls { display: none; }
-    #bracket .col { min-width: 140px; }
-    .teamBtn { min-width: 180px; padding: 4px 8px; }
-    #trophyCanvas { width: min(260px, 60vw); }
+    #bracket .col { min-width: 0; }
+    .teamBtn { min-width: 0; flex: 1 1 140px; padding: 4px 8px; }
+    #trophyCanvas { width: min(220px, 42vw); }
+    #onlineHint, .sub { display: none; }
   }
 </style>
 </head>
 <body>
 
 <canvas id="game"></canvas>
+<div id="safeProbe"></div>
 
 <!-- Start menu -->
 <div id="menu" class="overlay">
@@ -266,10 +359,10 @@
   </div>
 </div>
 
-<button id="pauseBtn" class="hidden" title="Pause (P / Esc)">II</button>
+<button id="pauseBtn" class="hidden" title="Pause">II</button>
 <div id="keysHint" class="hidden"><kbd>R</kbd> skill &nbsp;<kbd>F</kbd> flick &nbsp;<kbd>Q</kbd> switch &nbsp;<kbd>P</kbd> pause &nbsp;<kbd>M</kbd> sound</div>
 
-<!-- Touch controls -->
+<!-- Touch controls. The second set is for player 2 on the same phone. -->
 <div id="touchControls" class="hidden">
   <div id="joyZone"></div>
   <div id="joyBase"><div id="joyKnob"></div></div>
@@ -277,8 +370,16 @@
   <div id="passBtn" class="tbtn">PASS</div>
   <div id="sprintBtn" class="tbtn">RUN</div>
   <div id="skillBtn" class="tbtn">SKILL</div>
+  <div id="padTag1" class="padTag">P1</div>
+  <div id="joyZone2"></div>
+  <div id="joyBase2"><div id="joyKnob2"></div></div>
+  <div id="shootBtn2" class="tbtn">SHOOT</div>
+  <div id="passBtn2" class="tbtn">PASS</div>
+  <div id="sprintBtn2" class="tbtn">RUN</div>
+  <div id="skillBtn2" class="tbtn">SKILL</div>
+  <div id="padTag2" class="padTag">P2</div>
 </div>
-<div id="rotateHint" class="hidden">Turn your phone sideways for a bigger view</div>
+<div id="rotateHint" class="hidden">Turn your phone sideways — it's easier to play</div>
 
 <script>
 /*__SCRIPTS__*/

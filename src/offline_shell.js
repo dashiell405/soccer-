@@ -43,8 +43,15 @@ function saveSettings() { try { localStorage.setItem("soccerSettings", JSON.stri
 const teamDef = (id) => (id === "custom" ? customTeam(settings.custom) : findTeam(id) || TEAM_LIST[0]);
 
 const inMatch = () => !!sim && !atMenu && ["setpiece", "play", "dead", "goal", "shootout", "pkflight"].includes(game.phase);
-const isTouchDevice = ("ontouchstart" in window) || (window.matchMedia && matchMedia("(pointer: coarse)").matches);
-const touchActive = () => isTouchDevice && settings.mode === "1p";
+const isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && matchMedia("(pointer: coarse)").matches);
+const touchActive = () => isTouchDevice;
+const splitTouch = () => touchActive() && settings.mode === "2p";
+const isPortrait = () => {
+  const vv = window.visualViewport;
+  const w = (vv && vv.width) || window.innerWidth;
+  const h = (vv && vv.height) || window.innerHeight;
+  return h > w;
+};
 const controllerOf = (p) => (game.autoplay ? null : controllers.find((c) => !c.cpu && c.active === p) || null);
 const isHumanControlled = (p) => !!controllerOf(p);
 const updateScreens = () => updateHud();   // the drawing code calls this after a resize
@@ -91,7 +98,7 @@ function onKeyPressed(code) {
     for (const action of ["shoot", "pass", "swap", "skill", "flick"]) if (s[action].includes(code)) sim.press(id, action);
   }
 }
-const isDown = (id, action) => controlScheme(id)[action].some((c) => keys[c]) || (id === "p1" && touchActive() && !!touch[action]);
+const isDown = (id, action) => controlScheme(id)[action].some((c) => keys[c]) || (touchActive() && !!(pads[id] && pads[id][action]));
 
 // Read the keys / joystick into the match every frame
 function feedInput() {
@@ -101,55 +108,69 @@ function feedInput() {
     if (isDown(id, "right")) mx += 1;
     if (isDown(id, "up")) my -= 1;
     if (isDown(id, "down")) my += 1;
-    if (id === "p1" && !mx && !my && touchActive()) { mx = touch.x; my = touch.y; }
+    const pad = touchActive() ? pads[id] : null;
+    if (pad && !mx && !my) { mx = pad.x; my = pad.y; }
     sim.setInput(id, { mx, my, sprint: isDown(id, "sprint"), shoot: isDown(id, "shoot"), pass: isDown(id, "pass") });
   }
 }
 
-// ---- Touch joystick + buttons ----
-const touch = { x: 0, y: 0, pointerId: null, baseX: 0, baseY: 0, shoot: false, pass: false, sprint: false, skill: false };
-const joyZone = $("joyZone"), joyBase = $("joyBase"), joyKnob = $("joyKnob");
-const JOY_MAX = 50;
-joyZone.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  if (inMatch() && game.phase === "goal") sim.press("p1", "skip");
-  touch.pointerId = e.pointerId; touch.baseX = e.clientX; touch.baseY = e.clientY;
-  joyBase.style.left = (e.clientX - 65) + "px"; joyBase.style.top = (e.clientY - 65) + "px"; joyBase.style.bottom = "auto";
-  try { joyZone.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-  updateJoystick(e);
-});
-joyZone.addEventListener("pointermove", (e) => { if (e.pointerId === touch.pointerId) updateJoystick(e); });
-function releaseJoystick(e) {
-  if (e.pointerId !== touch.pointerId) return;
-  touch.pointerId = null; touch.x = 0; touch.y = 0; joyKnob.style.transform = "";
-}
-joyZone.addEventListener("pointerup", releaseJoystick);
-joyZone.addEventListener("pointercancel", releaseJoystick);
-function updateJoystick(e) {
-  let dx = e.clientX - touch.baseX, dy = e.clientY - touch.baseY;
-  const len = Math.hypot(dx, dy);
-  if (len > JOY_MAX) { dx = dx / len * JOY_MAX; dy = dy / len * JOY_MAX; }
-  touch.x = dx / JOY_MAX; touch.y = dy / JOY_MAX;
-  if (Math.hypot(touch.x, touch.y) < 0.15) { touch.x = 0; touch.y = 0; }
-  joyKnob.style.transform = "translate(" + dx + "px," + dy + "px)";
-}
-for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprintBtn", "sprint"], ["skillBtn", "skill"]]) {
-  const el = $(id);
-  el.addEventListener("pointerdown", (e) => {
+// ---- Touch joysticks + buttons (player 2's pad is used in 2 Players) ----
+function bindPad(playerId, ids) {
+  const zone = $(ids.zone), base = $(ids.base), knob = $(ids.knob);
+  const pad = { x: 0, y: 0, pointerId: null, baseX: 0, baseY: 0, shoot: false, pass: false, sprint: false, skill: false };
+  if (!zone || !base || !knob) return pad;
+  function movePad(e) {
+    let dx = e.clientX - pad.baseX, dy = e.clientY - pad.baseY;
+    const len = Math.hypot(dx, dy);
+    const max = Math.max(36, base.offsetWidth * 0.42);
+    if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+    pad.x = dx / max; pad.y = dy / max;
+    if (Math.hypot(pad.x, pad.y) < 0.15) { pad.x = 0; pad.y = 0; }
+    knob.style.transform = "translate(" + dx + "px," + dy + "px)";
+  }
+  zone.addEventListener("pointerdown", (e) => {
     e.preventDefault();
-    touch[action] = true; el.classList.add("pressed");
-    try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-    if (inMatch() && !paused) {
-      if (game.phase === "goal") sim.press("p1", "skip");
-      else if (action !== "sprint") sim.press("p1", action);
-    }
+    if (inMatch() && game.phase === "goal") sim.press(playerId, "skip");
+    pad.pointerId = e.pointerId; pad.baseX = e.clientX; pad.baseY = e.clientY;
+    base.style.left = (e.clientX - base.offsetWidth / 2) + "px";
+    base.style.top = (e.clientY - base.offsetHeight / 2) + "px";
+    base.style.right = "auto"; base.style.bottom = "auto";
+    try { zone.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    movePad(e);
   });
-  const up = () => { touch[action] = false; el.classList.remove("pressed"); };
-  el.addEventListener("pointerup", up);
-  el.addEventListener("pointercancel", up);
+  zone.addEventListener("pointermove", (e) => { if (e.pointerId === pad.pointerId) movePad(e); });
+  function release(e) {
+    if (e.pointerId !== pad.pointerId) return;
+    pad.pointerId = null; pad.x = 0; pad.y = 0; knob.style.transform = "";
+  }
+  zone.addEventListener("pointerup", release);
+  zone.addEventListener("pointercancel", release);
+  for (const [id, action] of [[ids.shoot, "shoot"], [ids.pass, "pass"], [ids.sprint, "sprint"], [ids.skill, "skill"]]) {
+    const el = $(id);
+    if (!el) continue;
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      pad[action] = true; el.classList.add("pressed");
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      if (inMatch() && !paused) {
+        if (game.phase === "goal") sim.press(playerId, "skip");
+        else if (action !== "sprint") sim.press(playerId, action);
+      }
+    });
+    const up = () => { pad[action] = false; el.classList.remove("pressed"); };
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+  }
+  return pad;
 }
+const pads = {
+  p1: bindPad("p1", { zone: "joyZone", base: "joyBase", knob: "joyKnob", shoot: "shootBtn", pass: "passBtn", sprint: "sprintBtn", skill: "skillBtn" }),
+  p2: bindPad("p2", { zone: "joyZone2", base: "joyBase2", knob: "joyKnob2", shoot: "shootBtn2", pass: "passBtn2", sprint: "sprintBtn2", skill: "skillBtn2" }),
+};
 // Tapping the pitch skips a goal celebration too
 $("game").addEventListener("pointerdown", () => { if (inMatch() && game.phase === "goal") sim.press("p1", "skip"); });
+// Phones only start sound after a tap. The first tap anywhere unlocks it.
+window.addEventListener("pointerdown", () => Sound.init());
 
 // =====================================================================
 // C. HOOKS FOR THE DRAWING CODE
@@ -231,9 +252,19 @@ function showScreen(id) {
 function updateHud() {
   const playing = inMatch() && !paused;
   $("pauseBtn").classList.toggle("hidden", !playing);
-  $("touchControls").classList.toggle("hidden", !(playing && touchActive()));
-  const portrait = window.innerHeight > window.innerWidth;
-  $("rotateHint").classList.toggle("hidden", !(isTouchDevice && portrait));
+  $("pauseBtn").title = isTouchDevice ? "Pause" : "Pause (P / Esc)";
+  const controls = $("touchControls");
+  const touchOn = playing && touchActive();
+  controls.classList.toggle("hidden", !touchOn);
+  controls.classList.toggle("split", touchOn && splitTouch());
+  const portrait = isPortrait();
+  const hint = $("rotateHint");
+  hint.classList.toggle("hidden", !(isTouchDevice && portrait));
+  if (isTouchDevice && portrait) {
+    hint.textContent = settings.mode === "2p"
+      ? "Two players fit best sideways — turn the phone"
+      : "Turn your phone sideways — it's easier to play";
+  }
   $("keysHint").classList.toggle("hidden", !(playing && !touchActive() && performance.now() - matchStartedAt < 14000));
 }
 function goToMenu() {
@@ -283,7 +314,19 @@ function renderMenu() {
 }
 function updateControlsHelp() {
   const help = $("controlsHelp");
-  if (settings.mode === "1p") {
+  if (isTouchDevice && settings.mode === "1p") {
+    help.innerHTML =
+      "<b>You attack the goal on the right.</b><br>" +
+      "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob).<br>" +
+      "<b>RUN</b> sprints. <b>SKILL</b> does a trick. The pause button is in the top corner.<br>" +
+      "Penalty: slide the stick up or down, then hold SHOOT. In goal: slide up or down.";
+  } else if (isTouchDevice) {
+    help.innerHTML =
+      "<b>Two players, one phone.</b> Hold it sideways.<br>" +
+      "<b style='color:#9cc4ff'>P1</b> uses the left stick and the left SHOOT, PASS, RUN and SKILL buttons.<br>" +
+      "<b style='color:#ffb0b0'>P2</b> uses the right stick and the right buttons.<br>" +
+      "Hold SHOOT for a bigger kick. Tap the pause button in the top corner to pause.";
+  } else if (settings.mode === "1p") {
     help.innerHTML =
       "<b>You attack the goal on the right</b><br>" +
       "Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> &nbsp; Sprint <kbd>Shift</kbd> &nbsp; Switch <kbd>Q</kbd><br>" +
@@ -291,7 +334,7 @@ function updateControlsHelp() {
       "<kbd>E</kbd> pass (hold = lob) &bull; no ball: switch player<br>" +
       "<kbd>R</kbd> skill move (push sideways = spin, back = flick, +Shift = burst) &nbsp; <kbd>F</kbd> rainbow flick<br>" +
       "Penalty: <kbd>&uarr;</kbd>/<kbd>&darr;</kbd> aim, hold <kbd>Space</kbd> &bull; in goal: <kbd>&uarr;</kbd>/<kbd>&darr;</kbd> pick a side<br>" +
-      "<kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound &nbsp; Phone: joystick + SHOOT / PASS / RUN / SKILL";
+      "<kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound";
   } else {
     help.innerHTML =
       "<b style='color:#9cc4ff'>P1</b>: <kbd>WASD</kbd> move, <kbd>L-Shift</kbd> sprint, <kbd>Space</kbd> shoot, <kbd>E</kbd> pass, <kbd>Q</kbd> switch, <kbd>R</kbd> skill, <kbd>F</kbd> flick<br>" +

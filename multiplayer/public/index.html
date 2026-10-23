@@ -25,11 +25,19 @@
 -->
 <style>
   html, body {
-    margin: 0; height: 100%; overflow: hidden; background: #111;
+    margin: 0; height: 100%; height: 100dvh; overflow: hidden; background: #111;
     color: #fff; font-family: "Trebuchet MS", Arial, sans-serif;
+    position: fixed; inset: 0; width: 100%; overscroll-behavior: none;
     touch-action: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
   }
+  html.standalone, html.standalone body { min-height: 100dvh; min-height: -webkit-fill-available; background: #0c2816; }
   canvas { position: fixed; left: 0; top: 0; display: block; }
+  #safeProbe {
+    position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+    border-style: solid; border-color: transparent;
+    border-width: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
 
   .overlay {
     position: fixed; inset: 0; z-index: 20; display: flex;
@@ -38,17 +46,21 @@
   .hidden { display: none !important; }
   .panel {
     background: rgba(12,40,22,.95); border: 3px solid #fff; border-radius: 16px;
-    padding: 16px 24px; text-align: center; max-width: 94vw; max-height: 94vh;
+    padding: 16px 24px; text-align: center; max-width: 94vw;
+    max-height: 94vh;
+    max-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
     overflow: auto; box-sizing: border-box; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
   }
   h1 { margin: 0 0 2px; font-size: clamp(24px, 5vw, 44px); letter-spacing: 1px; }
   h1 .b { color: #5aa0ff; } h1 .r { color: #ff6b6b; }
   .sub { margin: 0 0 6px; opacity: .85; }
   .row { margin: 7px 0; }
   .label { font-size: 12px; opacity: .8; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; }
-  button {
-    font: inherit; font-size: 16px; padding: 8px 15px; margin: 3px; border-radius: 10px;
+  button, a.btnlink {
+    font: inherit; font-size: 16px; padding: 10px 15px; margin: 3px; border-radius: 10px;
     border: 2px solid #fff; background: #245c38; color: #fff; cursor: pointer;
+    min-height: 44px; touch-action: manipulation;
   }
   button:hover { filter: brightness(1.15); }
   button.selected { background: #ffd33d; color: #123; border-color: #ffd33d; }
@@ -73,12 +85,12 @@
   }
   #joyKnob {
     position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px;
-    border-radius: 50%; background: rgba(255,255,255,.55);
+    border-radius: 50%; background: rgba(255,255,255,.55); pointer-events: none;
   }
   .tbtn {
-    position: fixed; z-index: 6; border-radius: 50%; border: 3px solid #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: bold; letter-spacing: 1px; color: #fff;
+    position: fixed; z-index: 7; border-radius: 50%; border: 3px solid #fff;
+    display: flex; align-items: center; justify-content: center; touch-action: none;
+    font-weight: bold; letter-spacing: 1px; color: #fff; padding: 0; min-height: 0;
   }
   #shootBtn { right: 18px; bottom: 22px; width: min(96px, 24vh); height: min(96px, 24vh); background: rgba(232,86,42,.6); font-size: 17px; }
   #passBtn  { right: calc(28px + min(96px, 24vh)); bottom: 14px; width: min(72px, 18vh); height: min(72px, 18vh); background: rgba(47,123,255,.6); font-size: 14px; }
@@ -86,14 +98,16 @@
   #skillBtn { right: calc(40px + min(96px, 24vh) + min(72px, 18vh)); bottom: 18px; width: min(62px, 16vh); height: min(62px, 16vh); background: rgba(155,89,182,.6); font-size: 12px; }
   .tbtn.pressed { background: rgba(255,211,61,.9) !important; color: #123; }
   #rotateHint {
-    position: fixed; top: 6px; left: 50%; transform: translateX(-50%); z-index: 16;
-    background: rgba(0,0,0,.6); padding: 4px 12px; border-radius: 8px; font-size: 14px;
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    z-index: 40; pointer-events: none; max-width: min(68vw, 260px); text-align: center;
+    background: rgba(0,0,0,.75); padding: 6px 12px; border-radius: 10px; font-size: 15px;
+    border: 2px solid #ffd33d;
   }
 
   /* ---- Online lobby ---- */
-  input, select { touch-action: auto; }
+  input, select, textarea { touch-action: manipulation; font-size: 16px; }
   input[type=text] {
-    font: inherit; font-size: 18px; padding: 8px 12px; border-radius: 10px; border: 2px solid #fff;
+    font: inherit; font-size: 16px; padding: 8px 12px; border-radius: 10px; border: 2px solid #fff;
     background: #0d2a17; color: #fff; width: 200px; text-align: center; margin: 3px;
   }
   #codeInput { width: 120px; text-transform: uppercase; letter-spacing: 4px; font-weight: bold; }
@@ -144,14 +158,14 @@
     box-sizing: border-box;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
-  .panel { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .panel { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
   #joyBase   { left: calc(20px + env(safe-area-inset-left)); bottom: calc(20px + env(safe-area-inset-bottom)); }
   #shootBtn  { right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
   #passBtn   { right: calc(28px + min(96px, 24vh) + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); }
   #sprintBtn { right: calc(30px + env(safe-area-inset-right)); bottom: calc(34px + min(96px, 24vh) + env(safe-area-inset-bottom)); }
   #skillBtn  { right: calc(40px + min(96px, 24vh) + min(72px, 18vh) + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); }
   #menuBtn { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
-  #rotateHint { top: calc(6px + env(safe-area-inset-top)); }
+  #joyZone, #pauseBtn, #menuBtn { touch-action: none; }
   a.btnlink {
     display: inline-block; text-decoration: none; font-size: 16px; padding: 8px 15px; margin: 3px;
     border-radius: 10px; border: 2px solid #fff; background: #245c38; color: #fff;
@@ -166,11 +180,25 @@
   .onlinebox { flex: 2 1 400px; }
   .or { opacity: .7; margin: 0 4px; }
   #joinBtn { font-size: 18px; }
+  @media (max-width: 520px) {
+    .panel { padding: 8px 10px; }
+    h1 { font-size: 26px; }
+    #home .sub, #home .help { display: none; }
+    #joyBase { width: 116px; height: 116px; }
+    #shootBtn, #passBtn, #sprintBtn, #skillBtn {
+      right: calc(10px + env(safe-area-inset-right)); left: auto;
+      width: 64px; height: 64px; font-size: 11px;
+    }
+    #shootBtn { bottom: calc(12px + env(safe-area-inset-bottom)); }
+    #passBtn { bottom: calc(84px + env(safe-area-inset-bottom)); }
+    #sprintBtn { bottom: calc(156px + env(safe-area-inset-bottom)); }
+    #skillBtn { bottom: calc(228px + env(safe-area-inset-bottom)); }
+  }
   @media (max-height: 500px) {
     .panel { padding: 8px 14px; }
-    h1 { font-size: 30px; }
-    .sub, .homehelp { display: none; }
-    button { font-size: 14px; padding: 6px 11px; margin: 2px; }
+    h1 { font-size: 26px; }
+    .sub, .homehelp, #home .help { display: none; }
+    button, a.btnlink { font-size: 14px; padding: 6px 11px; margin: 2px; min-height: 36px; }
     button.big, a.btnlink.big { font-size: 18px; padding: 8px 20px; }
     input[type=text] { font-size: 16px; padding: 6px 10px; }
     .row { margin: 4px 0; }
@@ -181,6 +209,7 @@
 <body>
 
 <canvas id="game"></canvas>
+<div id="safeProbe"></div>
 
 <!-- HOME: type your name, then create a room or join one -->
 <div id="home" class="overlay">
@@ -249,7 +278,7 @@
     <p class="help">The match keeps going for everybody else!</p>
     <div class="row"><button id="menuCloseBtn" class="big">Back to the game</button></div>
     <div class="row"><button id="soundBtn">Sound: ON</button> <button id="menuLeaveBtn">Leave match</button></div>
-    <div class="help">Move WASD / Arrows &bull; Sprint Shift &bull; Shoot Space (hold) / slide<br>Pass E (tap / hold to lob) / switch &bull; Q switch &bull; M sound<br>
+    <div class="help" id="matchHelp">Move WASD / Arrows &bull; Sprint Shift &bull; Shoot Space (hold) / slide<br>Pass E (tap / hold to lob) / switch &bull; Q switch &bull; M sound<br>
       R skill move (sideways = spin, back = flick, +Shift = burst) &bull; F rainbow flick<br>Penalty: up/down aim, hold Space &bull; in goal: up/down picks a side &bull; any key skips a celebration</div>
   </div>
 </div>
@@ -281,7 +310,7 @@
   <div id="sprintBtn" class="tbtn">RUN</div>
   <div id="skillBtn" class="tbtn">SKILL</div>
 </div>
-<div id="rotateHint" class="hidden">Turn your phone sideways for a bigger view</div>
+<div id="rotateHint" class="hidden">Turn your phone sideways — it's easier to play</div>
 
 <script src="pwa.js"></script>
 <script src="game.js"></script>

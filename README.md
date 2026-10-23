@@ -12,7 +12,9 @@ Open this link on a computer, iPhone, or iPad:
 
 **https://dashiell405.github.io/soccer-/**
 
-Hold a phone sideways. The green **KICK OFF** button starts a match.
+Hold a phone sideways. The green **KICK OFF** button starts a match. If you open it upright, a yellow note asks you to turn the phone. You can still play upright.
+
+One player: left thumb on the stick, right thumb on **SHOOT**, **PASS**, **RUN** and **SKILL**. Two players on one phone each get a stick and those four buttons, P1 on the left and P2 on the right. The crowd starts after the first tap (phones block sound until then). Tap the **II** button to pause. You do not need a keyboard.
 
 **Play a friend online.** Tap **Play online**. One person taps **Host a game** and reads the short code (like `K7MP`). Friends tap **Join** and type it. 2 people (1 vs 1) or 4 people (2 vs 2) can play from different phones, iPads and computers. No account, and we don't run a game server.
 

@@ -10,7 +10,7 @@
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-pages-v2";
+const VERSION = "stadium-soccer-pages-v3";
 const APP_SHELL = [
   "./",
   "index.html",

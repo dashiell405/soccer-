@@ -50,21 +50,34 @@
 -->
 <style>
   html, body {
-    margin: 0; height: 100%; overflow: hidden; background: #111;
+    margin: 0; height: 100%; height: 100dvh; overflow: hidden; background: #111;
     color: #fff; font-family: "Trebuchet MS", Arial, sans-serif;
+    position: fixed; inset: 0; width: 100%; overscroll-behavior: none;
     touch-action: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
   }
+  html.standalone, html.standalone body { min-height: 100dvh; min-height: -webkit-fill-available; background: #0c2816; }
   canvas { position: fixed; left: 0; top: 0; display: block; }
+  #safeProbe {
+    position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+    border-style: solid; border-color: transparent;
+    border-width: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
 
   .overlay {
     position: fixed; inset: 0; z-index: 20; display: flex;
     align-items: center; justify-content: center; background: rgba(0,0,0,.55);
+    box-sizing: border-box;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   .hidden { display: none !important; }
   .panel {
     background: rgba(12,40,22,.95); border: 3px solid #fff; border-radius: 16px;
-    padding: 16px 24px; text-align: center; max-width: 94vw; max-height: 94vh;
+    padding: 16px 24px; text-align: center; max-width: 94vw;
+    max-height: 94vh;
+    max-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
     overflow: auto; box-sizing: border-box; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
   }
   h1 { margin: 0 0 2px; font-size: clamp(24px, 5vw, 44px); letter-spacing: 1px; }
   h1 .b { color: #5aa0ff; } h1 .r { color: #ff6b6b; }
@@ -72,9 +85,10 @@
   .row { margin: 7px 0; }
   .row .label { display: inline-block; margin-right: 6px; }
   .label { font-size: 12px; opacity: .8; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; }
-  button {
-    font: inherit; font-size: 16px; padding: 8px 15px; margin: 3px; border-radius: 10px;
+  button, a.btnlink {
+    font: inherit; font-size: 16px; padding: 10px 15px; margin: 3px; border-radius: 10px;
     border: 2px solid #fff; background: #245c38; color: #fff; cursor: pointer;
+    min-height: 44px; touch-action: manipulation;
   }
   button:hover { filter: brightness(1.15); }
   button.selected { background: #ffd33d; color: #123; border-color: #ffd33d; }
@@ -86,37 +100,48 @@
   #winStats { font-size: 14px; opacity: .85; margin: 0 0 10px; }
 
   #pauseBtn {
-    position: fixed; top: 8px; right: 8px; z-index: 15; width: 44px; height: 44px;
-    padding: 0; font-size: 18px; font-weight: bold; background: rgba(0,0,0,.45);
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right));
+    z-index: 15; width: 44px; height: 44px; min-height: 44px;
+    padding: 0; font-size: 18px; font-weight: bold; background: rgba(0,0,0,.45); touch-action: none;
   }
 
-  /* ---- Touch controls (phones / tablets, 1 Player mode) ---- */
-  #joyZone { position: fixed; left: 0; top: 0; width: 45%; height: 100%; z-index: 5; }
-  #joyBase {
-    position: fixed; left: 20px; bottom: 20px; width: 130px; height: 130px; z-index: 6;
+  /* ---- Touch controls. One stick on the left for 1 player.
+          Two players on one phone: class "split" gives each side a stick. ---- */
+  #joyZone, #joyZone2 { position: fixed; top: 0; height: 100%; z-index: 5; touch-action: none; }
+  #joyZone { left: 0; width: 46%; }
+  #joyBase, #joyBase2 {
+    position: fixed; width: 130px; height: 130px; z-index: 6;
     border-radius: 50%; background: rgba(255,255,255,.10); border: 3px solid rgba(255,255,255,.5);
     pointer-events: none;
   }
-  #joyKnob {
+  #joyBase { left: calc(16px + env(safe-area-inset-left)); bottom: calc(16px + env(safe-area-inset-bottom)); }
+  #joyKnob, #joyKnob2 {
     position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px;
-    border-radius: 50%; background: rgba(255,255,255,.55);
+    border-radius: 50%; background: rgba(255,255,255,.55); pointer-events: none;
   }
   .tbtn {
-    position: fixed; z-index: 6; border-radius: 50%; border: 3px solid #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: bold; letter-spacing: 1px; color: #fff;
+    position: fixed; z-index: 7; border-radius: 50%; border: 3px solid #fff;
+    display: flex; align-items: center; justify-content: center; touch-action: none;
+    font-weight: bold; letter-spacing: 1px; color: #fff; padding: 0; min-height: 0;
   }
-  #shootBtn { right: 18px; bottom: 22px; width: min(96px, 24vh); height: min(96px, 24vh); background: rgba(232,86,42,.6); font-size: 17px; }
-  #passBtn  { right: calc(28px + min(96px, 24vh)); bottom: 14px; width: min(72px, 18vh); height: min(72px, 18vh); background: rgba(47,123,255,.6); font-size: 14px; }
-  #sprintBtn{ right: 30px; bottom: calc(34px + min(96px, 24vh)); width: min(66px, 17vh); height: min(66px, 17vh); background: rgba(46,204,64,.55); font-size: 12px; }
+  #shootBtn { right: calc(14px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); width: min(96px, 22vh); height: min(96px, 22vh); background: rgba(232,86,42,.6); font-size: 16px; }
+  #passBtn  { right: calc(24px + min(96px, 22vh) + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom)); width: min(72px, 17vh); height: min(72px, 17vh); background: rgba(47,123,255,.6); font-size: 13px; }
+  #sprintBtn{ right: calc(22px + env(safe-area-inset-right)); bottom: calc(28px + min(96px, 22vh) + env(safe-area-inset-bottom)); width: min(66px, 16vh); height: min(66px, 16vh); background: rgba(46,204,64,.55); font-size: 12px; }
   .tbtn.pressed { background: rgba(255,211,61,.9) !important; color: #123; }
   #rotateHint {
-    position: fixed; top: 6px; left: 50%; transform: translateX(-50%); z-index: 16;
-    background: rgba(0,0,0,.6); padding: 4px 12px; border-radius: 8px; font-size: 14px;
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    z-index: 40; pointer-events: none; max-width: min(68vw, 260px); text-align: center;
+    background: rgba(0,0,0,.75); padding: 6px 12px; border-radius: 10px; font-size: 15px;
+    border: 2px solid #ffd33d;
+  }
+  #joyZone2, #joyBase2, #shootBtn2, #passBtn2, #sprintBtn2, #skillBtn2, .padTag { display: none; }
+  .padTag {
+    position: fixed; z-index: 7; pointer-events: none; font-size: 13px; font-weight: bold;
+    background: rgba(0,0,0,.45); padding: 2px 8px; border-radius: 8px;
   }
 
   /* ---- New in this version: team picker, cup bracket, trophy ---- */
-  #skillBtn { right: calc(40px + min(96px, 24vh) + min(72px, 18vh)); bottom: 18px; width: min(62px, 16vh); height: min(62px, 16vh); background: rgba(155,89,182,.6); font-size: 12px; }
+  #skillBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); width: min(62px, 15vh); height: min(62px, 15vh); background: rgba(155,89,182,.6); font-size: 12px; }
   .kindRow button { min-width: 120px; }
   .teamsRow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: stretch; }
   .teamBtn { display: flex; align-items: center; gap: 8px; text-align: left; min-width: 210px; background: #1b4a2c; line-height: 1.25; }
@@ -137,7 +162,7 @@
   .teamTile .kit { margin: 0; }
   .teamTile.selected .stars, .teamTile.selected .stars .dim { color: #7a5a00; }
   .customBox { border: 2px dashed rgba(255,255,255,.5); border-radius: 10px; padding: 6px 10px; margin-top: 6px; }
-  .customBox input[type=text] { font: inherit; font-size: 15px; padding: 4px 8px; border-radius: 8px; border: 0; width: 150px; }
+  .customBox input[type=text] { font: inherit; font-size: 16px; padding: 8px; border-radius: 8px; border: 0; width: 150px; touch-action: manipulation; }
   .customBox input[type=color] { width: 44px; height: 30px; border: 0; padding: 0; vertical-align: middle; background: none; }
   .customBox label { margin: 0 6px; font-size: 13px; }
   #bracket { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 8px 0; }
@@ -154,23 +179,90 @@
   #trophyCanvas { position: static; width: min(360px, 80vw); height: auto; display: block; margin: 0 auto; }
   #trophyTeam { font-size: clamp(22px, 5vw, 36px); margin: 0; color: #ffd33d; }
   #keysHint {
-    position: fixed; left: 8px; bottom: 8px; z-index: 14; font-size: 12px; background: rgba(0,0,0,.55);
+    position: fixed; left: calc(8px + env(safe-area-inset-left)); bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: 14; font-size: 12px; background: rgba(0,0,0,.55);
     padding: 4px 8px; border-radius: 8px; pointer-events: none; line-height: 1.5;
   }
   #pauseHelp { font-size: 12px; }
+  input, select, textarea { font-size: 16px; touch-action: manipulation; }
+
+  /* Phone held upright: stack the buttons so they don't cover the stick. */
+  @media (max-width: 520px) {
+    .panel { padding: 8px 10px; }
+    h1 { font-size: 26px; }
+    .row { margin: 4px 0; }
+    .kindRow button { min-width: 0; }
+    .teamBtn { min-width: 0; flex: 1 1 140px; padding: 8px; }
+    #bracket { flex-direction: column; align-items: stretch; }
+    #bracket .col { min-width: 0; }
+    #joyZone { width: 48%; }
+    #joyBase { width: 116px; height: 116px; }
+    #shootBtn, #passBtn, #sprintBtn, #skillBtn {
+      right: calc(10px + env(safe-area-inset-right)); left: auto;
+      width: 64px; height: 64px; font-size: 11px;
+    }
+    #shootBtn { bottom: calc(12px + env(safe-area-inset-bottom)); }
+    #passBtn { bottom: calc(84px + env(safe-area-inset-bottom)); }
+    #sprintBtn { bottom: calc(156px + env(safe-area-inset-bottom)); }
+    #skillBtn { bottom: calc(228px + env(safe-area-inset-bottom)); }
+  }
+
+  /* Two players, phone sideways: each thumb gets a stick and four buttons. */
+  #touchControls.split #joyZone { width: 50%; }
+  #touchControls.split #joyZone2 { display: block; right: 0; left: auto; width: 50%; }
+  #touchControls.split #joyBase { width: 112px; height: 112px; left: calc(12px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom)); }
+  #touchControls.split #joyBase2 {
+    display: block; width: 112px; height: 112px;
+    right: calc(12px + env(safe-area-inset-right)); left: auto;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+  #touchControls.split #shootBtn, #touchControls.split #passBtn, #touchControls.split #sprintBtn, #touchControls.split #skillBtn,
+  #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2 {
+    width: 62px; height: 62px; font-size: 11px;
+  }
+  #touchControls.split #shootBtn { left: calc(136px + env(safe-area-inset-left)); right: auto; bottom: calc(14px + env(safe-area-inset-bottom)); width: 70px; height: 70px; }
+  #touchControls.split #passBtn { left: calc(214px + env(safe-area-inset-left)); right: auto; bottom: calc(18px + env(safe-area-inset-bottom)); }
+  #touchControls.split #sprintBtn { left: calc(136px + env(safe-area-inset-left)); right: auto; bottom: calc(92px + env(safe-area-inset-bottom)); }
+  #touchControls.split #skillBtn { left: calc(208px + env(safe-area-inset-left)); right: auto; bottom: calc(96px + env(safe-area-inset-bottom)); }
+  #touchControls.split #shootBtn2 { display: flex; right: calc(136px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); width: 70px; height: 70px; background: rgba(232,86,42,.6); }
+  #touchControls.split #passBtn2 { display: flex; right: calc(214px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); background: rgba(47,123,255,.6); }
+  #touchControls.split #sprintBtn2 { display: flex; right: calc(136px + env(safe-area-inset-right)); bottom: calc(92px + env(safe-area-inset-bottom)); background: rgba(46,204,64,.55); }
+  #touchControls.split #skillBtn2 { display: flex; right: calc(208px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
+  #touchControls.split #padTag1 { display: block; left: calc(14px + env(safe-area-inset-left)); top: calc(44px + env(safe-area-inset-top)); color: #9cc4ff; }
+  #touchControls.split #padTag2 { display: block; right: calc(14px + env(safe-area-inset-right)); top: calc(44px + env(safe-area-inset-top)); color: #ffb0b0; }
+
+  /* Two players, phone upright: stack each side so the buttons stay in their half. */
+  @media (max-width: 700px) {
+    #touchControls.split #joyBase, #touchControls.split #joyBase2 { width: 100px; height: 100px; right: auto; }
+    #touchControls.split #joyBase { left: calc(25% - 50px); bottom: calc(10px + env(safe-area-inset-bottom)); }
+    #touchControls.split #joyBase2 { display: block; left: calc(75% - 50px); bottom: calc(10px + env(safe-area-inset-bottom)); }
+    #touchControls.split #shootBtn, #touchControls.split #passBtn, #touchControls.split #sprintBtn, #touchControls.split #skillBtn,
+    #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2 {
+      width: 52px; height: 52px; font-size: 10px; right: auto;
+    }
+    #touchControls.split #passBtn { left: calc(25% - 56px); bottom: calc(122px + env(safe-area-inset-bottom)); }
+    #touchControls.split #shootBtn { left: calc(25% + 4px); bottom: calc(122px + env(safe-area-inset-bottom)); }
+    #touchControls.split #sprintBtn { left: calc(25% - 56px); bottom: calc(180px + env(safe-area-inset-bottom)); }
+    #touchControls.split #skillBtn { left: calc(25% + 4px); bottom: calc(180px + env(safe-area-inset-bottom)); }
+    #touchControls.split #passBtn2 { display: flex; left: calc(75% - 56px); bottom: calc(122px + env(safe-area-inset-bottom)); background: rgba(47,123,255,.6); }
+    #touchControls.split #shootBtn2 { display: flex; left: calc(75% + 4px); bottom: calc(122px + env(safe-area-inset-bottom)); background: rgba(232,86,42,.6); }
+    #touchControls.split #sprintBtn2 { display: flex; left: calc(75% - 56px); bottom: calc(180px + env(safe-area-inset-bottom)); background: rgba(46,204,64,.55); }
+    #touchControls.split #skillBtn2 { display: flex; left: calc(75% + 4px); bottom: calc(180px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
+  }
+
   @media (max-height: 500px) {
-    .panel { padding: 6px 14px; }
+    .panel { padding: 6px 12px; }
     .row { margin: 3px 0; }
-    h1 { font-size: 24px; }
-    button { font-size: 14px; padding: 5px 11px; margin: 2px; }
-    button.big { font-size: 18px; padding: 6px 28px; }
+    h1 { font-size: 22px; }
+    button, a.btnlink { font-size: 14px; padding: 6px 10px; margin: 2px; min-height: 36px; }
+    button.big, a.btnlink.big { font-size: 18px; padding: 8px 18px; }
     #formatLine { margin: 1px 0; font-size: 12px; }
     .rules label { font-size: 13px; }
-    a.btnlink { font-size: 14px !important; padding: 5px 11px !important; }
     .controls { display: none; }
-    #bracket .col { min-width: 140px; }
-    .teamBtn { min-width: 180px; padding: 4px 8px; }
-    #trophyCanvas { width: min(260px, 60vw); }
+    #bracket .col { min-width: 0; }
+    .teamBtn { min-width: 0; flex: 1 1 140px; padding: 4px 8px; }
+    #trophyCanvas { width: min(220px, 42vw); }
+    #onlineHint, .sub { display: none; }
   }
 
   /* ---- Home Screen app: no bounce, keep clear of the iPhone notch ---- */
@@ -182,14 +274,8 @@
     box-sizing: border-box;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
-  .panel { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-  #joyBase   { left: calc(20px + env(safe-area-inset-left)); bottom: calc(20px + env(safe-area-inset-bottom)); }
-  #shootBtn  { right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
-  #passBtn   { right: calc(28px + min(96px, 24vh) + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); }
-  #sprintBtn { right: calc(30px + env(safe-area-inset-right)); bottom: calc(34px + min(96px, 24vh) + env(safe-area-inset-bottom)); }
-  #skillBtn  { right: calc(40px + min(96px, 24vh) + min(72px, 18vh) + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .panel { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
   #pauseBtn { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
-  #rotateHint { top: calc(6px + env(safe-area-inset-top)); }
   a.btnlink {
     display: inline-block; text-decoration: none; font-size: 16px; padding: 8px 15px; margin: 3px;
     border-radius: 10px; border: 2px solid #fff; background: #245c38; color: #fff;
@@ -200,6 +286,7 @@
 <body>
 
 <canvas id="game"></canvas>
+<div id="safeProbe"></div>
 
 <!-- Start menu -->
 <div id="menu" class="overlay">
@@ -302,10 +389,10 @@
   </div>
 </div>
 
-<button id="pauseBtn" class="hidden" title="Pause (P / Esc)">II</button>
+<button id="pauseBtn" class="hidden" title="Pause">II</button>
 <div id="keysHint" class="hidden"><kbd>R</kbd> skill &nbsp;<kbd>F</kbd> flick &nbsp;<kbd>Q</kbd> switch &nbsp;<kbd>P</kbd> pause &nbsp;<kbd>M</kbd> sound</div>
 
-<!-- Touch controls -->
+<!-- Touch controls. The second set is for player 2 on the same phone. -->
 <div id="touchControls" class="hidden">
   <div id="joyZone"></div>
   <div id="joyBase"><div id="joyKnob"></div></div>
@@ -313,8 +400,16 @@
   <div id="passBtn" class="tbtn">PASS</div>
   <div id="sprintBtn" class="tbtn">RUN</div>
   <div id="skillBtn" class="tbtn">SKILL</div>
+  <div id="padTag1" class="padTag">P1</div>
+  <div id="joyZone2"></div>
+  <div id="joyBase2"><div id="joyKnob2"></div></div>
+  <div id="shootBtn2" class="tbtn">SHOOT</div>
+  <div id="passBtn2" class="tbtn">PASS</div>
+  <div id="sprintBtn2" class="tbtn">RUN</div>
+  <div id="skillBtn2" class="tbtn">SKILL</div>
+  <div id="padTag2" class="padTag">P2</div>
 </div>
-<div id="rotateHint" class="hidden">Turn your phone sideways for a bigger view</div>
+<div id="rotateHint" class="hidden">Turn your phone sideways — it's easier to play</div>
 
 <script>
 "use strict";
@@ -3012,7 +3107,7 @@ function drawCrowdCelebration() {
 
 
 function drawScoreboard() {
-  const w = 330, x = VIEW_W / 2 - w / 2, y = 8;
+  const w = 330, x = VIEW_W / 2 - w / 2, y = 8 + screenPad().top;
   ctx.fillStyle = "rgba(10,14,20,0.82)";
   roundRect(ctx, x, y, w, 40, 8); ctx.fill();
   ctx.fillStyle = TEAMS.blue.kit.shirt; ctx.fillRect(x + 8, y + 8, 8, 24);
@@ -3085,7 +3180,7 @@ function drawCommentary() {
     ctx.globalAlpha = alpha;
     ctx.font = "bold 24px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     const w = ctx.measureText(c.text).width + 30;
-    const cy = game.shootout ? 150 : 68;     // below the shootout dots
+    const cy = (game.shootout ? 150 : 68) + screenPad().top;     // below the shootout dots, clear of the notch
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     roundRect(ctx, VIEW_W / 2 - w / 2, cy, w, 34, 8); ctx.fill();
     ctx.fillStyle = c.color; ctx.fillText(c.text, VIEW_W / 2, cy + 18);
@@ -3229,7 +3324,7 @@ function drawConfetti() {
 
 function drawMinimap() {
   const mw = 190, mh = mw * PITCH.h / PITCH.w;
-  const mx = VIEW_W / 2 - mw / 2, my = VIEW_H - mh - 10;
+  const mx = VIEW_W / 2 - mw / 2, my = VIEW_H - mh - 10 - screenPad().bottom;
   const sx = (x) => mx + (x - PITCH.left) / PITCH.w * mw;
   const sy = (y) => my + (y - PITCH.top) / PITCH.h * mh;
   ctx.fillStyle = "rgba(0,40,10,0.6)"; ctx.fillRect(mx - 4, my - 4, mw + 8, mh + 8);
@@ -3256,6 +3351,21 @@ function drawMinimap() {
 }
 
 let viewScale = 1, dpr = 1;
+let safeCss = { top: 0, right: 0, bottom: 0, left: 0 };
+function readSafeArea() {
+  safeCss = { top: 0, right: 0, bottom: 0, left: 0 };
+  const el = document.getElementById("safeProbe");
+  if (!el) return;
+  const cs = getComputedStyle(el);
+  safeCss.top = parseFloat(cs.borderTopWidth) || 0;
+  safeCss.right = parseFloat(cs.borderRightWidth) || 0;
+  safeCss.bottom = parseFloat(cs.borderBottomWidth) || 0;
+  safeCss.left = parseFloat(cs.borderLeftWidth) || 0;
+}
+function screenPad() {
+  const s = Math.max(viewScale, 0.001);
+  return { top: safeCss.top / s, bottom: safeCss.bottom / s, left: safeCss.left / s, right: safeCss.right / s };
+}
 function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = "#111"; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -3299,19 +3409,36 @@ const onPitch = () => players.filter((p) => !p.sentOff);
 // =====================================================================
 // The canvas always fills the window; we show more or less of the
 // stadium depending on the window shape.
+function viewportBox() {
+  const vv = window.visualViewport;
+  return {
+    w: Math.max(1, Math.round((vv && vv.width) || window.innerWidth || 1)),
+    h: Math.max(1, Math.round((vv && vv.height) || window.innerHeight || 1)),
+    x: (vv && vv.offsetLeft) || 0,
+    y: (vv && vv.offsetTop) || 0,
+  };
+}
 function resize() {
+  if (!canvas) return;
   dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = window.innerWidth, h = window.innerHeight, aspect = w / h;
+  const box = viewportBox();
+  const w = box.w, h = box.h, aspect = w / h;
   VIEW_H = 640; VIEW_W = VIEW_H * aspect;
   if (VIEW_W < 900) { VIEW_W = 900; VIEW_H = VIEW_W / aspect; }
   viewScale = w / VIEW_W;
+  readSafeArea();
   canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
   canvas.style.width = w + "px"; canvas.style.height = h + "px";
-  updateCamera(0, true);
-  updateScreens();
+  canvas.style.left = box.x + "px"; canvas.style.top = box.y + "px";
+  if (typeof game !== "undefined" && game) updateCamera(0, true);
+  if (typeof updateScreens === "function") updateScreens();
 }
 window.addEventListener("resize", resize);
-window.addEventListener("orientationchange", resize);
+window.addEventListener("orientationchange", () => setTimeout(resize, 80));
+if (window.visualViewport) {
+  visualViewport.addEventListener("resize", resize);
+  visualViewport.addEventListener("scroll", resize);
+}
 
 
 // =====================================================================
@@ -3362,8 +3489,15 @@ function saveSettings() { try { localStorage.setItem("soccerSettings", JSON.stri
 const teamDef = (id) => (id === "custom" ? customTeam(settings.custom) : findTeam(id) || TEAM_LIST[0]);
 
 const inMatch = () => !!sim && !atMenu && ["setpiece", "play", "dead", "goal", "shootout", "pkflight"].includes(game.phase);
-const isTouchDevice = ("ontouchstart" in window) || (window.matchMedia && matchMedia("(pointer: coarse)").matches);
-const touchActive = () => isTouchDevice && settings.mode === "1p";
+const isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && matchMedia("(pointer: coarse)").matches);
+const touchActive = () => isTouchDevice;
+const splitTouch = () => touchActive() && settings.mode === "2p";
+const isPortrait = () => {
+  const vv = window.visualViewport;
+  const w = (vv && vv.width) || window.innerWidth;
+  const h = (vv && vv.height) || window.innerHeight;
+  return h > w;
+};
 const controllerOf = (p) => (game.autoplay ? null : controllers.find((c) => !c.cpu && c.active === p) || null);
 const isHumanControlled = (p) => !!controllerOf(p);
 const updateScreens = () => updateHud();   // the drawing code calls this after a resize
@@ -3410,7 +3544,7 @@ function onKeyPressed(code) {
     for (const action of ["shoot", "pass", "swap", "skill", "flick"]) if (s[action].includes(code)) sim.press(id, action);
   }
 }
-const isDown = (id, action) => controlScheme(id)[action].some((c) => keys[c]) || (id === "p1" && touchActive() && !!touch[action]);
+const isDown = (id, action) => controlScheme(id)[action].some((c) => keys[c]) || (touchActive() && !!(pads[id] && pads[id][action]));
 
 // Read the keys / joystick into the match every frame
 function feedInput() {
@@ -3420,55 +3554,69 @@ function feedInput() {
     if (isDown(id, "right")) mx += 1;
     if (isDown(id, "up")) my -= 1;
     if (isDown(id, "down")) my += 1;
-    if (id === "p1" && !mx && !my && touchActive()) { mx = touch.x; my = touch.y; }
+    const pad = touchActive() ? pads[id] : null;
+    if (pad && !mx && !my) { mx = pad.x; my = pad.y; }
     sim.setInput(id, { mx, my, sprint: isDown(id, "sprint"), shoot: isDown(id, "shoot"), pass: isDown(id, "pass") });
   }
 }
 
-// ---- Touch joystick + buttons ----
-const touch = { x: 0, y: 0, pointerId: null, baseX: 0, baseY: 0, shoot: false, pass: false, sprint: false, skill: false };
-const joyZone = $("joyZone"), joyBase = $("joyBase"), joyKnob = $("joyKnob");
-const JOY_MAX = 50;
-joyZone.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  if (inMatch() && game.phase === "goal") sim.press("p1", "skip");
-  touch.pointerId = e.pointerId; touch.baseX = e.clientX; touch.baseY = e.clientY;
-  joyBase.style.left = (e.clientX - 65) + "px"; joyBase.style.top = (e.clientY - 65) + "px"; joyBase.style.bottom = "auto";
-  try { joyZone.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-  updateJoystick(e);
-});
-joyZone.addEventListener("pointermove", (e) => { if (e.pointerId === touch.pointerId) updateJoystick(e); });
-function releaseJoystick(e) {
-  if (e.pointerId !== touch.pointerId) return;
-  touch.pointerId = null; touch.x = 0; touch.y = 0; joyKnob.style.transform = "";
-}
-joyZone.addEventListener("pointerup", releaseJoystick);
-joyZone.addEventListener("pointercancel", releaseJoystick);
-function updateJoystick(e) {
-  let dx = e.clientX - touch.baseX, dy = e.clientY - touch.baseY;
-  const len = Math.hypot(dx, dy);
-  if (len > JOY_MAX) { dx = dx / len * JOY_MAX; dy = dy / len * JOY_MAX; }
-  touch.x = dx / JOY_MAX; touch.y = dy / JOY_MAX;
-  if (Math.hypot(touch.x, touch.y) < 0.15) { touch.x = 0; touch.y = 0; }
-  joyKnob.style.transform = "translate(" + dx + "px," + dy + "px)";
-}
-for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprintBtn", "sprint"], ["skillBtn", "skill"]]) {
-  const el = $(id);
-  el.addEventListener("pointerdown", (e) => {
+// ---- Touch joysticks + buttons (player 2's pad is used in 2 Players) ----
+function bindPad(playerId, ids) {
+  const zone = $(ids.zone), base = $(ids.base), knob = $(ids.knob);
+  const pad = { x: 0, y: 0, pointerId: null, baseX: 0, baseY: 0, shoot: false, pass: false, sprint: false, skill: false };
+  if (!zone || !base || !knob) return pad;
+  function movePad(e) {
+    let dx = e.clientX - pad.baseX, dy = e.clientY - pad.baseY;
+    const len = Math.hypot(dx, dy);
+    const max = Math.max(36, base.offsetWidth * 0.42);
+    if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+    pad.x = dx / max; pad.y = dy / max;
+    if (Math.hypot(pad.x, pad.y) < 0.15) { pad.x = 0; pad.y = 0; }
+    knob.style.transform = "translate(" + dx + "px," + dy + "px)";
+  }
+  zone.addEventListener("pointerdown", (e) => {
     e.preventDefault();
-    touch[action] = true; el.classList.add("pressed");
-    try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-    if (inMatch() && !paused) {
-      if (game.phase === "goal") sim.press("p1", "skip");
-      else if (action !== "sprint") sim.press("p1", action);
-    }
+    if (inMatch() && game.phase === "goal") sim.press(playerId, "skip");
+    pad.pointerId = e.pointerId; pad.baseX = e.clientX; pad.baseY = e.clientY;
+    base.style.left = (e.clientX - base.offsetWidth / 2) + "px";
+    base.style.top = (e.clientY - base.offsetHeight / 2) + "px";
+    base.style.right = "auto"; base.style.bottom = "auto";
+    try { zone.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    movePad(e);
   });
-  const up = () => { touch[action] = false; el.classList.remove("pressed"); };
-  el.addEventListener("pointerup", up);
-  el.addEventListener("pointercancel", up);
+  zone.addEventListener("pointermove", (e) => { if (e.pointerId === pad.pointerId) movePad(e); });
+  function release(e) {
+    if (e.pointerId !== pad.pointerId) return;
+    pad.pointerId = null; pad.x = 0; pad.y = 0; knob.style.transform = "";
+  }
+  zone.addEventListener("pointerup", release);
+  zone.addEventListener("pointercancel", release);
+  for (const [id, action] of [[ids.shoot, "shoot"], [ids.pass, "pass"], [ids.sprint, "sprint"], [ids.skill, "skill"]]) {
+    const el = $(id);
+    if (!el) continue;
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      pad[action] = true; el.classList.add("pressed");
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      if (inMatch() && !paused) {
+        if (game.phase === "goal") sim.press(playerId, "skip");
+        else if (action !== "sprint") sim.press(playerId, action);
+      }
+    });
+    const up = () => { pad[action] = false; el.classList.remove("pressed"); };
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+  }
+  return pad;
 }
+const pads = {
+  p1: bindPad("p1", { zone: "joyZone", base: "joyBase", knob: "joyKnob", shoot: "shootBtn", pass: "passBtn", sprint: "sprintBtn", skill: "skillBtn" }),
+  p2: bindPad("p2", { zone: "joyZone2", base: "joyBase2", knob: "joyKnob2", shoot: "shootBtn2", pass: "passBtn2", sprint: "sprintBtn2", skill: "skillBtn2" }),
+};
 // Tapping the pitch skips a goal celebration too
 $("game").addEventListener("pointerdown", () => { if (inMatch() && game.phase === "goal") sim.press("p1", "skip"); });
+// Phones only start sound after a tap. The first tap anywhere unlocks it.
+window.addEventListener("pointerdown", () => Sound.init());
 
 // =====================================================================
 // C. HOOKS FOR THE DRAWING CODE
@@ -3550,9 +3698,19 @@ function showScreen(id) {
 function updateHud() {
   const playing = inMatch() && !paused;
   $("pauseBtn").classList.toggle("hidden", !playing);
-  $("touchControls").classList.toggle("hidden", !(playing && touchActive()));
-  const portrait = window.innerHeight > window.innerWidth;
-  $("rotateHint").classList.toggle("hidden", !(isTouchDevice && portrait));
+  $("pauseBtn").title = isTouchDevice ? "Pause" : "Pause (P / Esc)";
+  const controls = $("touchControls");
+  const touchOn = playing && touchActive();
+  controls.classList.toggle("hidden", !touchOn);
+  controls.classList.toggle("split", touchOn && splitTouch());
+  const portrait = isPortrait();
+  const hint = $("rotateHint");
+  hint.classList.toggle("hidden", !(isTouchDevice && portrait));
+  if (isTouchDevice && portrait) {
+    hint.textContent = settings.mode === "2p"
+      ? "Two players fit best sideways — turn the phone"
+      : "Turn your phone sideways — it's easier to play";
+  }
   $("keysHint").classList.toggle("hidden", !(playing && !touchActive() && performance.now() - matchStartedAt < 14000));
 }
 function goToMenu() {
@@ -3602,7 +3760,19 @@ function renderMenu() {
 }
 function updateControlsHelp() {
   const help = $("controlsHelp");
-  if (settings.mode === "1p") {
+  if (isTouchDevice && settings.mode === "1p") {
+    help.innerHTML =
+      "<b>You attack the goal on the right.</b><br>" +
+      "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob).<br>" +
+      "<b>RUN</b> sprints. <b>SKILL</b> does a trick. The pause button is in the top corner.<br>" +
+      "Penalty: slide the stick up or down, then hold SHOOT. In goal: slide up or down.";
+  } else if (isTouchDevice) {
+    help.innerHTML =
+      "<b>Two players, one phone.</b> Hold it sideways.<br>" +
+      "<b style='color:#9cc4ff'>P1</b> uses the left stick and the left SHOOT, PASS, RUN and SKILL buttons.<br>" +
+      "<b style='color:#ffb0b0'>P2</b> uses the right stick and the right buttons.<br>" +
+      "Hold SHOOT for a bigger kick. Tap the pause button in the top corner to pause.";
+  } else if (settings.mode === "1p") {
     help.innerHTML =
       "<b>You attack the goal on the right</b><br>" +
       "Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> &nbsp; Sprint <kbd>Shift</kbd> &nbsp; Switch <kbd>Q</kbd><br>" +
@@ -3610,7 +3780,7 @@ function updateControlsHelp() {
       "<kbd>E</kbd> pass (hold = lob) &bull; no ball: switch player<br>" +
       "<kbd>R</kbd> skill move (push sideways = spin, back = flick, +Shift = burst) &nbsp; <kbd>F</kbd> rainbow flick<br>" +
       "Penalty: <kbd>&uarr;</kbd>/<kbd>&darr;</kbd> aim, hold <kbd>Space</kbd> &bull; in goal: <kbd>&uarr;</kbd>/<kbd>&darr;</kbd> pick a side<br>" +
-      "<kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound &nbsp; Phone: joystick + SHOOT / PASS / RUN / SKILL";
+      "<kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound";
   } else {
     help.innerHTML =
       "<b style='color:#9cc4ff'>P1</b>: <kbd>WASD</kbd> move, <kbd>L-Shift</kbd> sprint, <kbd>Space</kbd> shoot, <kbd>E</kbd> pass, <kbd>Q</kbd> switch, <kbd>R</kbd> skill, <kbd>F</kbd> flick<br>" +

@@ -50,7 +50,13 @@ const controllerOf = (p) => controllers.find((c) => !c.cpu && c.active === p) ||
 const isHumanControlled = (p) => !!controllerOf(p);
 const inMatch = () => ["setpiece", "play", "dead", "goal", "shootout", "pkflight"].includes(game.phase);
 const memberName = (id) => { const m = room && room.members.find((x) => x.id === id); return m ? m.name : "?"; };
-const isTouchDevice = ("ontouchstart" in window) || (window.matchMedia && matchMedia("(pointer: coarse)").matches);
+const isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && matchMedia("(pointer: coarse)").matches);
+const isPortrait = () => {
+  const vv = window.visualViewport;
+  const w = (vv && vv.width) || window.innerWidth;
+  const h = (vv && vv.height) || window.innerHeight;
+  return h > w;
+};
 const touchActive = () => isTouchDevice;
 const $ = (id) => document.getElementById(id);
 
@@ -870,7 +876,7 @@ function drawCrowdCelebration() {
 
 
 function drawScoreboard() {
-  const w = 330, x = VIEW_W / 2 - w / 2, y = 8;
+  const w = 330, x = VIEW_W / 2 - w / 2, y = 8 + screenPad().top;
   ctx.fillStyle = "rgba(10,14,20,0.82)";
   roundRect(ctx, x, y, w, 40, 8); ctx.fill();
   ctx.fillStyle = TEAMS.blue.kit.shirt; ctx.fillRect(x + 8, y + 8, 8, 24);
@@ -943,7 +949,7 @@ function drawCommentary() {
     ctx.globalAlpha = alpha;
     ctx.font = "bold 24px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     const w = ctx.measureText(c.text).width + 30;
-    const cy = game.shootout ? 150 : 68;     // below the shootout dots
+    const cy = (game.shootout ? 150 : 68) + screenPad().top;     // below the shootout dots, clear of the notch
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     roundRect(ctx, VIEW_W / 2 - w / 2, cy, w, 34, 8); ctx.fill();
     ctx.fillStyle = c.color; ctx.fillText(c.text, VIEW_W / 2, cy + 18);
@@ -1087,7 +1093,7 @@ function drawConfetti() {
 
 function drawMinimap() {
   const mw = 190, mh = mw * PITCH.h / PITCH.w;
-  const mx = VIEW_W / 2 - mw / 2, my = VIEW_H - mh - 10;
+  const mx = VIEW_W / 2 - mw / 2, my = VIEW_H - mh - 10 - screenPad().bottom;
   const sx = (x) => mx + (x - PITCH.left) / PITCH.w * mw;
   const sy = (y) => my + (y - PITCH.top) / PITCH.h * mh;
   ctx.fillStyle = "rgba(0,40,10,0.6)"; ctx.fillRect(mx - 4, my - 4, mw + 8, mh + 8);
@@ -1114,6 +1120,21 @@ function drawMinimap() {
 }
 
 let viewScale = 1, dpr = 1;
+let safeCss = { top: 0, right: 0, bottom: 0, left: 0 };
+function readSafeArea() {
+  safeCss = { top: 0, right: 0, bottom: 0, left: 0 };
+  const el = document.getElementById("safeProbe");
+  if (!el) return;
+  const cs = getComputedStyle(el);
+  safeCss.top = parseFloat(cs.borderTopWidth) || 0;
+  safeCss.right = parseFloat(cs.borderRightWidth) || 0;
+  safeCss.bottom = parseFloat(cs.borderBottomWidth) || 0;
+  safeCss.left = parseFloat(cs.borderLeftWidth) || 0;
+}
+function screenPad() {
+  const s = Math.max(viewScale, 0.001);
+  return { top: safeCss.top / s, bottom: safeCss.bottom / s, left: safeCss.left / s, right: safeCss.right / s };
+}
 function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = "#111"; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1157,19 +1178,36 @@ const onPitch = () => players.filter((p) => !p.sentOff);
 // =====================================================================
 // The canvas always fills the window; we show more or less of the
 // stadium depending on the window shape.
+function viewportBox() {
+  const vv = window.visualViewport;
+  return {
+    w: Math.max(1, Math.round((vv && vv.width) || window.innerWidth || 1)),
+    h: Math.max(1, Math.round((vv && vv.height) || window.innerHeight || 1)),
+    x: (vv && vv.offsetLeft) || 0,
+    y: (vv && vv.offsetTop) || 0,
+  };
+}
 function resize() {
+  if (!canvas) return;
   dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = window.innerWidth, h = window.innerHeight, aspect = w / h;
+  const box = viewportBox();
+  const w = box.w, h = box.h, aspect = w / h;
   VIEW_H = 640; VIEW_W = VIEW_H * aspect;
   if (VIEW_W < 900) { VIEW_W = 900; VIEW_H = VIEW_W / aspect; }
   viewScale = w / VIEW_W;
+  readSafeArea();
   canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
   canvas.style.width = w + "px"; canvas.style.height = h + "px";
-  updateCamera(0, true);
-  updateScreens();
+  canvas.style.left = box.x + "px"; canvas.style.top = box.y + "px";
+  if (typeof game !== "undefined" && game) updateCamera(0, true);
+  if (typeof updateScreens === "function") updateScreens();
 }
 window.addEventListener("resize", resize);
-window.addEventListener("orientationchange", resize);
+window.addEventListener("orientationchange", () => setTimeout(resize, 80));
+if (window.visualViewport) {
+  visualViewport.addEventListener("resize", resize);
+  visualViewport.addEventListener("scroll", resize);
+}
 
 
 // =====================================================================
@@ -1190,8 +1228,7 @@ function updateScreens() {
   show("touchControls", playing && isTouchDevice && !!(me && me.team) && !menuOpen);
   show("menuBtn", playing);
   show("pingBox", inRoom);
-  const portrait = window.innerHeight > window.innerWidth;
-  show("rotateHint", isTouchDevice && portrait && playing);
+  show("rotateHint", isTouchDevice && isPortrait());
   if (state === "lobby") renderLobby();
   if (inRoom && (state === "win" || game.phase === "win")) renderWin();
 }
@@ -1360,7 +1397,10 @@ $("copyBtn").addEventListener("click", () => {
   if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { $("copyBtn").textContent = "Copied!"; }, () => {});
 });
 // Sound can only start after a tap / key press (browser rule)
-window.addEventListener("pointerdown", () => Sound.init(), { once: true });
+window.addEventListener("pointerdown", () => Sound.init());
+if (isTouchDevice && $("matchHelp")) {
+  $("matchHelp").innerHTML = "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob). <b>RUN</b> sprints. <b>SKILL</b> does a trick.<br>Penalty: slide up or down, then hold SHOOT. In goal: slide up or down. Tap the picture to skip a celebration.";
+}
 
 // ---- Start up ----
 (function boot() {
