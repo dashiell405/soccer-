@@ -63,12 +63,35 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
 // 11. referee and linesmen
 { const sim = S.createSim({}); sim.start(); sim.setAutoplay(true); run(sim, 5);
   const ref = sim.game.officials[0], near = sim.game.officials[1], far = sim.game.officials[2];
-  const gap = Math.hypot(ref.x - sim.ball.x, ref.y - sim.ball.y);
   assert(ref.x > 140 && ref.x < 1500 && ref.y > 140 && ref.y < 960, 'referee stays on the pitch');
-  assert(gap > 30 && gap < 230, 'referee follows the ball at a distance ' + gap.toFixed(0));
-  assert(Math.abs(near.y - 992) < 1 && Math.abs(far.y - 110) < 1, 'linesmen stay on the touchlines');
+  assert(Math.abs(near.y - 1000) < 0.5 && Math.abs(far.y - 100) < 0.5, 'linesmen stay on the touchlines');
   const snap = sim.snapshot();
   assert(snap.of && snap.of.length === 3 && snap.of[1].length === 8 && snap.p[0].length === 14, 'snapshot carries officials without changing players');
+}
+{ const sim = S.createSim({ difficulty: 'normal' }); sim.start(); sim.setAutoplay(true);
+  const M = 1400 / 105;
+  let n = 0, sum = 0, min = 1e9, maxLine = 0, inside = 0;
+  let t = 0;
+  while (sim.game.phase !== 'win' && t < 900) {
+    for (let i = 0; i < 120; i++) {
+      sim.update(1/120);
+      const near = sim.game.officials[1], far = sim.game.officials[2];
+      maxLine = Math.max(maxLine, Math.abs(near.y - 1000), Math.abs(far.y - 100));
+      if (near.y <= 980 || far.y >= 120) inside++;
+      if (sim.game.phase === 'play' && !sim.game.cardPopup && !sim.game.flag) {
+        const ref = sim.game.officials[0];
+        const d = Math.hypot(ref.x - sim.ball.x, ref.y - sim.ball.y);
+        n++; sum += d; if (d < min) min = d;
+      }
+    }
+    t++;
+  }
+  const minM = min / M, avgM = sum / n / M;
+  console.log('   ref open-play distance m  min ' + minM.toFixed(1) + '  avg ' + avgM.toFixed(1) + '  samples ' + n);
+  console.log('   linesman touchline error px ' + maxLine.toFixed(3) + '  steps onto the pitch ' + inside);
+  assert(sim.game.phase === 'win' && n > 200, 'distance check watched a whole match');
+  assert(minM >= 9 && avgM >= 11 && avgM <= 22, 'referee keeps a viewing distance (min ' + minM.toFixed(1) + 'm avg ' + avgM.toFixed(1) + 'm)');
+  assert(maxLine < 0.6 && inside === 0, 'linesmen never leave their touchlines');
 }
 { const sim = S.createSim({}); sim.start(); run(sim, 1); sim.debugOffside('blue');
   let guard = 0; while (!sim.game.flag && guard++ < 400) sim.update(1/120);

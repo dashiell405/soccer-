@@ -676,6 +676,19 @@ window.soccerDebug = {
     return true;
   },
   roster() { return sim.roster.map((p, i) => ({ i, team: p.team, role: p.role, num: p.num, sentOff: p.sentOff })); },
+  // Where the referee and linesmen are, for checks and screenshots.
+  crew() {
+    const M = 1400 / 105;
+    const ref = game.officials[0], near = game.officials[1], far = game.officials[2];
+    return {
+      phase: game.phase,
+      refM: Math.round(Math.hypot(ref.x - ball.x, ref.y - ball.y) / M * 10) / 10,
+      ref: { x: Math.round(ref.x), y: Math.round(ref.y) },
+      near: { x: Math.round(near.x), y: Math.round(near.y) },
+      far: { x: Math.round(far.x), y: Math.round(far.y) },
+      ball: { x: Math.round(ball.x), y: Math.round(ball.y) },
+    };
+  },
   // Cup helpers: win (or lose) your current cup match instantly
   finishMatch(winner = "blue", score = [3, 1]) {
     game.score.blue = score[0]; game.score.red = score[1];

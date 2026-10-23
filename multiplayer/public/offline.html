@@ -724,14 +724,21 @@ function createSim(opts = {}) {
   // The referee and two assistant referees. They never touch the ball.
   // 0 = referee on the pitch, 1 = linesman on the near touchline (blue's half),
   // 2 = linesman on the far touchline (red's half).
+  // The linesmen stand just outside the line. They never step onto the grass.
+  const AR_NEAR_Y = PITCH.bottom + 20;
+  const AR_FAR_Y = PITCH.top - 20;
   const officials = [
     { role: "ref", side: "", x: PITCH.cx, y: PITCH.cy + 78, vx: 0, vy: 0, fx: 1, fy: 0, anim: 0, sig: 0, skin: "#e0ac69", hair: "#111" },
-    { role: "ar", side: "near", x: PITCH.cx + 180, y: PITCH.bottom + 12, vx: 0, vy: 0, fx: 0, fy: -1, anim: 1, sig: 0, skin: "#c68642", hair: "#1a1a1a" },
-    { role: "ar", side: "far", x: PITCH.cx - 180, y: PITCH.top - 10, vx: 0, vy: 0, fx: 0, fy: 1, anim: 2, sig: 0, skin: "#f1c27d", hair: "#2b1b0e" },
+    { role: "ar", side: "near", x: PITCH.cx + 180, y: AR_NEAR_Y, vx: 0, vy: 0, fx: 0, fy: -1, anim: 1, sig: 0, skin: "#c68642", hair: "#1a1a1a" },
+    { role: "ar", side: "far", x: PITCH.cx - 180, y: AR_FAR_Y, vx: 0, vy: 0, fx: 0, fy: 1, anim: 2, sig: 0, skin: "#f1c27d", hair: "#2b1b0e" },
   ];
   game.officials = officials;
   let officialCue = "";
   let officialCueT = 0;
+  // Where the referee is walking toward. This lags behind the ball on purpose,
+  // so he does not dart after every touch.
+  const refSpot = { x: PITCH.cx, y: PITCH.cy + 160 };
+  const arSpotX = [PITCH.cx + 200, PITCH.cx - 200];
   const ball = {
     x: PITCH.cx, y: PITCH.cy, z: 0, vx: 0, vy: 0, vz: 0,
     owner: null, lastTouch: null, lastTeam: null, intended: null,
@@ -2454,49 +2461,131 @@ function shootoutResult(result) {
 
 // ---------------------------------------------------------------------
 // 18. MATCH OFFICIALS
-// The referee runs a diagonal so he can see the ball and the linesman.
-// Each linesman patrols one touchline and stays level with the offside
+// The referee keeps a gap of about 12 to 18 metres and watches from the
+// side. He does not run onto the ball. Each linesman stays just outside
+// his own touchline and only slides along it, level with the offside
 // line in the half he looks after. They only move themselves: players
 // and the ball go straight through them.
 // Signals: 0 run, 1 whistle, 2 point, 3 yellow card, 4 red card,
 //          5 flag straight up (offside), 6 flag angled (throw-in / corner)
 // ---------------------------------------------------------------------
-function clearOfBall(x, y) {
+// The pitch is about 105 metres long. One metre is this many pixels.
+const METRE = PITCH.w / 105;
+const REF_NEAR = 12 * METRE; // viewing spot sits about 12 to 15 metres out
+const REF_FAR = 15 * METRE;
+const REF_MIN = 11 * METRE;  // hard gap during open play, so a shot cannot catch him
+function clearOfBall(x, y, gap) {
   const dx = x - ball.x, dy = y - ball.y;
   const d = Math.hypot(dx, dy);
-  if (d >= 46) return { x, y };
+  if (d >= gap) return { x, y };
   const ux = d > 1 ? dx / d : 0;
   const uy = d > 1 ? dy / d : 1;
-  return { x: ball.x + ux * 46, y: ball.y + uy * 46 };
+  return { x: ball.x + ux * gap, y: ball.y + uy * gap };
+}
+// -1 left penalty area, +1 right, 0 outside. pad grows the box a little.
+function penaltySide(x, y, pad) {
+  const extra = pad || 0;
+  const half = BOX.width / 2 + extra;
+  const depth = BOX.depth + extra;
+  if ((x - PITCH.left) < depth && Math.abs(y - PITCH.cy) < half) return -1;
+  if ((PITCH.right - x) < depth && Math.abs(y - PITCH.cy) < half) return 1;
+  return 0;
+}
+// Shift a point out of a penalty area, toward midfield, along the 18-yard line.
+function clearOfBoxes(x, y, pad) {
+  const extra = pad == null ? 22 : pad;
+  const side = penaltySide(x, y, extra);
+  if (!side) return { x, y };
+  const goalX = side < 0 ? PITCH.left : PITCH.right;
+  return { x: goalX - side * (BOX.depth + extra), y };
+}
+// On the pitch, outside both penalty areas, and at least `gap` from the ball.
+// The way out is toward open grass, never deeper into the goal.
+function legalView(x, y, gap) {
+  for (let i = 0; i < 3; i++) {
+    x = clamp(x, PITCH.left + 48, PITCH.right - 48);
+    y = clamp(y, PITCH.top + 36, PITCH.bottom - 36);
+    const boxed = clearOfBoxes(x, y, 18);
+    x = boxed.x; y = boxed.y;
+    let dx = x - ball.x, dy = y - ball.y;
+    let d = Math.hypot(dx, dy);
+    if (d >= gap) return { x, y };
+    if (d < 1) {
+      dx = ball.x < PITCH.cx ? 1 : -1;
+      dy = (ball.y < PITCH.cy ? 1 : -1) * 0.7;
+      d = Math.hypot(dx, dy);
+    }
+    let sx = dx / d, sy = dy / d;
+    const goalSign = (x - PITCH.left) <= (PITCH.right - x) ? -1 : 1;
+    if (sx * goalSign > 0 && Math.min(x - PITCH.left, PITCH.right - x) < BOX.depth + 110) sx = -goalSign;
+    if (y <= PITCH.top + 56 && sy < 0) sy = 0.4;
+    if (y >= PITCH.bottom - 56 && sy > 0) sy = -0.4;
+    const len = Math.hypot(sx, sy) || 1;
+    x = ball.x + (sx / len) * gap;
+    y = ball.y + (sy / len) * gap;
+  }
+  x = clamp(x, PITCH.left + 48, PITCH.right - 48);
+  y = clamp(y, PITCH.top + 36, PITCH.bottom - 36);
+  const boxed = clearOfBoxes(x, y, 18);
+  return { x: boxed.x, y: boxed.y };
 }
 function faceToward(x, y, fallback) {
   const len = Math.hypot(x, y);
   return len > 0.05 ? { x: x / len, y: y / len } : (fallback || { x: 1, y: 0 });
 }
-function arLineX(attackTeam) {
+// Where this linesman should stand along his touchline: level with the
+// second-last defender in the half he watches. If the ball is nearer that
+// goal than the defenders are, he slides up with the ball instead.
+function arTrackX(attackTeam) {
   const A = TEAMS[attackTeam];
-  let depth = Math.max(offsideLine(attackTeam), depthFor(attackTeam, ball));
-  const inHalf = (ball.x - PITCH.cx) * A.dir > -30;
-  if (!inHalf && game.phase === "play") depth = lerp(PITCH.w * 0.48, depth, 0.22);
-  return A.ownGoalX + A.dir * clamp(depth, 28, PITCH.w - 18);
+  const line = offsideLine(attackTeam);
+  const ballD = depthFor(attackTeam, ball);
+  let depth = ballD > line + 8 ? ballD : line;
+  // Stay in his own half. Do not chase the ball back down the other end.
+  const halfway = PITCH.w * 0.5;
+  if (depth < halfway - 12) depth = halfway - 12;
+  depth = clamp(depth, halfway - 12, PITCH.w - 36);
+  return A.ownGoalX + A.dir * depth;
 }
 function refPlayTarget() {
+  // Behind the way play is going, and off to the side. If "behind" would
+  // put him in a penalty area (or on the goal line ahead of the ball),
+  // he stands toward midfield instead and watches from there.
+  const speedX = ball.vx || 0;
+  const going = speedX > 70 ? 1 : speedX < -70 ? -1 : (ball.lastTeam === "red" ? -1 : 1);
+  let tx = ball.x - going * 8 * METRE;
+  const nearGoalLine = tx < PITCH.left + BOX.depth + 28 || tx > PITCH.right - BOX.depth - 28;
+  if (nearGoalLine || penaltySide(tx, PITCH.cy, 24)) {
+    tx = ball.x + (ball.x < PITCH.cx ? 1 : -1) * 8 * METRE;
+  }
+  const side = ball.y < PITCH.cy ? 1 : -1;
+  // Near a touchline he stays infield, so he is not standing on the ball.
+  const sideAmt = Math.abs(ball.y - PITCH.cy) > PITCH.h * 0.3 ? 0.1 : 0.24;
+  let ty = PITCH.cy + side * PITCH.h * sideAmt;
   const u = clamp((ball.x - PITCH.left) / PITCH.w, 0, 1);
-  const diagY = lerp(PITCH.bottom - 150, PITCH.top + 150, u);
-  let tx = ball.x - clamp(ball.vx || 0, -280, 280) * 0.25;
-  let ty = lerp(diagY, ball.y, 0.32);
-  const c = clearOfBall(tx, ty);
-  return {
-    x: clamp(c.x, PITCH.left + 48, PITCH.right - 48),
-    y: clamp(c.y, PITCH.top + 36, PITCH.bottom - 36),
-  };
+  const diagY = lerp(PITCH.bottom - PITCH.h * 0.32, PITCH.top + PITCH.h * 0.32, u);
+  ty = ty * 0.7 + diagY * 0.3;
+  let dx = tx - ball.x, dy = ty - ball.y;
+  let distB = Math.hypot(dx, dy) || 1;
+  const want = clamp(distB, REF_NEAR, REF_FAR);
+  tx = ball.x + (dx / distB) * want;
+  ty = ball.y + (dy / distB) * want;
+  // Step out of a pack of players, then put the spot back somewhere he can see from.
+  let ox = 0, oy = 0, n = 0;
+  for (const p of players) {
+    const px = tx - p.x, py = ty - p.y;
+    const pd = Math.hypot(px, py);
+    if (pd < 64 && pd > 0.5) { ox += px / pd; oy += py / pd; n++; }
+  }
+  if (n) { tx += (ox / n) * 36; ty += (oy / n) * 36; }
+  return legalView(tx, ty, REF_NEAR);
 }
 function refIntent() {
   if (game.cardPopup) {
     const p = roster[game.cardPopup.idx];
     if (p) {
       const side = p.y > PITCH.cy ? -1 : 1;
-      const c = clearOfBall(p.x + 24, p.y + side * 22);
+      const c = clearOfBall(p.x + 28, p.y + side * 26, 36);
       return {
         x: clamp(c.x, PITCH.left + 28, PITCH.right - 28),
         y: clamp(c.y, PITCH.top + 24, PITCH.bottom - 24),
@@ -2511,7 +2600,7 @@ function refIntent() {
     const A = TEAMS[game.flag.team];
     const tx = p ? p.x - A.dir * 55 : ball.x;
     const ty = p ? p.y : PITCH.cy;
-    const c = clearOfBall(tx, ty);
+    const c = clearOfBall(tx, ty, 40);
     return {
       x: clamp(c.x, PITCH.left + 36, PITCH.right - 36),
       y: clamp(c.y, PITCH.top + 30, PITCH.bottom - 30),
@@ -2535,7 +2624,7 @@ function refIntent() {
   }
   if (pending) {
     const A = TEAMS[pending.team];
-    const c = clearOfBall(pending.x - A.dir * 36, pending.y + (pending.y > PITCH.cy ? -34 : 34));
+    const c = clearOfBall(pending.x - A.dir * 40, pending.y + (pending.y > PITCH.cy ? -36 : 36), 40);
     let face = { x: A.dir, y: 0 };
     if (pending.type === "penalty") face = faceToward(A.targetGoalX - c.x, PITCH.cy - c.y);
     return {
@@ -2548,9 +2637,9 @@ function refIntent() {
   if (sp) {
     const A = TEAMS[sp.team];
     if (sp.type === "kickoff") {
-      return { x: PITCH.cx, y: PITCH.cy + 78, sig: officialCueT < 1.2 ? 1 : 0, face: { x: A.dir, y: 0 }, hurry: false };
+      return { x: PITCH.cx, y: PITCH.cy + 13 * METRE, sig: officialCueT < 1.2 ? 1 : 0, face: { x: A.dir, y: 0 }, hurry: false };
     }
-    const c = clearOfBall(ball.x - A.dir * 42, ball.y + (ball.y > PITCH.cy ? -38 : 38));
+    const c = clearOfBall(ball.x - A.dir * 48, ball.y + (ball.y > PITCH.cy ? -42 : 42), 44);
     return {
       x: clamp(c.x, PITCH.left + 28, PITCH.right - 28),
       y: clamp(c.y, PITCH.top + 24, PITCH.bottom - 24),
@@ -2559,16 +2648,20 @@ function refIntent() {
       hurry: true,
     };
   }
-  const t = refPlayTarget();
-  return { x: t.x, y: t.y, sig: 0, face: null, hurry: Math.hypot(ball.vx, ball.vy) > 280 };
+  return {
+    x: refSpot.x, y: refSpot.y, sig: 0,
+    face: faceToward(ball.x - refSpot.x, ball.y - refSpot.y),
+    hurry: false,
+  };
 }
 function arIntent(o) {
   const attack = o.side === "near" ? "blue" : "red";
-  const y = o.side === "near" ? PITCH.bottom + 12 : PITCH.top - 10;
+  const y = o.side === "near" ? AR_NEAR_Y : AR_FAR_Y;
   const facePitch = { x: 0, y: o.side === "near" ? -1 : 1 };
+  const spot = arSpotX[o.side === "near" ? 0 : 1];
   if (game.flag && game.flag.team === attack) {
     const p = roster[game.flag.idx];
-    return { x: clamp(p ? p.x : arLineX(attack), PITCH.left + 10, PITCH.right - 10), y, sig: 5, face: facePitch, hurry: true };
+    return { x: clamp(p ? p.x : spot, PITCH.left + 10, PITCH.right - 10), y, sig: 5, face: facePitch, hurry: false };
   }
   const pending = game.phase === "dead" ? game.pending : null;
   const sp = game.phase === "setpiece" ? game.setpiece : null;
@@ -2579,7 +2672,7 @@ function arIntent(o) {
     const onMyLine = o.side === "near" ? spotY >= PITCH.cy : spotY < PITCH.cy;
     if (onMyLine) {
       const dir = TEAMS[restart.team].dir;
-      return { x: clamp(spotX - dir * 30, PITCH.left + 8, PITCH.right - 8), y, sig: 6, face: { x: dir, y: 0 }, hurry: true };
+      return { x: clamp(spotX - dir * 36, PITCH.left + 8, PITCH.right - 8), y, sig: 6, face: { x: dir, y: 0 }, hurry: false };
     }
   }
   const penTeam = (game.penalty && game.penalty.team) || (restart && restart.type === "penalty" ? restart.team : null);
@@ -2587,13 +2680,13 @@ function arIntent(o) {
     const A = TEAMS[attack];
     return { x: A.targetGoalX - A.dir * 8, y, sig: 0, face: { x: -A.dir, y: 0 }, hurry: true };
   }
-  return { x: arLineX(attack), y, sig: 0, face: facePitch, hurry: false };
+  return { x: spot, y, sig: 0, face: facePitch, hurry: false };
 }
 function stepOfficial(o, want, dt) {
   const dx = want.x - o.x, dy = want.y - o.y;
   const d = Math.hypot(dx, dy);
-  const sprint = !!want.hurry || d > 120;
-  const speed = sprint ? 250 : 145;
+  const sprint = !!want.hurry || d > 200;
+  const speed = want.hurry ? 210 : (d > 110 ? 185 : 155);
   if (d > 3) {
     const ux = dx / d, uy = dy / d;
     const aim = Math.min(speed, d * 4.2);
@@ -2604,18 +2697,59 @@ function stepOfficial(o, want, dt) {
     const drag = Math.pow(0.08, dt);
     o.vx *= drag; o.vy *= drag;
   }
+  const fromX = o.x, fromY = o.y;
   o.x += o.vx * dt;
   o.y += o.vy * dt;
   if (o.role === "ref") {
-    const bx = o.x - ball.x, by = o.y - ball.y;
-    const bd = Math.hypot(bx, by);
-    if (bd < 28 && bd > 0.01) { o.x = ball.x + bx / bd * 28; o.y = ball.y + by / bd * 28; }
-    o.x = clamp(o.x, PITCH.left + 22, PITCH.right - 22);
-    o.y = clamp(o.y, PITCH.top + 16, PITCH.bottom - 16);
+    const watching = game.phase === "play" && !game.cardPopup && !game.flag;
+    if (watching) {
+      // Open play: never inside a penalty area, and never within 11 metres.
+      // If a long ball leaves him too far to see it, glide toward the spot.
+      const bdNow = Math.hypot(o.x - ball.x, o.y - ball.y);
+      if (bdNow > 17 * METRE) {
+        const spot = legalView(refSpot.x, refSpot.y, REF_NEAR);
+        const pull = Math.min(1, dt * 3.2);
+        o.x += (spot.x - o.x) * pull;
+        o.y += (spot.y - o.y) * pull;
+      }
+      // Correct before anyone draws him, so a fast shot cannot land on him.
+      const tooClose = Math.hypot(o.x - ball.x, o.y - ball.y) < REF_MIN;
+      const boxed = penaltySide(o.x, o.y, 6);
+      if (tooClose || boxed) {
+        const spot = legalView(refSpot.x, refSpot.y, REF_NEAR);
+        const dest = Math.hypot(spot.x - ball.x, spot.y - ball.y) >= REF_MIN - 1
+          ? spot : legalView(o.x, o.y, REF_MIN);
+        o.x = dest.x;
+        o.y = dest.y;
+        o.vx = (o.x - fromX) / Math.max(dt, 1 / 120);
+        o.vy = (o.y - fromY) / Math.max(dt, 1 / 120);
+        const cap = 190;
+        const spv = Math.hypot(o.vx, o.vy);
+        if (spv > cap) { o.vx *= cap / spv; o.vy *= cap / spv; }
+      }
+      o.x = clamp(o.x, PITCH.left + 40, PITCH.right - 40);
+      o.y = clamp(o.y, PITCH.top + 24, PITCH.bottom - 24);
+      if (Math.hypot(o.x - ball.x, o.y - ball.y) < REF_MIN || penaltySide(o.x, o.y, 0)) {
+        const again = legalView(o.x, o.y, REF_MIN);
+        o.x = again.x;
+        o.y = again.y;
+      }
+    } else {
+      const minD = 34;
+      const bx = o.x - ball.x, by = o.y - ball.y;
+      const bd = Math.hypot(bx, by);
+      if (bd < minD && bd > 0.01) {
+        o.x += (bx / bd) * (minD - bd);
+        o.y += (by / bd) * (minD - bd);
+      }
+      o.x = clamp(o.x, PITCH.left + 22, PITCH.right - 22);
+      o.y = clamp(o.y, PITCH.top + 16, PITCH.bottom - 16);
+    }
   } else {
-    o.y = want.y;
-    o.x = clamp(o.x, PITCH.left + 6, PITCH.right - 6);
+    // Linesmen only ever slide along their own touchline.
+    o.y = o.side === "near" ? AR_NEAR_Y : AR_FAR_Y;
     o.vy = 0;
+    o.x = clamp(o.x, PITCH.left + 8, PITCH.right - 8);
   }
   const sp = Math.hypot(o.vx, o.vy);
   if (want.face) { o.fx = want.face.x; o.fy = want.face.y; }
@@ -2634,6 +2768,20 @@ function updateOfficials(dt) {
   else if (game.phase === "shootout") key = "so";
   if (key !== officialCue) { officialCue = key; officialCueT = 0; }
   else officialCueT += dt;
+  // Ease the viewing spots. The people themselves walk toward these,
+  // so a quick pass does not yank them onto the ball.
+  const view = refPlayTarget();
+  const kv = 1 - Math.exp(-dt * 2.8);
+  refSpot.x += (view.x - refSpot.x) * kv;
+  refSpot.y += (view.y - refSpot.y) * kv;
+  // A straight blend can pass through the ball when play switches sides.
+  // Park the spot back on the viewing circle before he walks toward it.
+  const held = legalView(refSpot.x, refSpot.y, REF_NEAR);
+  refSpot.x = held.x;
+  refSpot.y = held.y;
+  const ka = 1 - Math.exp(-dt * 1.35);
+  arSpotX[0] += (arTrackX("blue") - arSpotX[0]) * ka;
+  arSpotX[1] += (arTrackX("red") - arSpotX[1]) * ka;
   stepOfficial(officials[0], refIntent(), dt);
   stepOfficial(officials[1], arIntent(officials[1]), dt);
   stepOfficial(officials[2], arIntent(officials[2]), dt);
@@ -5357,6 +5505,19 @@ window.soccerDebug = {
     return true;
   },
   roster() { return sim.roster.map((p, i) => ({ i, team: p.team, role: p.role, num: p.num, sentOff: p.sentOff })); },
+  // Where the referee and linesmen are, for checks and screenshots.
+  crew() {
+    const M = 1400 / 105;
+    const ref = game.officials[0], near = game.officials[1], far = game.officials[2];
+    return {
+      phase: game.phase,
+      refM: Math.round(Math.hypot(ref.x - ball.x, ref.y - ball.y) / M * 10) / 10,
+      ref: { x: Math.round(ref.x), y: Math.round(ref.y) },
+      near: { x: Math.round(near.x), y: Math.round(near.y) },
+      far: { x: Math.round(far.x), y: Math.round(far.y) },
+      ball: { x: Math.round(ball.x), y: Math.round(ball.y) },
+    };
+  },
   // Cup helpers: win (or lose) your current cup match instantly
   finishMatch(winner = "blue", score = [3, 1]) {
     game.score.blue = score[0]; game.score.red = score[1];
