@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Build the GitHub Pages site at the repository root.
 
-The page people open is the offline game only: 1 player vs the computer,
-2 players on one device, cup, shootout, and the team picker. It does not
-load the online client, so it never opens a WebSocket.
+The page people open is the offline game (1 player, 2 players on one
+device, cup, shootout, team picker) plus a link to online.html.
+online.html is peer-to-peer: the host's browser runs the match.
+There is no game server and no WebSocket to one we host.
 
 Paths in the manifest, icons, and service worker are relative, so the app
 works at https://dashiell405.github.io/soccer-/ (a project site, not the
@@ -23,6 +24,10 @@ ICON_DST = os.path.join(ROOT, "icons")
 
 SHELL_FILES = [
     "index.html",
+    "online.html",
+    "online.js",
+    "game.js",
+    "vendor/peerjs.min.js",
     "pwa.js",
     "manifest.webmanifest",
     "icons/apple-touch-icon.png",
@@ -32,12 +37,14 @@ SHELL_FILES = [
     "icons/maskable-512.png",
     "icons/favicon-32.png",
 ]
+ONLINE_SRC = os.path.join(ROOT, "multiplayer", "public", "index.html")
 
 def head_tags():
     return '''<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Stadium Soccer</title>
 <!-- Home Screen app ("PWA"). All addresses are relative so this works
-     under /soccer-/ on GitHub Pages. Online multiplayer is not on this page. -->
+     under /soccer-/ on GitHub Pages. "Play online" opens online.html. -->
+<script>if(/[?&]room=/.test(location.search))location.replace("online.html"+location.search+location.hash);</script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0c2816">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -69,13 +76,12 @@ def extra_css():
   #skillBtn  { right: calc(40px + min(96px, 24vh) + min(72px, 18vh) + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); }
   #pauseBtn { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
   #rotateHint { top: calc(6px + env(safe-area-inset-top)); }
-  .soon {
-    display: inline-block; margin: 3px; padding: 6px 12px; border-radius: 10px;
-    border: 2px dashed rgba(255,255,255,.55); color: rgba(255,255,255,.85); font-size: 15px;
+  a.btnlink {
+    display: inline-block; text-decoration: none; font-size: 16px; padding: 8px 15px; margin: 3px;
+    border-radius: 10px; border: 2px solid #fff; background: #1f5fd6; color: #fff;
   }
-  @media (max-height: 500px) {
-    .soon { font-size: 13px; padding: 4px 8px; margin: 1px; }
-  }
+  a.btnlink.big { font-size: 20px; padding: 10px 28px; background: #1f5fd6; }
+  #onlineHint { font-size: 13px; opacity: .85; margin: 2px 0 0; }
 '''
 
 SW_JS = r'''/* =====================================================================
@@ -85,13 +91,19 @@ SW_JS = r'''/* =================================================================
 
    Paths are relative (no leading /) so this works on GitHub Pages at
    https://dashiell405.github.io/soccer-/  and also at the domain root.
-   This page is the offline game only. It does not open a WebSocket.
+   Online play (online.html) uses PeerJS from a CDN and a saved copy in
+   vendor/. The broker, STUN and TURN servers are OTHER websites.
+   This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-pages-v1";
+const VERSION = "stadium-soccer-pages-v2";
 const APP_SHELL = [
   "./",
   "index.html",
+  "online.html",
+  "online.js",
+  "game.js",
+  "vendor/peerjs.min.js",
   "pwa.js",
   "manifest.webmanifest",
   "icons/apple-touch-icon.png",
@@ -124,9 +136,14 @@ function withTimeout(promise, ms) {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  const url = new URL(req.url);
-  if (req.method !== "GET" || url.origin !== self.location.origin) return;
-  // Never try to cache a websocket or the online server's debug routes.
+  let url;
+  try { url = new URL(req.url); } catch (e) { return; }
+  // Leave cross-origin requests alone: the PeerJS CDN, the public broker
+  // (0.peerjs.com), STUN and TURN. Also skip anything that is not a normal
+  // GET of our own files (websockets are not fetch, but be explicit).
+  if (req.method !== "GET") return;
+  if (url.origin !== self.location.origin) return;
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
   if (url.pathname.endsWith("/ws") || url.pathname.includes("/debug/") || url.pathname.endsWith("/healthz")) return;
 
   const isPage = req.mode === "navigate";
@@ -153,7 +170,7 @@ MANIFEST = {
     "id": "./",
     "name": "Stadium Soccer",
     "short_name": "Soccer",
-    "description": "5-a-side stadium soccer. Play the computer, or 2 players on one device. Cup, penalty shootout, and team picker. Works offline.",
+    "description": "5-a-side stadium soccer. Play the computer, 2 players on one device, or friends online with a room code. Cup, penalty shootout, and team picker. Works offline.",
     "start_url": "./",
     "scope": "./",
     "display": "standalone",
@@ -187,42 +204,106 @@ def build_index(src_html):
         '<h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>',
         1,
     )
-    # Not a link: nothing here opens the online lobby or a WebSocket.
-    soon = (
+    # Kick off stays the offline match. Online play is a separate page so the
+    # offline game loop and the online client never run at the same time.
+    online = (
         '<div class="row"><button id="startBtn" class="big">KICK OFF</button></div>\n'
-        '    <div class="row"><p class="soon" id="onlineSoon">Online play coming soon</p></div>'
+        '    <div class="row"><a class="btnlink big" id="onlineLink" href="online.html">Play online</a></div>\n'
+        '    <p id="onlineHint">Friends on other phones or computers join with a room code.</p>'
     )
     needle = '<div class="row"><button id="startBtn" class="big">KICK OFF</button></div>'
     if needle not in s:
         raise SystemExit("could not find the kick off button in soccer.html")
-    s = s.replace(needle, soon, 1)
+    s = s.replace(needle, online, 1)
     if "<script src=" in s:
         raise SystemExit("soccer.html should not load external scripts")
     s = s.replace("</body>", '<script src="pwa.js"></script>\n</body>', 1)
     return s
 
+# PeerJS is loaded from the CDN first. If that is blocked, the copy in
+# vendor/ is used. The service worker does not intercept the CDN request.
+PEER_LOADER = r'''<script>
+window.soccerPeerReady = new Promise(function (resolve) {
+  if (window.Peer) { window.soccerPeerFrom = "already"; resolve(true); return; }
+  var done = false, fallbackStarted = false;
+  function finish(from) {
+    if (done) return;
+    if (window.Peer) { done = true; window.soccerPeerFrom = from; resolve(true); return; }
+    if (from === "local") { done = true; window.soccerPeerFrom = "failed"; resolve(false); return; }
+    if (fallbackStarted) return;
+    fallbackStarted = true;
+    var local = document.createElement("script");
+    local.src = "vendor/peerjs.min.js";
+    local.onload = function () { finish("local"); };
+    local.onerror = function () { finish("local"); };
+    document.head.appendChild(local);
+  }
+  var s = document.createElement("script");
+  s.src = "https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js";
+  s.async = true;
+  s.onload = function () { finish("cdn"); };
+  s.onerror = function () { finish("cdn-error"); };
+  setTimeout(function () { if (!window.Peer) finish("cdn-timeout"); }, 5000);
+  document.head.appendChild(s);
+});
+</script>
+'''
+
+def build_online(src_html):
+    s = src_html
+    s = s.replace(
+        'href="offline.html">Offline vs Computer</a>',
+        'href="./">Play on this device</a>',
+        1,
+    )
+    s = s.replace(
+        "<div class=\"help\">1 player vs the computer, or 2 players on one keyboard.<br>Works with no internet.</div>",
+        "<div class=\"help\">1 player, 2 players, cup and penalties on this device.<br>Works with no internet.</div>",
+        1,
+    )
+    old = '<script src="pwa.js"></script>\n<script src="game.js"></script>\n<script src="client.js"></script>'
+    new = PEER_LOADER + '<script src="game.js"></script>\n<script src="online.js"></script>\n<script src="pwa.js"></script>'
+    if old not in s:
+        raise SystemExit("could not find the online page scripts")
+    s = s.replace(old, new, 1)
+    if "new WebSocket" in s or '<script src="client.js">' in s:
+        raise SystemExit("online.html still points at the Node server")
+    return s
+
 def main():
     if not os.path.isfile(SOCCER):
         raise SystemExit("missing soccer.html - run python3 build.py from the repo root")
+    if not os.path.isfile(ONLINE_SRC):
+        raise SystemExit("missing multiplayer/public/index.html")
     with open(SOCCER, encoding="utf-8") as f:
         index = build_index(f.read())
+    with open(ONLINE_SRC, encoding="utf-8") as f:
+        online = build_online(f.read())
     checks = [
-        ("onlineSoon", 'id="onlineSoon"' in index),
-        ("no online link", 'id="onlineLink"' not in index),
-        ("no websocket", "new WebSocket" not in index and "client_net" not in index),
-        ("no online scripts", '<script src="client.js">' not in index and '<script src="game.js">' not in index),
-        ("no lobby buttons", 'id="createBtn"' not in index and 'id="codeInput"' not in index),
+        ("online link", 'id="onlineLink"' in index and 'href="online.html"' in index),
+        ("kick off stays", 'id="startBtn"' in index),
+        ("no websocket on the menu", "new WebSocket" not in index and "client_net" not in index),
+        ("menu is not the lobby", 'id="createBtn"' not in index and 'id="codeInput"' not in index),
         ("relative manifest", 'href="manifest.webmanifest"' in index),
         ("relative apple icon", 'href="icons/apple-touch-icon.png"' in index),
         ("relative pwa.js", '<script src="pwa.js"></script>' in index),
-        ("no root-absolute asset", 'href="/' not in index and "src=\"/" not in index),
+        ("no root-absolute asset", 'href="/' not in index and 'src="/' not in index),
+        ("room links open online", 'location.replace("online.html"' in index),
+        ("online page hosts", 'id="createBtn"' in online and "Host a game" in online),
+        ("online page joins", 'id="codeInput"' in online and 'id="joinBtn"' in online),
+        ("peer loader", "cdn.jsdelivr.net/npm/peerjs@1.5.5" in online and "vendor/peerjs.min.js" in online),
+        ("online scripts", '<script src="online.js"></script>' in online and '<script src="game.js"></script>' in online),
+        ("no node client", '<script src="client.js">' not in online and "new WebSocket" not in online),
+        ("back to offline", 'href="./"' in online),
     ]
     bad = [name for name, ok in checks if not ok]
     if bad:
-        raise SystemExit("pages index failed checks: " + ", ".join(bad))
+        raise SystemExit("pages build failed checks: " + ", ".join(bad))
 
     with open(os.path.join(ROOT, "index.html"), "w", encoding="utf-8") as f:
         f.write(index)
+    with open(os.path.join(ROOT, "online.html"), "w", encoding="utf-8") as f:
+        f.write(online)
     with open(os.path.join(ROOT, "sw.js"), "w", encoding="utf-8") as f:
         f.write(SW_JS)
     with open(os.path.join(ROOT, "manifest.webmanifest"), "w", encoding="utf-8") as f:
@@ -241,11 +322,17 @@ def main():
     missing = [p for p in SHELL_FILES if not os.path.isfile(os.path.join(ROOT, p))]
     if missing:
         raise SystemExit("missing pages files: " + ", ".join(missing))
-    for rel in ("manifest.webmanifest", "sw.js", "pwa.js"):
+    for rel in ("manifest.webmanifest", "sw.js", "pwa.js", "online.html", "index.html"):
         text = open(os.path.join(ROOT, rel), encoding="utf-8").read()
         if re.search(r'''(?:href|src|register)\s*[\(=]\s*["']/(?!/)''', text):
             raise SystemExit(rel + " has a root-absolute URL; Pages needs relative paths")
-    print("GitHub Pages site ready at repo root (" + str(len(index)) + " byte index.html)")
+    sw = open(os.path.join(ROOT, "sw.js"), encoding="utf-8").read()
+    if "stadium-soccer-pages-v2" not in sw or "url.origin !== self.location.origin" not in sw:
+        raise SystemExit("service worker is missing the cache bump or the cross-origin bypass")
+    online_js = open(os.path.join(ROOT, "online.js"), encoding="utf-8").read()
+    if "new WebSocket" in online_js or "SOCCER" not in online_js or "stun:stun.l.google.com:19302" not in online_js:
+        raise SystemExit("online.js is not the peer-to-peer client")
+    print("GitHub Pages site ready at repo root (" + str(len(index)) + " byte index.html, " + str(len(online)) + " byte online.html)")
 
 if __name__ == "__main__":
     sys.exit(main() or 0)

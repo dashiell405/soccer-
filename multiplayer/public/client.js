@@ -1,12 +1,14 @@
 /* =====================================================================
    SOCCER SHOWDOWN 2 - ONLINE  :  client.js  (runs in each browser)
    ---------------------------------------------------------------------
-   The browser does NOT decide what happens in the match - the server
-   does. The browser:
-     1. shows the lobby (create / join a room, pick a team)
-     2. sends your buttons to the server (move, sprint, shoot, pass)
+   One device decides what happens in the match (the "host"):
+     * the Node server, if a grown-up runs multiplayer/server.js, OR
+     * the host player's phone or computer, on the GitHub Pages site.
+   Every browser:
+     1. shows the lobby (host / join a room, pick a team)
+     2. sends its buttons (move, sprint, shoot, pass)
      3. receives snapshots ~30 times a second and draws them smoothly
-        (it draws 100 ms "in the past" and blends between two snapshots,
+        (it draws a little "in the past" and blends between two snapshots,
         this is called INTERPOLATION)
      4. plays the sounds and shows the commentary
    Settings, team colours and helpers come from game.js (loaded first).
@@ -187,21 +189,25 @@ function playEvent([name, arg]) {
 
 
 // =====================================================================
-// C. NETWORK  (a WebSocket connection to the server)
+// NETWORK TRANSPORT  -  WebSocket to multiplayer/server.js
+// The GitHub Pages game uses src/p2p_net.js instead of this file.
 // =====================================================================
 let ws = null;
-let wantRoom = null;   // {code, token, name} - used to (re)join after a reconnect
-let pendingAction = null;
-let retryMs = 1500, retryTimer = null;   // waits longer between tries while you're not in a room
-// Shown on the home screen when the online server can't be reached (no internet,
-// or the server/tunnel is switched off). The offline game still works.
+let retryMs = 1500, retryTimer = null;
+// Shown on the home screen when the online server can't be reached.
 const NO_SERVER_MSG = "Can't reach the online server right now - you can still play Offline vs Computer!";
+
+function netLinkUp() { return !!(ws && ws.readyState === 1); }
+function netIsHost() { return false; }
+function netReset() { /* the socket stays open so you can join another room */ }
+function netMarkLeaving() {}
+function netDebug() { return { type: "ws", link: netLinkUp() }; }
 
 function connect() {
   const proto = location.protocol === "https:" ? "wss://" : "ws://";
   ws = new WebSocket(proto + location.host + "/ws");
   ws.onopen = () => {
-    $("connBanner").classList.add("hidden");
+    hideNotice();
     retryMs = 1500;
     if ($("homeMsg").textContent === NO_SERVER_MSG) $("homeMsg").textContent = "";
     if (pendingAction) { sendMsg(pendingAction); pendingAction = null; }
@@ -210,9 +216,9 @@ function connect() {
   ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch (err) { return; } onMessage(m); };
   ws.onclose = () => {
     ws = null;
-    if (wantRoom) $("connBanner").classList.remove("hidden");
+    if (wantRoom) showNotice("Connection lost. Trying again...", false);
     else if (!$("homeMsg").textContent) $("homeMsg").textContent = NO_SERVER_MSG;
-    retryTimer = setTimeout(connect, wantRoom || pendingAction ? 1500 : retryMs);   // keep trying to reconnect
+    retryTimer = setTimeout(connect, wantRoom || pendingAction ? 1500 : retryMs);
     retryMs = Math.min(retryMs * 1.5, 8000);
   };
   ws.onerror = () => { /* onclose will handle it */ };
@@ -221,8 +227,16 @@ function sendMsg(m) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m));
 function sendOrQueue(m) {
   if (ws && ws.readyState === 1) { sendMsg(m); return; }
   pendingAction = m;
-  if (!ws) { clearTimeout(retryTimer); connect(); }   // try again right now
+  if (!ws) { clearTimeout(retryTimer); connect(); }
 }
+
+// =====================================================================
+// C. MESSAGES FROM THE HOST
+// The transport (WebSocket or peer-to-peer) lives in another file.
+// It calls onMessage() and provides sendMsg / connect.
+// =====================================================================
+let wantRoom = null;   // {code, token, name} - used to rejoin after a refresh
+let pendingAction = null;
 
 function onMessage(m) {
   switch (m.t) {
@@ -233,18 +247,28 @@ function onMessage(m) {
       history.replaceState(null, "", "?room=" + m.code);
       break;
     case "room":
+      // A late message after we already left should not pull us back in.
+      if (!myId) break;
+      // The host's device is gone (peer-to-peer). The WebSocket server picks a new host instead.
+      if (typeof netHostGone === "function" && !netIsHost() && m.hostId && Array.isArray(m.members) && !m.members.some((x) => x.id === m.hostId)) {
+        netHostGone();
+        break;
+      }
       room = m;
       game.mode = m.mode; game.difficulty = m.difficulty;
       if (m.state === "lobby") { game.phase = "lobby"; snaps.length = 0; }
+      if (m.note) showNotice(m.note, true);
       updateScreens();
       break;
     case "match":
+      if (!myId) break;
       setupPlayers(m.players);
       applyMatchInfo(m.info);
       snaps.length = 0;
       confetti.length = 0;
       break;
     case "s":
+      if (!myId) break;
       onSnapshot(m);
       break;
     case "pong":
@@ -252,8 +276,11 @@ function onMessage(m) {
       break;
     case "error":
       $("homeMsg").textContent = m.msg;
-      if (wantRoom && !myId) wantRoom = null;
-      try { sessionStorage.removeItem("soccerRoom"); } catch (e) { /* ignore */ }
+      if (!myId) {
+        wantRoom = null;
+        try { sessionStorage.removeItem("soccerRoom"); } catch (e) { /* ignore */ }
+        if (typeof netFailJoin === "function") netFailJoin();
+      }
       break;
   }
 }
@@ -309,7 +336,8 @@ function onSnapshot(s) {
 // Blend between the two snapshots around (now - INTERP_DELAY)
 function applyInterpolation(dt) {
   if (!snaps.length || !players.length) return;
-  const target = performance.now() - INTERP_DELAY;
+  // The host already has the newest picture, so they only wait a tiny bit.
+  const target = performance.now() - (netIsHost() ? 45 : INTERP_DELAY);
   let a = snaps[0], b = snaps[snaps.length - 1];
   for (let i = 0; i < snaps.length - 1; i++) {
     if (snaps[i].at <= target && snaps[i + 1].at >= target) { a = snaps[i]; b = snaps[i + 1]; break; }
@@ -1174,7 +1202,7 @@ function memberLine(m) {
   const tags = [];
   if (m.id === myId) tags.push("you");
   if (m.id === room.hostId) tags.push("host");
-  const status = m.connected ? (m.ping ? m.ping + " ms" : "") : "disconnected";
+  const status = m.connected ? (m.ping ? m.ping + " ms" : "") : "left \u2013 computer plays";
   return "<div class='slot" + (m.id === myId ? " me" : "") + (m.connected ? "" : " off") + "'><b>" + esc(m.name) + "</b>" +
     (tags.length ? " <span class='tag'>" + tags.join(", ") + "</span>" : "") +
     (status ? " <span class='ping'>" + status + "</span>" : "") + "</div>";
@@ -1183,7 +1211,10 @@ function memberLine(m) {
 function renderLobby() {
   const host = room.hostId === myId;
   $("roomCode").textContent = room.code;
-  $("shareUrl").textContent = location.origin + "/?room=" + room.code;
+  const link = new URL(location.href);
+  link.search = "?room=" + room.code;
+  link.hash = "";
+  $("shareUrl").textContent = link.href;
   document.querySelectorAll("[data-lmode]").forEach((b) => { b.classList.toggle("selected", b.dataset.lmode === room.mode); b.disabled = !host; });
   document.querySelectorAll("[data-ldiff]").forEach((b) => { b.classList.toggle("selected", b.dataset.ldiff === room.difficulty); b.disabled = !host; });
   document.querySelectorAll("[data-lmatch]").forEach((b) => { b.classList.toggle("selected", b.dataset.lmatch === (room.matchType || "match")); b.disabled = !host; });
@@ -1213,7 +1244,7 @@ function renderLobby() {
   $("specJoin").disabled = !me || !me.team;
   const humans = room.members.filter((m) => m.team).length;
   show("startBtn", host);
-  $("startBtn").textContent = humans < room.perTeam * 2 ? "Start (computer fills empty slots)" : "Start match";
+  $("startBtn").textContent = humans < room.perTeam * 2 ? "Start (computer fills the empty spots)" : "Start match";
   show("waitHost", !host);
 }
 
@@ -1244,13 +1275,34 @@ function toggleSound() {
   game.muted = !game.muted; Sound.setMuted(game.muted);
   $("soundBtn").textContent = game.muted ? "Sound: OFF" : "Sound: ON";
 }
-function leaveRoom() {
-  sendMsg({ t: "leave" });
+let noticeTimer = null;
+function showNotice(text, soft) {
+  const el = $("connBanner");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("soft", !!soft);
+  el.classList.remove("hidden");
+  clearTimeout(noticeTimer);
+  if (soft) noticeTimer = setTimeout(() => el.classList.add("hidden"), 7000);
+}
+function hideNotice() {
+  const el = $("connBanner");
+  if (!el) return;
+  clearTimeout(noticeTimer);
+  el.classList.add("hidden");
+}
+function clearRoom() {
   room = null; myId = null; wantRoom = null; menuOpen = false;
   game.phase = "lobby"; snaps.length = 0; controllers = [];
   try { sessionStorage.removeItem("soccerRoom"); } catch (e) { /* ignore */ }
   history.replaceState(null, "", location.pathname);
   updateScreens();
+}
+function leaveRoom() {
+  if (typeof netMarkLeaving === "function") netMarkLeaving();
+  try { sendMsg({ t: "leave" }); } catch (e) { /* already gone */ }
+  if (typeof netReset === "function") netReset();
+  clearRoom();
 }
 
 
@@ -1277,8 +1329,8 @@ $("createBtn").addEventListener("click", () => {
 });
 function joinByCode() {
   const name = myName(); if (!name) return;
-  const code = $("codeInput").value.trim().toUpperCase();
-  if (code.length !== 4) { $("homeMsg").textContent = "Room codes have 4 letters."; return; }
+  const code = $("codeInput").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code.length !== 4) { $("homeMsg").textContent = "The room code is 4 letters or numbers."; return; }
   Sound.init(); $("homeMsg").textContent = "";
   sendOrQueue({ t: "join", code, name });
 }
@@ -1338,7 +1390,7 @@ function frame(now) {
   updateCamera(dt);
   draw();
   const pb = $("pingBox");
-  pb.textContent = (ws && ws.readyState === 1 ? "\u25CF " : "\u25CB ") + pingMs + " ms";
+  pb.textContent = (netLinkUp() ? "\u25CF " : "\u25CB ") + pingMs + " ms";
   pb.style.color = pingMs < 80 ? "#7CFC8A" : pingMs < 200 ? "#ffd33d" : "#ff6b6b";
   requestAnimationFrame(frame);
 }
@@ -1355,7 +1407,9 @@ window.mpDebug = {
       me: a ? { index: players.indexOf(a), x: a.x, y: a.y, vx: a.vx, vy: a.vy } : null,
       myRaw: a && last ? (() => { const r = last.p[players.indexOf(a)]; return { x: r[0], y: r[1], vx: r[2], vy: r[3] }; })() : null,
       controllers: controllers.map((c) => ({ id: c.id, active: players.indexOf(c.active), cpu: c.cpu })),
-      ping: pingMs, snapshots: snaps.length, winVisible: !$("winScreen").classList.contains("hidden"),
+      ping: pingMs, link: netLinkUp(), host: netIsHost(),
+      net: typeof netDebug === "function" ? netDebug() : null,
+      snapshots: snaps.length, winVisible: !$("winScreen").classList.contains("hidden"),
       teams: { blue: TEAMS.blue.short, red: TEAMS.red.short, blueShirt: TEAMS.blue.kit.shirt, redShirt: TEAMS.red.kit.shirt },
       setpiece: game.setpiece && game.setpiece.type, indirect: !!(game.setpiece && game.setpiece.indirect),
       penalty: game.penalty ? { team: game.penalty.team, aimY: game.penalty.aimY, gkChoice: game.penalty.gkChoice, iAmTaker: game.penalty.taker === a, iAmKeeper: game.penalty.keeper === a } : null,

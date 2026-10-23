@@ -1,12 +1,14 @@
 /* =====================================================================
    SOCCER SHOWDOWN 2 - ONLINE  :  client.js  (runs in each browser)
    ---------------------------------------------------------------------
-   The browser does NOT decide what happens in the match - the server
-   does. The browser:
-     1. shows the lobby (create / join a room, pick a team)
-     2. sends your buttons to the server (move, sprint, shoot, pass)
+   One device decides what happens in the match (the "host"):
+     * the Node server, if a grown-up runs multiplayer/server.js, OR
+     * the host player's phone or computer, on the GitHub Pages site.
+   Every browser:
+     1. shows the lobby (host / join a room, pick a team)
+     2. sends its buttons (move, sprint, shoot, pass)
      3. receives snapshots ~30 times a second and draws them smoothly
-        (it draws 100 ms "in the past" and blends between two snapshots,
+        (it draws a little "in the past" and blends between two snapshots,
         this is called INTERPOLATION)
      4. plays the sounds and shows the commentary
    Settings, team colours and helpers come from game.js (loaded first).

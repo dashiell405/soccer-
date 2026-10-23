@@ -5,13 +5,19 @@
 
    Paths are relative (no leading /) so this works on GitHub Pages at
    https://dashiell405.github.io/soccer-/  and also at the domain root.
-   This page is the offline game only. It does not open a WebSocket.
+   Online play (online.html) uses PeerJS from a CDN and a saved copy in
+   vendor/. The broker, STUN and TURN servers are OTHER websites.
+   This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-pages-v1";
+const VERSION = "stadium-soccer-pages-v2";
 const APP_SHELL = [
   "./",
   "index.html",
+  "online.html",
+  "online.js",
+  "game.js",
+  "vendor/peerjs.min.js",
   "pwa.js",
   "manifest.webmanifest",
   "icons/apple-touch-icon.png",
@@ -44,9 +50,14 @@ function withTimeout(promise, ms) {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  const url = new URL(req.url);
-  if (req.method !== "GET" || url.origin !== self.location.origin) return;
-  // Never try to cache a websocket or the online server's debug routes.
+  let url;
+  try { url = new URL(req.url); } catch (e) { return; }
+  // Leave cross-origin requests alone: the PeerJS CDN, the public broker
+  // (0.peerjs.com), STUN and TURN. Also skip anything that is not a normal
+  // GET of our own files (websockets are not fetch, but be explicit).
+  if (req.method !== "GET") return;
+  if (url.origin !== self.location.origin) return;
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
   if (url.pathname.endsWith("/ws") || url.pathname.includes("/debug/") || url.pathname.endsWith("/healthz")) return;
 
   const isPage = req.mode === "navigate";

@@ -1,40 +1,10 @@
 // =====================================================================
-// C. NETWORK  (a WebSocket connection to the server)
+// C. MESSAGES FROM THE HOST
+// The transport (WebSocket or peer-to-peer) lives in another file.
+// It calls onMessage() and provides sendMsg / connect.
 // =====================================================================
-let ws = null;
-let wantRoom = null;   // {code, token, name} - used to (re)join after a reconnect
+let wantRoom = null;   // {code, token, name} - used to rejoin after a refresh
 let pendingAction = null;
-let retryMs = 1500, retryTimer = null;   // waits longer between tries while you're not in a room
-// Shown on the home screen when the online server can't be reached (no internet,
-// or the server/tunnel is switched off). The offline game still works.
-const NO_SERVER_MSG = "Can't reach the online server right now - you can still play Offline vs Computer!";
-
-function connect() {
-  const proto = location.protocol === "https:" ? "wss://" : "ws://";
-  ws = new WebSocket(proto + location.host + "/ws");
-  ws.onopen = () => {
-    $("connBanner").classList.add("hidden");
-    retryMs = 1500;
-    if ($("homeMsg").textContent === NO_SERVER_MSG) $("homeMsg").textContent = "";
-    if (pendingAction) { sendMsg(pendingAction); pendingAction = null; }
-    else if (wantRoom && wantRoom.token) sendMsg({ t: "join", code: wantRoom.code, name: wantRoom.name, token: wantRoom.token });
-  };
-  ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch (err) { return; } onMessage(m); };
-  ws.onclose = () => {
-    ws = null;
-    if (wantRoom) $("connBanner").classList.remove("hidden");
-    else if (!$("homeMsg").textContent) $("homeMsg").textContent = NO_SERVER_MSG;
-    retryTimer = setTimeout(connect, wantRoom || pendingAction ? 1500 : retryMs);   // keep trying to reconnect
-    retryMs = Math.min(retryMs * 1.5, 8000);
-  };
-  ws.onerror = () => { /* onclose will handle it */ };
-}
-function sendMsg(m) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); }
-function sendOrQueue(m) {
-  if (ws && ws.readyState === 1) { sendMsg(m); return; }
-  pendingAction = m;
-  if (!ws) { clearTimeout(retryTimer); connect(); }   // try again right now
-}
 
 function onMessage(m) {
   switch (m.t) {
@@ -45,18 +15,28 @@ function onMessage(m) {
       history.replaceState(null, "", "?room=" + m.code);
       break;
     case "room":
+      // A late message after we already left should not pull us back in.
+      if (!myId) break;
+      // The host's device is gone (peer-to-peer). The WebSocket server picks a new host instead.
+      if (typeof netHostGone === "function" && !netIsHost() && m.hostId && Array.isArray(m.members) && !m.members.some((x) => x.id === m.hostId)) {
+        netHostGone();
+        break;
+      }
       room = m;
       game.mode = m.mode; game.difficulty = m.difficulty;
       if (m.state === "lobby") { game.phase = "lobby"; snaps.length = 0; }
+      if (m.note) showNotice(m.note, true);
       updateScreens();
       break;
     case "match":
+      if (!myId) break;
       setupPlayers(m.players);
       applyMatchInfo(m.info);
       snaps.length = 0;
       confetti.length = 0;
       break;
     case "s":
+      if (!myId) break;
       onSnapshot(m);
       break;
     case "pong":
@@ -64,8 +44,11 @@ function onMessage(m) {
       break;
     case "error":
       $("homeMsg").textContent = m.msg;
-      if (wantRoom && !myId) wantRoom = null;
-      try { sessionStorage.removeItem("soccerRoom"); } catch (e) { /* ignore */ }
+      if (!myId) {
+        wantRoom = null;
+        try { sessionStorage.removeItem("soccerRoom"); } catch (e) { /* ignore */ }
+        if (typeof netFailJoin === "function") netFailJoin();
+      }
       break;
   }
 }
@@ -121,7 +104,8 @@ function onSnapshot(s) {
 // Blend between the two snapshots around (now - INTERP_DELAY)
 function applyInterpolation(dt) {
   if (!snaps.length || !players.length) return;
-  const target = performance.now() - INTERP_DELAY;
+  // The host already has the newest picture, so they only wait a tiny bit.
+  const target = performance.now() - (netIsHost() ? 45 : INTERP_DELAY);
   let a = snaps[0], b = snaps[snaps.length - 1];
   for (let i = 0; i < snaps.length - 1; i++) {
     if (snaps[i].at <= target && snaps[i + 1].at >= target) { a = snaps[i]; b = snaps[i + 1]; break; }
