@@ -35,6 +35,7 @@ const game = {
   teams: null, rules: { ...DEFAULT_RULES }, winScore: WIN_SCORE, timeLimit: 0, matchType: "match",
   // decoded from snapshots
   penalty: null, shootout: null, celebration: null, cardPopup: null, flag: null,
+  officials: null,       // referee + two linesmen, filled in from snapshots
   muted: false,
 };
 let players = [];          // drawn players (static look + interpolated position)
@@ -1025,6 +1026,33 @@ function applyInterpolation(dt) {
 
   // Humans + set piece come from the NEWEST snapshot
   const L = snaps[snaps.length - 1].s;
+
+  // Referee and linesmen. The host decides where they are; we blend like the players.
+  const Lof = L.of;
+  const oa = A.of, ob = B.of;
+  if (Lof && oa && ob && Lof.length === 3) {
+    if (!game.officials || game.officials.length !== 3) {
+      game.officials = [
+        { role: "ref", side: "", skin: "#e0ac69", hair: "#111" },
+        { role: "ar", side: "near", skin: "#c68642", hair: "#1a1a1a" },
+        { role: "ar", side: "far", skin: "#f1c27d", hair: "#2b1b0e" },
+      ];
+    }
+    for (let i = 0; i < 3; i++) {
+      const pa = oa[i], pb = ob[i], pl = Lof[i];
+      if (!pa || !pb) continue;
+      const o = game.officials[i];
+      const jump = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) > 90;
+      o.x = jump ? pb[0] : lerp(pa[0], pb[0], t);
+      o.y = jump ? pb[1] : lerp(pa[1], pb[1], t);
+      o.vx = pb[2]; o.vy = pb[3];
+      const f = normalize(lerp(pa[4], pb[4], t), lerp(pa[5], pb[5], t));
+      o.fx = f.x; o.fy = f.y;
+      o.sig = pl ? pl[6] : pb[6];
+      o.anim = pb[7] || 0;
+    }
+  }
+
   controllers = L.c.map(([id, ai, charging, held, cpu]) => ({ id, active: players[ai] || null, charging: charging || null, held, cpu: !!cpu }));
   game.setpiece = L.sp ? { type: L.sp[0], team: L.sp[1], taker: players[L.sp[2]] || null, indirect: !!L.sp[3] } : null;
   // the comment countdown keeps running between snapshots
@@ -1249,10 +1277,18 @@ let replay = null;       // array of frames, or "skip"
 let replayT0 = 0;
 let replayDur = 0;
 
+function copyOfficial(o) {
+  return {
+    role: o.role, side: o.side, x: o.x, y: o.y, vx: o.vx || 0, vy: o.vy || 0,
+    fx: o.fx || 1, fy: o.fy || 0, sig: o.sig || 0, anim: o.anim || 0,
+    skin: o.skin, hair: o.hair,
+  };
+}
 function captureFrame(list) {
   return {
     t: viewTime,
     ball: { x: ball.x, y: ball.y, z: ball.z || 0, spin: ball.spin || 0, vx: ball.vx || 0, vy: ball.vy || 0 },
+    offs: (game.officials || []).map(copyOfficial),
     ps: list.map((p) => ({
       x: p.x, y: p.y, vx: p.vx || 0, vy: p.vy || 0, fx: p.fx || 1, fy: p.fy || 0,
       state: p.state || "run", fallDir: p.fallDir || 1, anim: p.anim || 0,
@@ -1304,6 +1340,17 @@ function lerpActor(a, b, t) {
     sentOff: !!(a.sentOff || b.sentOff), yellow: b.yellow || 0,
   };
 }
+function lerpOff(a, b, t) {
+  if (!a) return b;
+  if (!b) return a;
+  const f = normalize(lerp(a.fx, b.fx, t), lerp(a.fy, b.fy, t));
+  return {
+    role: a.role, side: a.side, skin: a.skin, hair: a.hair,
+    x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t),
+    vx: lerp(a.vx, b.vx, t), vy: lerp(a.vy, b.vy, t),
+    fx: f.x, fy: f.y, sig: b.sig, anim: lerp(a.anim || 0, b.anim || 0, t),
+  };
+}
 function replaySample() {
   const span = replay[replay.length - 1].t - replay[0].t || 1;
   const u = clamp((viewTime - replayT0) / Math.max(0.2, replayDur), 0, 1);
@@ -1315,6 +1362,9 @@ function replaySample() {
   const n = Math.max(a.ps.length, b.ps.length);
   const ps = [];
   for (let k = 0; k < n; k++) ps.push(lerpActor(a.ps[k] || b.ps[k], b.ps[k] || a.ps[k], t));
+  const offs = [];
+  const na = (a.offs || []).length, nb = (b.offs || []).length;
+  for (let k = 0; k < Math.max(na, nb); k++) offs.push(lerpOff((a.offs || [])[k], (b.offs || [])[k], t));
   return {
     ball: {
       x: lerp(a.ball.x, b.ball.x, t), y: lerp(a.ball.y, b.ball.y, t),
@@ -1322,6 +1372,7 @@ function replaySample() {
       vx: lerp(a.ball.vx, b.ball.vx, t), vy: lerp(a.ball.vy, b.ball.vy, t),
     },
     ps: ps,
+    offs: offs.filter(Boolean),
   };
 }
 
@@ -1390,6 +1441,7 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 let ballSrc = null; // which ball to draw (live, or a replay frame)
+let shownOfficials = null; // referee and linesmen for this frame
 let quality = "high";
 
 function quad(a, b, c, d, color) {
@@ -1811,6 +1863,139 @@ function limb(x1, y1, x2, y2, x3, y3, color, width) {
   ctx.lineTo(x2, y2);
   if (x3 !== undefined) ctx.lineTo(x3, y3);
   ctx.stroke();
+}
+
+// The referee (on the grass) and the two linesmen (on the touchlines).
+// Same body as a player, in a yellow kit that is not either team.
+function drawOfficial(o) {
+  if (!o) return;
+  const foot = w2s(o.x, o.y, 0);
+  const S = foot.s;
+  const H = 34 * ZMUL * S;
+  if (H < 6) return;
+  if (foot.x < -90 || foot.x > VIEW_W + 90 || foot.y < -130 || foot.y > VIEW_H + 80) return;
+
+  const speed = Math.hypot(o.vx || 0, o.vy || 0);
+  const sig = o.sig || 0;
+  const face = (o.fx || 1) >= 0 ? 1 : -1;
+  const posing = sig >= 1;
+  const run = !posing && speed > 22 ? Math.sin(o.anim || 0) : 0;
+  const skin = o.skin || "#e0ac69";
+
+  ctx.fillStyle = "rgba(0,0,0,0.38)";
+  ctx.beginPath();
+  ctx.ellipse(foot.x + 2 * S, foot.y + S, 8.2 * S, 3 * S, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.translate(foot.x, foot.y);
+  const sideOn = clamp(Math.abs(o.fx || 1) * 1.25, 0.7, 1);
+  ctx.scale(face * sideOn, 1);
+  if (run) ctx.rotate(run * 0.05);
+
+  const hip = -H * 0.46;
+  const sw = run * H * 0.2;
+  const kneeY = hip + H * 0.24;
+  limb(-H * 0.07, hip, -H * 0.05 - sw * 0.45, kneeY, -H * 0.02 - sw, -H * 0.015, "#161616", H * 0.07);
+  limb(H * 0.08, hip, H * 0.06 + sw * 0.35, kneeY, H * 0.03 + sw, -H * 0.015, "#161616", H * 0.078);
+  ctx.fillStyle = "#111";
+  ctx.beginPath();
+  ctx.ellipse(-H * 0.02 - sw, -H * 0.01, H * 0.06, H * 0.028, 0, 0, Math.PI * 2);
+  ctx.ellipse(H * 0.03 + sw, -H * 0.01, H * 0.065, H * 0.03, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#141414";
+  roundRect(ctx, -H * 0.15, hip - H * 0.01, H * 0.3, H * 0.15, H * 0.04);
+  ctx.fill();
+  ctx.fillStyle = "#ffe14a";
+  roundRect(ctx, -H * 0.17, -H * 0.8, H * 0.34, H * 0.36, H * 0.08);
+  ctx.fill();
+  ctx.fillStyle = "#161616";
+  ctx.fillRect(-H * 0.17, -H * 0.8, H * 0.34, H * 0.06);
+  ctx.fillRect(-H * 0.05, -H * 0.74, H * 0.1, H * 0.16);
+
+  const armW = H * 0.052;
+  if (sig === 3 || sig === 4) {
+    limb(-H * 0.15, -H * 0.68, -H * 0.22, -H * 0.42, undefined, undefined, skin, armW);
+    limb(H * 0.14, -H * 0.7, H * 0.2, -H * 1.14, undefined, undefined, skin, armW);
+  } else if (sig === 5 || sig === 6) {
+    limb(-H * 0.15, -H * 0.68, -H * 0.24, -H * 0.44, undefined, undefined, skin, armW);
+    const lean = sig === 6 ? H * 0.34 : H * 0.04;
+    limb(H * 0.12, -H * 0.7, H * 0.16 + lean, -H * 1.16, undefined, undefined, skin, armW);
+  } else if (sig === 1) {
+    limb(H * 0.12, -H * 0.68, H * 0.04, -H * 0.96, undefined, undefined, skin, armW);
+    limb(-H * 0.14, -H * 0.68, -H * 0.42, -H * 0.58, undefined, undefined, skin, armW);
+  } else if (sig === 2) {
+    limb(-H * 0.14, -H * 0.68, -H * 0.22, -H * 0.42, undefined, undefined, skin, armW);
+    limb(H * 0.14, -H * 0.66, H * 0.5, -H * 0.6, undefined, undefined, skin, armW);
+  } else {
+    const as = -run * H * 0.16;
+    limb(-H * 0.16, -H * 0.68, -H * 0.26 + as, -H * 0.4, undefined, undefined, skin, armW);
+    limb(H * 0.16, -H * 0.68, H * 0.26 - as, -H * 0.4, undefined, undefined, skin, armW);
+  }
+
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.arc(0, -H * 0.9, H * 0.112, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = o.hair || "#111";
+  ctx.beginPath();
+  ctx.arc(0, -H * 0.93, H * 0.115, Math.PI * 1.05, Math.PI * 1.95);
+  ctx.fill();
+  ctx.restore();
+
+  // Card held up over the booked player. Red covers a second yellow.
+  if ((sig === 3 || sig === 4) && game.cardPopup && typeof rosterList === "function") {
+    const booked = rosterList()[game.cardPopup.idx];
+    const head = booked ? w2s(booked.x, booked.y, 0) : foot;
+    const hh = booked ? 34 * ZMUL * head.s : H;
+    const cx = head.x;
+    const cy = head.y - hh - 8 * S;
+    const cw = Math.max(7, hh * 0.22), ch = Math.max(11, hh * 0.34);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-0.08);
+    if (game.cardPopup.kind === "second") {
+      ctx.fillStyle = "#ffd33d";
+      ctx.fillRect(-cw * 0.2, -ch * 0.15, cw, ch);
+    }
+    ctx.fillStyle = sig === 3 ? "#ffd33d" : "#e10600";
+    ctx.strokeStyle = "#111";
+    ctx.lineWidth = 1;
+    ctx.fillRect(0, -ch, cw, ch);
+    ctx.strokeRect(0, -ch, cw, ch);
+    ctx.restore();
+  }
+  if (sig === 1) {
+    ctx.fillStyle = "#111";
+    ctx.beginPath();
+    ctx.arc(foot.x + face * H * 0.02, foot.y - H * 0.92, Math.max(1.4, H * 0.035), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (sig === 5 || sig === 6) {
+    const wave = Math.sin(viewTime * 16) * H * 0.04;
+    const lean = sig === 6 ? face * H * 0.32 : face * H * 0.04;
+    const x0 = foot.x + face * H * 0.1;
+    const y0 = foot.y - H * 0.72;
+    const x1 = foot.x + lean;
+    const y1 = foot.y - H * 1.18;
+    ctx.strokeStyle = "#f4f4f4";
+    ctx.lineWidth = Math.max(1.4, H * 0.04);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.fillStyle = "#ff2a2a";
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 + face * H * 0.22, y1 + H * 0.1 + wave);
+    ctx.lineTo(x1 + face * H * 0.02, y1 + H * 0.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#ffe14a";
+    ctx.fillRect(x1 - H * 0.02, y1, Math.max(2, H * 0.06), Math.max(2, H * 0.06));
+  }
 }
 
 function drawPlayer(p) {
@@ -2471,6 +2656,12 @@ function drawMinimap() {
   ctx.beginPath();
   ctx.arc(mx + mw / 2, my + mh / 2, CIRCLE_R / PITCH.w * mw, 0, Math.PI * 2);
   ctx.stroke();
+  const dots = shownOfficials || game.officials || [];
+  for (const o of dots) {
+    ctx.fillStyle = o.role === "ref" ? "#ffe14a" : "#f0d060";
+    const py = clamp(o.y, PITCH.top, PITCH.bottom);
+    ctx.fillRect(sx(o.x) - 1.6, sy(py) - 1.6, 3.2, 3.2);
+  }
   for (const p of onPitch()) {
     ctx.fillStyle = p.role === "GK" ? TEAMS[p.team].gk.shirt : TEAMS[p.team].kit.shirt;
     ctx.beginPath();
@@ -2538,6 +2729,7 @@ function draw() {
   const sample = replayOn ? replaySample() : null;
   ballSrc = sample ? sample.ball : ball;
   const cast = sample ? sample.ps.filter((p) => p && !p.sentOff) : onPitch();
+  shownOfficials = (sample && sample.offs && sample.offs.length) ? sample.offs : (game.officials || []);
 
   drawSky();
   drawTower(PITCH.left + 36, PITCH.top - 4, true);
@@ -2549,15 +2741,18 @@ function draw() {
   drawBoards(false);
   drawGoals();
 
+  const crew = shownOfficials || [];
   const things = cast.map((p) => ({ y: p.y, p: p }));
+  for (const o of crew) if (o.side !== "near") things.push({ y: o.y, o: o });
   const bz = (ballSrc && ballSrc.z) || 0;
   if (bz <= 14) things.push({ y: ballSrc.y + 0.2, ball: true });
   things.sort((a, b) => a.y - b.y);
-  for (const t of things) { if (t.ball) drawBall(); else drawPlayer(t.p); }
+  for (const t of things) { if (t.ball) drawBall(); else if (t.o) drawOfficial(t.o); else drawPlayer(t.p); }
   if (bz > 14) drawBall();
 
   drawBoards(true);
   drawNearStands();
+  for (const o of crew) if (o.side === "near") drawOfficial(o);
   drawTower(PITCH.left + 48, PITCH.bottom + 14, false);
   drawTower(PITCH.right - 48, PITCH.bottom + 14, false);
   drawPenaltyAids();

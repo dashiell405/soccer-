@@ -138,6 +138,33 @@ function applyInterpolation(dt) {
 
   // Humans + set piece come from the NEWEST snapshot
   const L = snaps[snaps.length - 1].s;
+
+  // Referee and linesmen. The host decides where they are; we blend like the players.
+  const Lof = L.of;
+  const oa = A.of, ob = B.of;
+  if (Lof && oa && ob && Lof.length === 3) {
+    if (!game.officials || game.officials.length !== 3) {
+      game.officials = [
+        { role: "ref", side: "", skin: "#e0ac69", hair: "#111" },
+        { role: "ar", side: "near", skin: "#c68642", hair: "#1a1a1a" },
+        { role: "ar", side: "far", skin: "#f1c27d", hair: "#2b1b0e" },
+      ];
+    }
+    for (let i = 0; i < 3; i++) {
+      const pa = oa[i], pb = ob[i], pl = Lof[i];
+      if (!pa || !pb) continue;
+      const o = game.officials[i];
+      const jump = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) > 90;
+      o.x = jump ? pb[0] : lerp(pa[0], pb[0], t);
+      o.y = jump ? pb[1] : lerp(pa[1], pb[1], t);
+      o.vx = pb[2]; o.vy = pb[3];
+      const f = normalize(lerp(pa[4], pb[4], t), lerp(pa[5], pb[5], t));
+      o.fx = f.x; o.fy = f.y;
+      o.sig = pl ? pl[6] : pb[6];
+      o.anim = pb[7] || 0;
+    }
+  }
+
   controllers = L.c.map(([id, ai, charging, held, cpu]) => ({ id, active: players[ai] || null, charging: charging || null, held, cpu: !!cpu }));
   game.setpiece = L.sp ? { type: L.sp[0], team: L.sp[1], taker: players[L.sp[2]] || null, indirect: !!L.sp[3] } : null;
   // the comment countdown keeps running between snapshots

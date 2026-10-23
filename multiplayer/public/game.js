@@ -14,7 +14,7 @@
      5. controllers       10. ball physics       15. fouls, cards, penalties
         (the humans)      11. ball contact       16. offside
      6. setup             12. computer AI        17. penalty shootout
-     7. human kicks                              18. celebrations + main update
+     7. human kicks                              18. officials, celebrations + update
    ===================================================================== */
 "use strict";
 
@@ -285,6 +285,17 @@ function createSim(opts = {}) {
   };
   let roster = [];   // all 10 players (including any that were sent off)
   let players = [];  // players still on the pitch
+  // The referee and two assistant referees. They never touch the ball.
+  // 0 = referee on the pitch, 1 = linesman on the near touchline (blue's half),
+  // 2 = linesman on the far touchline (red's half).
+  const officials = [
+    { role: "ref", side: "", x: PITCH.cx, y: PITCH.cy + 78, vx: 0, vy: 0, fx: 1, fy: 0, anim: 0, sig: 0, skin: "#e0ac69", hair: "#111" },
+    { role: "ar", side: "near", x: PITCH.cx + 180, y: PITCH.bottom + 12, vx: 0, vy: 0, fx: 0, fy: -1, anim: 1, sig: 0, skin: "#c68642", hair: "#1a1a1a" },
+    { role: "ar", side: "far", x: PITCH.cx - 180, y: PITCH.top - 10, vx: 0, vy: 0, fx: 0, fy: 1, anim: 2, sig: 0, skin: "#f1c27d", hair: "#2b1b0e" },
+  ];
+  game.officials = officials;
+  let officialCue = "";
+  let officialCueT = 0;
   const ball = {
     x: PITCH.cx, y: PITCH.cy, z: 0, vx: 0, vy: 0, vz: 0,
     owner: null, lastTouch: null, lastTeam: null, intended: null,
@@ -2006,7 +2017,194 @@ function shootoutResult(result) {
 }
 
 // ---------------------------------------------------------------------
-// 18. MAIN UPDATE  (called 120 times a second)
+// 18. MATCH OFFICIALS
+// The referee runs a diagonal so he can see the ball and the linesman.
+// Each linesman patrols one touchline and stays level with the offside
+// line in the half he looks after. They only move themselves: players
+// and the ball go straight through them.
+// Signals: 0 run, 1 whistle, 2 point, 3 yellow card, 4 red card,
+//          5 flag straight up (offside), 6 flag angled (throw-in / corner)
+// ---------------------------------------------------------------------
+function clearOfBall(x, y) {
+  const dx = x - ball.x, dy = y - ball.y;
+  const d = Math.hypot(dx, dy);
+  if (d >= 46) return { x, y };
+  const ux = d > 1 ? dx / d : 0;
+  const uy = d > 1 ? dy / d : 1;
+  return { x: ball.x + ux * 46, y: ball.y + uy * 46 };
+}
+function faceToward(x, y, fallback) {
+  const len = Math.hypot(x, y);
+  return len > 0.05 ? { x: x / len, y: y / len } : (fallback || { x: 1, y: 0 });
+}
+function arLineX(attackTeam) {
+  const A = TEAMS[attackTeam];
+  let depth = Math.max(offsideLine(attackTeam), depthFor(attackTeam, ball));
+  const inHalf = (ball.x - PITCH.cx) * A.dir > -30;
+  if (!inHalf && game.phase === "play") depth = lerp(PITCH.w * 0.48, depth, 0.22);
+  return A.ownGoalX + A.dir * clamp(depth, 28, PITCH.w - 18);
+}
+function refPlayTarget() {
+  const u = clamp((ball.x - PITCH.left) / PITCH.w, 0, 1);
+  const diagY = lerp(PITCH.bottom - 150, PITCH.top + 150, u);
+  let tx = ball.x - clamp(ball.vx || 0, -280, 280) * 0.25;
+  let ty = lerp(diagY, ball.y, 0.32);
+  const c = clearOfBall(tx, ty);
+  return {
+    x: clamp(c.x, PITCH.left + 48, PITCH.right - 48),
+    y: clamp(c.y, PITCH.top + 36, PITCH.bottom - 36),
+  };
+}
+function refIntent() {
+  if (game.cardPopup) {
+    const p = roster[game.cardPopup.idx];
+    if (p) {
+      const side = p.y > PITCH.cy ? -1 : 1;
+      const c = clearOfBall(p.x + 24, p.y + side * 22);
+      return {
+        x: clamp(c.x, PITCH.left + 28, PITCH.right - 28),
+        y: clamp(c.y, PITCH.top + 24, PITCH.bottom - 24),
+        sig: game.cardPopup.kind === "yellow" ? 3 : 4,
+        face: faceToward(p.x - c.x, p.y - c.y, { x: 1, y: 0 }),
+        hurry: true,
+      };
+    }
+  }
+  if (game.flag) {
+    const p = roster[game.flag.idx];
+    const A = TEAMS[game.flag.team];
+    const tx = p ? p.x - A.dir * 55 : ball.x;
+    const ty = p ? p.y : PITCH.cy;
+    const c = clearOfBall(tx, ty);
+    return {
+      x: clamp(c.x, PITCH.left + 36, PITCH.right - 36),
+      y: clamp(c.y, PITCH.top + 30, PITCH.bottom - 30),
+      sig: officialCueT < 1.15 ? 1 : 2,
+      face: p ? faceToward(p.x - c.x, p.y - c.y) : { x: A.dir, y: 0 },
+      hurry: true,
+    };
+  }
+  if (game.phase === "goal") {
+    const A = TEAMS[game.lastScorer] || TEAMS.blue;
+    return { x: PITCH.cx, y: PITCH.cy + 76, sig: 2, face: { x: A.dir, y: 0 }, hurry: false };
+  }
+  const pending = game.phase === "dead" ? game.pending : null;
+  const sp = game.phase === "setpiece" ? game.setpiece : null;
+  const pen = game.penalty;
+  if (pen && (game.phase === "setpiece" || game.phase === "pkflight" || game.phase === "shootout")) {
+    const A = TEAMS[pen.team];
+    const x = A.targetGoalX - A.dir * (BOX.depth + 18);
+    const y = PITCH.cy + 86;
+    return { x, y, sig: officialCueT < 1.2 ? 1 : 2, face: faceToward(A.targetGoalX - x, PITCH.cy - y), hurry: true };
+  }
+  if (pending) {
+    const A = TEAMS[pending.team];
+    const c = clearOfBall(pending.x - A.dir * 36, pending.y + (pending.y > PITCH.cy ? -34 : 34));
+    let face = { x: A.dir, y: 0 };
+    if (pending.type === "penalty") face = faceToward(A.targetGoalX - c.x, PITCH.cy - c.y);
+    return {
+      x: clamp(c.x, PITCH.left + 30, PITCH.right - 30),
+      y: clamp(c.y, PITCH.top + 28, PITCH.bottom - 28),
+      sig: officialCueT < 1.25 ? 1 : 2,
+      face, hurry: true,
+    };
+  }
+  if (sp) {
+    const A = TEAMS[sp.team];
+    if (sp.type === "kickoff") {
+      return { x: PITCH.cx, y: PITCH.cy + 78, sig: officialCueT < 1.2 ? 1 : 0, face: { x: A.dir, y: 0 }, hurry: false };
+    }
+    const c = clearOfBall(ball.x - A.dir * 42, ball.y + (ball.y > PITCH.cy ? -38 : 38));
+    return {
+      x: clamp(c.x, PITCH.left + 28, PITCH.right - 28),
+      y: clamp(c.y, PITCH.top + 24, PITCH.bottom - 24),
+      sig: officialCueT < 1.15 ? 1 : 2,
+      face: { x: A.dir, y: 0 },
+      hurry: true,
+    };
+  }
+  const t = refPlayTarget();
+  return { x: t.x, y: t.y, sig: 0, face: null, hurry: Math.hypot(ball.vx, ball.vy) > 280 };
+}
+function arIntent(o) {
+  const attack = o.side === "near" ? "blue" : "red";
+  const y = o.side === "near" ? PITCH.bottom + 12 : PITCH.top - 10;
+  const facePitch = { x: 0, y: o.side === "near" ? -1 : 1 };
+  if (game.flag && game.flag.team === attack) {
+    const p = roster[game.flag.idx];
+    return { x: clamp(p ? p.x : arLineX(attack), PITCH.left + 10, PITCH.right - 10), y, sig: 5, face: facePitch, hurry: true };
+  }
+  const pending = game.phase === "dead" ? game.pending : null;
+  const sp = game.phase === "setpiece" ? game.setpiece : null;
+  const restart = sp || pending;
+  if (restart && (restart.type === "throw" || restart.type === "corner")) {
+    const spotY = sp ? ball.y : restart.y;
+    const spotX = sp ? ball.x : restart.x;
+    const onMyLine = o.side === "near" ? spotY >= PITCH.cy : spotY < PITCH.cy;
+    if (onMyLine) {
+      const dir = TEAMS[restart.team].dir;
+      return { x: clamp(spotX - dir * 30, PITCH.left + 8, PITCH.right - 8), y, sig: 6, face: { x: dir, y: 0 }, hurry: true };
+    }
+  }
+  const penTeam = (game.penalty && game.penalty.team) || (restart && restart.type === "penalty" ? restart.team : null);
+  if (penTeam === attack && (game.phase === "setpiece" || game.phase === "pkflight" || game.phase === "dead" || game.phase === "shootout")) {
+    const A = TEAMS[attack];
+    return { x: A.targetGoalX - A.dir * 8, y, sig: 0, face: { x: -A.dir, y: 0 }, hurry: true };
+  }
+  return { x: arLineX(attack), y, sig: 0, face: facePitch, hurry: false };
+}
+function stepOfficial(o, want, dt) {
+  const dx = want.x - o.x, dy = want.y - o.y;
+  const d = Math.hypot(dx, dy);
+  const sprint = !!want.hurry || d > 120;
+  const speed = sprint ? 250 : 145;
+  if (d > 3) {
+    const ux = dx / d, uy = dy / d;
+    const aim = Math.min(speed, d * 4.2);
+    const k = Math.min(1, dt * 6);
+    o.vx += (ux * aim - o.vx) * k;
+    o.vy += (uy * aim - o.vy) * k;
+  } else {
+    const drag = Math.pow(0.08, dt);
+    o.vx *= drag; o.vy *= drag;
+  }
+  o.x += o.vx * dt;
+  o.y += o.vy * dt;
+  if (o.role === "ref") {
+    const bx = o.x - ball.x, by = o.y - ball.y;
+    const bd = Math.hypot(bx, by);
+    if (bd < 28 && bd > 0.01) { o.x = ball.x + bx / bd * 28; o.y = ball.y + by / bd * 28; }
+    o.x = clamp(o.x, PITCH.left + 22, PITCH.right - 22);
+    o.y = clamp(o.y, PITCH.top + 16, PITCH.bottom - 16);
+  } else {
+    o.y = want.y;
+    o.x = clamp(o.x, PITCH.left + 6, PITCH.right - 6);
+    o.vy = 0;
+  }
+  const sp = Math.hypot(o.vx, o.vy);
+  if (want.face) { o.fx = want.face.x; o.fy = want.face.y; }
+  else if (sp > 16) { o.fx = o.vx / sp; o.fy = o.vy / sp; }
+  o.sig = want.sig || 0;
+  o.anim += sp * dt * 0.09;
+}
+function updateOfficials(dt) {
+  let key = "play";
+  if (game.cardPopup) key = "card";
+  else if (game.flag) key = "flag";
+  else if (game.phase === "goal") key = "goal";
+  else if (game.phase === "dead") key = "dead:" + (game.pending && game.pending.type);
+  else if (game.phase === "setpiece" && game.setpiece) key = "sp:" + game.setpiece.type;
+  else if (game.phase === "pkflight") key = "pk";
+  else if (game.phase === "shootout") key = "so";
+  if (key !== officialCue) { officialCue = key; officialCueT = 0; }
+  else officialCueT += dt;
+  stepOfficial(officials[0], refIntent(), dt);
+  stepOfficial(officials[1], arIntent(officials[1]), dt);
+  stepOfficial(officials[2], arIntent(officials[2]), dt);
+}
+
+// ---------------------------------------------------------------------
+// 19. MAIN UPDATE  (called 120 times a second)
 // ---------------------------------------------------------------------
 function update(dt) {
   game.time += dt;
@@ -2066,6 +2264,7 @@ function update(dt) {
   } else if (game.phase === "pkflight") {
     updatePkFlight(dt);
   }
+  if (game.phase !== "win") updateOfficials(dt);
 }
 
 
@@ -2130,6 +2329,8 @@ function update(dt) {
       cp: game.cardPopup ? [game.cardPopup.team, game.cardPopup.idx, game.cardPopup.kind, r2(game.cardPopup.timer)] : null,
       fl: game.flag ? [game.flag.team, game.flag.idx, r2(game.flag.timer)] : null,
       b: [r1(ball.x), r1(ball.y), r1(ball.z), r1(ball.vx), r1(ball.vy), idx(ball.owner)],
+      // referee, near linesman, far linesman: x y vx vy fx fy signal stride
+      of: officials.map((o) => [r1(o.x), r1(o.y), r1(o.vx), r1(o.vy), r2(o.fx), r2(o.fy), o.sig | 0, r1(o.anim)]),
       c: controllers.map((k) => [k.id, game.autoplay ? -1 : idx(k.active), k.charging || 0, r2(k.held), k.cpu || game.autoplay ? 1 : 0]),
       ev: game.events.splice(0),
       st: game.phase === "win" ? game.stats : undefined,

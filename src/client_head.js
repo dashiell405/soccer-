@@ -35,6 +35,7 @@ const game = {
   teams: null, rules: { ...DEFAULT_RULES }, winScore: WIN_SCORE, timeLimit: 0, matchType: "match",
   // decoded from snapshots
   penalty: null, shootout: null, celebration: null, cardPopup: null, flag: null,
+  officials: null,       // referee + two linesmen, filled in from snapshots
   muted: false,
 };
 let players = [];          // drawn players (static look + interpolated position)
