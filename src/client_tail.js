@@ -54,7 +54,7 @@ function renderLobby() {
     sel.value = side === "blue" ? room.blueTeam || "blue" : room.redTeam || "red";
     sel.disabled = !host;
     const k = kits[side];
-    $(side + "Title").innerHTML = flagHtml(k, 28, { wave: true }) + "<span>" + esc(k.name) + (k.away ? " <span class='tag'>away kit</span>" : "") + "</span>";
+    $(side + "Title").innerHTML = flagHtml(k, 22, { wave: true }) + "<span class='teamName'>" + esc(k.name) + (k.away ? " <span class='tag'>away kit</span>" : "") + "</span>";
   }
   const me = room.members.find((m) => m.id === myId);
   for (const team of ["blue", "red"]) {
@@ -80,7 +80,7 @@ function renderWin() {
   title.style.color = w ? TEAMS[w].ui : "#fff";
   const me = room && room.members.find((m) => m.id === myId);
   $("winSub").textContent = me && me.team ? (me.team === w ? "Great game - you won!" : "Good effort - try again!") : "";
-  const sideMark = (side) => flagHtml({ id: TEAMS[side].id, kit: TEAMS[side].kit }, 28) + "<span>" + esc(TEAMS[side].short) + "</span>";
+  const sideMark = (side) => flagHtml({ id: TEAMS[side].id, kit: TEAMS[side].kit }, 22) + "<span>" + esc(TEAMS[side].short) + "</span>";
   let score = sideMark("blue") + "<span>" + game.score.blue + " - " + game.score.red + "</span>" + sideMark("red");
   const so = game.shootout;
   if (so) {

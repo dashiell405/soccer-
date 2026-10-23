@@ -364,10 +364,10 @@ function flagHtml(team, height, opts) {
   const colors = flagColorsOf(team);
   const src = flagDataUrl(id, height, colors);
   const w = Math.round(height * flagRatio(id));
-  const wave = opts.wave && height >= 32;
+  const wave = opts.wave && height >= 30;
   return "<span class='flagBadge" + (wave ? " wave" : "") + "' style='height:" + height + "px;width:" + w + "px'>" +
     "<img alt='' width='" + w + "' height='" + height + "' src='" + src + "'>" +
-    (height >= 28 ? "<i class='shine'></i>" : "") + "</span>";
+    (height >= 22 ? "<i class='shine'></i>" : "") + "</span>";
 }
 
 function flagRound(c, x, y, w, h, r) {
