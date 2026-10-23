@@ -54,7 +54,7 @@ const PLAYER_R = 11;               // collision radius (at the feet)
 const RUN_SPEED = 190;             // normal running speed (px/s)
 const SPRINT_MULT = 1.4;           // sprinting is 40% faster...
 const DRIBBLE_MULT = 0.92;         // ...and you are a bit slower with the ball
-const ACCEL = 650;                 // how quickly players speed up (px/s^2)
+const ACCEL = 540;                 // how quickly players speed up (px/s^2). A bit of weight, still quick to respond.
 const STAMINA_DRAIN = 0.22;        // stamina used per second of sprinting
 const STAMINA_REGEN = 0.10;        // stamina regained per second
 const SLIDE_SPEED = 400;
@@ -63,9 +63,9 @@ const SLIDE_TIME = 0.45;
 // Ball
 const BALL_R = 6;
 const GRAVITY = 650;               // pulls the ball back down (px/s^2)
-const GROUND_FRICTION = 0.5;       // fraction of speed left after 1 s rolling
+const GROUND_FRICTION = 0.58;      // fraction of speed left after 1 s rolling
 const AIR_DRAG = 0.85;             // fraction of speed left after 1 s flying
-const BOUNCE = 0.5;                // how bouncy the ball is on the ground
+const BOUNCE = 0.58;               // how bouncy the ball is on the ground
 const CONTROL_HEIGHT = 18;         // ball lower than this can be controlled
 const HEADER_HEIGHT = 36;          // ball lower than this can be headed
 const GK_HAND_HEIGHT = 56;         // goalies can catch up to this height
@@ -288,7 +288,7 @@ function createSim(opts = {}) {
   const ball = {
     x: PITCH.cx, y: PITCH.cy, z: 0, vx: 0, vy: 0, vz: 0,
     owner: null, lastTouch: null, lastTeam: null, intended: null,
-    shot: null, inNet: null, spin: 0,
+    shot: null, inNet: null, spin: 0, curl: 0,
     offside: null,     // {team, players} - who was offside when the ball was played
     indirect: null,    // taker of an indirect free kick (can't score directly)
   };
@@ -500,7 +500,7 @@ function humanShoot(p, charge) {
     dir = normalize(dir.x + toGoal.x, dir.y + toGoal.y);
   }
   const power = lerp(SHOT_MIN, SHOT_MAX, charge);
-  const lift = 30 + 200 * charge * charge;   // full power shots rise more
+  const lift = 36 + 220 * charge * charge;   // full power shots climb higher
   kickBall(p, dir, power, lift, "shot");
 }
 
@@ -704,6 +704,10 @@ function kickBall(p, dir, speed, lift, kind, intended = null) {
   }
   ball.z = Math.max(ball.z, 0.5);
   ball.vx = dir.x * speed; ball.vy = dir.y * speed; ball.vz = lift;
+  // Kicking across the body puts a little sidespin on the ball, so a
+  // lofted shot bends instead of flying dead straight.
+  const across = dir.x * (p.fy || 0) - dir.y * (p.fx || 0);
+  ball.curl = clamp(-across * (lift > 60 ? 170 : 70), -150, 150);
   ball.lastTouch = p; ball.lastTeam = p.team;
   ball.intended = intended;
   ball.shot = kind === "shot" ? { team: p.team, x: ball.x, y: ball.y, power: speed, chip: lift > 180 } : null;
@@ -735,7 +739,7 @@ function clampToPitch(pt, margin) {
 // Ground pass: speed chosen so the ball arrives with a little pace left
 function groundPass(p, target, mate) {
   const d = dist(ball, target);
-  const speed = clamp(d * 0.8 + 90, 180, 950);
+  const speed = clamp(d * 0.92 + 130, 250, 1000);
   kickBall(p, { x: target.x - ball.x, y: target.y - ball.y }, speed, 0, "pass", mate);
 }
 
@@ -784,9 +788,22 @@ function updateBall(dt) {
     ball.z += ball.vz * dt;
     if (ball.z <= 0) {
       ball.z = 0;
-      ball.vz = ball.vz < -60 ? -ball.vz * BOUNCE : 0;
+      if (ball.vz < -60) {
+        ball.vz = -ball.vz * BOUNCE;
+        ball.vx *= 0.88; ball.vy *= 0.88;
+      } else ball.vz = 0;
     }
   }
+
+  // Sidespin bends the ball, mostly while it is in the air.
+  const cspd = Math.hypot(ball.vx, ball.vy);
+  if (ball.curl && cspd > 8) {
+    const air = ball.z > 1 ? 1 : 0.18;
+    const ox = ball.vx, oy = ball.vy;
+    ball.vx = ox + (-oy / cspd) * ball.curl * air * dt;
+    ball.vy = oy + (ox / cspd) * ball.curl * air * dt;
+  }
+  if (ball.curl) ball.curl *= Math.pow(ball.z > 1 ? 0.5 : 0.12, dt);
 
   // --- Friction: rolling on grass slows it much more than flying ---
   const f = Math.pow(ball.z > 0.5 ? AIR_DRAG : GROUND_FRICTION, dt);
@@ -841,12 +858,25 @@ const trajectory = [];
 function predictBall() {
   trajectory.length = 0;
   let { x, y, z, vx, vy, vz } = ball;
+  let curl = ball.curl || 0;
   const h = 0.05;
   for (let i = 1; i <= 50; i++) {
     if (z > 0 || vz > 0) {
       vz -= GRAVITY * h; z += vz * h;
-      if (z <= 0) { z = 0; vz = vz < -60 ? -vz * BOUNCE : 0; }
+      if (z <= 0) {
+        z = 0;
+        if (vz < -60) { vz = -vz * BOUNCE; vx *= 0.88; vy *= 0.88; }
+        else vz = 0;
+      }
     }
+    const cspd = Math.hypot(vx, vy);
+    if (curl && cspd > 8) {
+      const air = z > 1 ? 1 : 0.18;
+      const ox = vx, oy = vy;
+      vx = ox + (-oy / cspd) * curl * air * h;
+      vy = oy + (ox / cspd) * curl * air * h;
+    }
+    if (curl) curl *= Math.pow(z > 1 ? 0.5 : 0.12, h);
     const f = Math.pow(z > 0.5 ? AIR_DRAG : GROUND_FRICTION, h);
     vx *= f; vy *= f; x += vx * h; y += vy * h;
     trajectory.push({ x, y, z, t: i * h });
@@ -871,7 +901,7 @@ function takePossession(p) {
   ball.owner = p;
   ball.intended = null; ball.shot = null;
   ball.lastTouch = p; ball.lastTeam = p.team;
-  ball.z = 0; ball.vz = 0;
+  ball.z = 0; ball.vz = 0; ball.curl = 0;
   p.thinkTimer = 0.15 + Math.random() * 0.2;  // a moment to settle the ball
   if (p.role === "GK") p.holdTimer = 0.9;
 }
@@ -881,7 +911,7 @@ function knockBall(p, dir, speed) {
   ball.owner = null; ball.intended = null; ball.shot = null;
   ball.vx = dir.x * speed + p.vx * 0.3;
   ball.vy = dir.y * speed + p.vy * 0.3;
-  ball.vz = 40;
+  ball.vz = 40; ball.curl = 0;
   ball.lastTouch = p; ball.lastTeam = p.team;
 }
 
@@ -918,7 +948,25 @@ function ballContacts(dt) {
     }
     const rel = Math.hypot(ball.vx - p.vx, ball.vy - p.vy);
     const limit = CONTROL_SPEED + (isHumanControlled(p) ? 120 : 0);
-    if (rel < limit && p.state === "run") { takePossession(p); return; }
+    if (rel < limit && p.state === "run") {
+      // A heavy ball doesn't glue to the foot. The first touch pops it
+      // into the stride, and the player settles it a moment later.
+      if (rel > 280 && p.touchSettle !== 1) {
+        const face = normalize((p.fx || 0) + 1e-4, p.fy || 0);
+        const keep = Math.min(150, rel * 0.22);
+        ball.vx = p.vx * 0.45 + face.x * keep;
+        ball.vy = p.vy * 0.45 + face.y * keep;
+        ball.vz = Math.min(48, 10 + rel * 0.035);
+        ball.z = Math.max(ball.z, 0.6);
+        ball.curl *= 0.25;
+        ball.lastTouch = p; ball.lastTeam = p.team; ball.intended = null; ball.shot = null;
+        p.controlCD = 0.09;
+        p.touchSettle = 1;
+        return;
+      }
+      p.touchSettle = 0;
+      takePossession(p); return;
+    }
     // Too fast to control: it bounces off the player (a block!)
     const n = normalize(ball.x - p.x, ball.y - p.y);
     const along = ball.vx * n.x + ball.vy * n.y;
@@ -1081,9 +1129,9 @@ function formationSpot(p, hasBall) {
   const bl = clamp((ball.y - PITCH.cy) / (PITCH.h / 2), -1, 1);
   const shift = bd - 0.5;
   let d, l;
-  if (p.role === "DEF") { d = clamp(0.22 + shift * 0.45 + (hasBall ? 0.07 : -0.02), 0.08, 0.58); l = p.baseL * 0.9 + bl * 0.3; }
-  else if (p.role === "MID") { d = clamp(0.42 + shift * 0.55 + (hasBall ? 0.06 : 0), 0.2, 0.8); l = p.baseL + bl * 0.4; }
-  else { d = clamp(0.6 + shift * 0.45 + (hasBall ? 0.1 : 0), 0.42, 0.9); l = p.baseL + bl * 0.35; }
+  if (p.role === "DEF") { d = clamp(0.18 + shift * 0.5 + (hasBall ? 0.06 : -0.05), 0.06, 0.55); l = p.baseL * 0.82 + bl * 0.48; }
+  else if (p.role === "MID") { d = clamp(0.40 + shift * 0.58 + (hasBall ? 0.08 : -0.02), 0.18, 0.78); l = p.baseL * 0.95 + bl * 0.5; }
+  else { d = clamp(0.62 + shift * 0.42 + (hasBall ? 0.12 : 0.02), 0.38, 0.92); l = p.baseL * 0.9 + bl * 0.42; }
   l = clamp(l, -0.88, 0.88);
   return { x: T.ownGoalX + T.dir * d * PITCH.w, y: PITCH.cy + l * PITCH.h / 2 };
 }
@@ -1162,7 +1210,7 @@ function aiDecide(p, dt) {
       if (marker === p) {
         const g = normalize(T.ownGoalX - opp.x, PITCH.cy - opp.y);
         const spot = formationSpot(p, false);
-        return { x: lerp(opp.x + g.x * 34, spot.x, 0.25), y: lerp(opp.y + g.y * 34, spot.y, 0.25), sprint: dist(p, opp) > 200 };
+        return { x: lerp(opp.x + g.x * 48, spot.x, 0.2), y: lerp(opp.y + g.y * 26, spot.y, 0.22), sprint: dist(p, opp) > 150 };
       }
     }
     return { ...formationSpot(p, false), sprint: false };
@@ -1183,6 +1231,10 @@ function supportSpot(p) {
     const want = ownerDepth + (p.role === "FWD" ? 160 : 40);
     const depth = Math.max((spot.x - T.ownGoalX) * T.dir, Math.min(want, PITCH.w - 120));
     spot.x = T.ownGoalX + T.dir * depth;
+    if (p.role === "FWD") {
+      const away = o.y >= PITCH.cy ? -1 : 1;
+      spot.y = clamp(spot.y + away * 50, PITCH.top + 40, PITCH.bottom - 40);
+    }
   }
   // Stay onside: don't run past the second-last defender (unless behind the ball)
   if (game.rules.offside) {
@@ -1430,6 +1482,7 @@ function updatePlayers(dt) {
   const pen = game.penalty;
   for (const p of players) {
     p.controlCD -= dt;
+    if (!ball.owner && dist(p, ball) > 50) p.touchSettle = 0;
     // trick + "fooled" timers
     p.skillCD -= dt; p.burst -= dt; p.fooled -= dt; p.noReact = (p.noReact || 0) - dt;
     if (p.pendingDive && (p.pendingDive.t -= dt) <= 0) { if (p.state === "run") startDive(p, p.pendingDive.dy, 420); p.pendingDive = null; }
@@ -1511,8 +1564,12 @@ function updatePlayers(dt) {
       const tvx = want.x * maxSpeed, tvy = want.y * maxSpeed;
       let dvx = tvx - p.vx, dvy = tvy - p.vy;
       const dv = Math.hypot(dvx, dvy);
-      const turning = p.vx * tvx + p.vy * tvy < 0;      // changing direction is harder...
-      const maxChange = ACCEL * (turning ? 1.6 : 1) * dt; // ...but stopping is quicker
+      const spdNow = Math.hypot(p.vx, p.vy);
+      const wantSpd = Math.hypot(tvx, tvy);
+      const dot = spdNow > 8 && wantSpd > 8 ? (p.vx * tvx + p.vy * tvy) / (spdNow * wantSpd) : 1;
+      const stopping = wantSpd < 30 && spdNow > 40;
+      // Turning takes longer than setting off. Stopping is still fairly quick.
+      const maxChange = ACCEL * (stopping ? 1.35 : dot < 0.35 ? 0.62 : 1) * dt;
       if (dv > maxChange) { dvx = dvx / dv * maxChange; dvy = dvy / dv * maxChange; }
       p.vx += dvx; p.vy += dvy;
 
@@ -1676,7 +1733,7 @@ function fullTime() {
 function beginSetpiece(type, team, x, y, taker = null, indirect = false) {
   const T = TEAMS[team];
   if (type === "kickoff") resetToHome();
-  Object.assign(ball, { x, y, z: 0, vx: 0, vy: 0, vz: 0, inNet: null, shot: null, intended: null, offside: null, indirect: null });
+  Object.assign(ball, { x, y, z: 0, vx: 0, vy: 0, vz: 0, curl: 0, inNet: null, shot: null, intended: null, offside: null, indirect: null });
 
   if (!taker || taker.state !== "run" || taker.sentOff || (type === "penalty" && taker.role === "GK" && !game.shootout)) {
     if (type === "kickoff" || type === "penalty") taker = players.find((p) => p.team === team && p.role === "FWD") || teamPlayers(team).find((p) => p.role !== "GK");
@@ -1879,7 +1936,7 @@ function startShootout() {
   game.phase = "shootout"; game.timer = 2.2;
   game.penalty = null; game.setpiece = null; game.celebration = null;
   resetToHome();
-  Object.assign(ball, { x: PITCH.cx, y: PITCH.cy, z: 0, vx: 0, vy: 0, vz: 0, owner: null, inNet: null, shot: null, offside: null });
+  Object.assign(ball, { x: PITCH.cx, y: PITCH.cy, z: 0, vx: 0, vy: 0, vz: 0, curl: 0, owner: null, inNet: null, shot: null, offside: null });
   const count = { blue: 0, red: 0 };
   for (const p of players) {
     const k = count[p.team]++;
