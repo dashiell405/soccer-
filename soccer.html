@@ -145,9 +145,15 @@
   /* ---- New in this version: team picker, cup bracket, trophy ---- */
   #skillBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); width: min(62px, 15vh); height: min(62px, 15vh); background: rgba(155,89,182,.6); font-size: 12px; }
   .kindRow button { min-width: 120px; }
-  .teamsRow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: stretch; }
-  .teamBtn { display: flex; align-items: center; gap: 8px; text-align: left; min-width: 210px; background: #1b4a2c; line-height: 1.25; }
-  .teamBtn .who { font-size: 11px; background: #ffd33d; color: #123; border-radius: 6px; padding: 1px 5px; font-weight: bold; }
+  .teamsRow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: stretch; width: 100%; max-width: 100%; }
+  .teamBtn {
+    display: flex; align-items: center; gap: 6px; text-align: left; line-height: 1.2;
+    flex: 1 1 240px; min-width: 0; max-width: 100%; box-sizing: border-box;
+    background: #1b4a2c; overflow: hidden;
+  }
+  .teamBtn .who { flex: 0 0 auto; font-size: 11px; background: #ffd33d; color: #123; border-radius: 6px; padding: 1px 5px; font-weight: bold; }
+  .teamMeta { flex: 1 1 auto; min-width: 0; line-height: 1.15; text-align: left; overflow-wrap: anywhere; }
+  .teamMeta b { font-size: clamp(13px, 3.2vw, 16px); }
   .vs { align-self: center; font-weight: bold; opacity: .8; }
   .kit { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin-right: 3px; }
   .kit i { display: block; width: 100%; border: 1px solid rgba(0,0,0,.35); box-sizing: border-box; }
@@ -172,9 +178,9 @@
   @media (prefers-reduced-motion: reduce) {
     .flagBadge.wave, .flagBadge .shine { animation: none; }
   }
-  .teamMeta { line-height: 1.2; text-align: left; }
-  .kitRow { display: flex; gap: 4px; align-items: flex-end; }
-  #winScore, #trophyTeam { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .kitRow { display: flex; gap: 4px; align-items: flex-end; max-width: 100%; }
+  #winScore, #trophyTeam { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; max-width: 100%; overflow-wrap: anywhere; }
+  #winScore span, #trophyTeam span { min-width: 0; overflow-wrap: anywhere; }
   .code { font-size: 12px; opacity: .8; margin-left: 4px; font-family: monospace; }
   .stars { color: #ffd33d; font-size: 12px; letter-spacing: 1px; }
   .stars .dim { color: rgba(255,255,255,.25); }
@@ -182,9 +188,18 @@
   .rules label { margin: 0 10px; font-size: 15px; cursor: pointer; }
   .rules input { transform: scale(1.3); margin-right: 5px; vertical-align: middle; }
   #formatLine { font-size: 13px; color: #ffd33d; margin: 4px 0; }
-  #teamGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin: 8px 0; }
-  .teamTile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; margin: 0; font-size: 14px; background: #1b4a2c; }
+  #teamGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(124px, 100%), 1fr)); gap: 6px; margin: 8px 0; }
+  .teamTile {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; overflow: hidden;
+    padding: 6px; margin: 0; font-size: 14px; background: #1b4a2c;
+  }
   .teamTile .kit { margin: 0; }
+  .teamName {
+    display: block; max-width: 100%; text-align: center; line-height: 1.15;
+    overflow-wrap: anywhere; font-size: clamp(12px, 3vw, 14px);
+  }
+  .teamTile .code { margin-left: 2px; }
   .teamTile.selected .stars, .teamTile.selected .stars .dim { color: #7a5a00; }
   .customBox { border: 2px dashed rgba(255,255,255,.5); border-radius: 10px; padding: 6px 10px; margin-top: 6px; }
   .customBox input[type=text] { font: inherit; font-size: 16px; padding: 8px; border-radius: 8px; border: 0; width: 150px; touch-action: manipulation; }
@@ -192,11 +207,11 @@
   .customBox label { margin: 0 6px; font-size: 13px; }
   #bracket { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 8px 0; }
   #bracket .col { display: flex; flex-direction: column; gap: 10px; justify-content: space-around; min-width: 170px; }
-  .cm { background: rgba(0,0,0,.35); border-radius: 8px; padding: 4px 6px; text-align: left; border: 2px solid transparent; }
+  .cm { background: rgba(0,0,0,.35); border-radius: 8px; padding: 4px 6px; text-align: left; border: 2px solid transparent; min-width: 0; max-width: 100%; box-sizing: border-box; }
   .cm.mine { border-color: #ffd33d; }
   .cm.tbd { text-align: center; opacity: .5; padding: 14px; }
-  .ct { display: flex; align-items: center; gap: 4px; font-size: 14px; padding: 1px 0; }
-  .ct .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ct { display: flex; align-items: center; gap: 4px; font-size: 14px; padding: 1px 0; min-width: 0; }
+  .ct .nm { flex: 1; min-width: 0; line-height: 1.15; overflow-wrap: anywhere; }
   .ct .sc { font-weight: bold; min-width: 18px; text-align: right; }
   .ct.won { color: #9fffa0; font-weight: bold; } .ct.lost { opacity: .55; } .ct.me .nm { text-decoration: underline; }
   #cupStatus { font-size: 18px; margin: 6px 0; }
@@ -217,7 +232,7 @@
     h1 { font-size: 26px; }
     .row { margin: 4px 0; }
     .kindRow button { min-width: 0; }
-    .teamBtn { min-width: 0; flex: 1 1 140px; padding: 8px; }
+    .teamBtn { flex: 1 1 100%; padding: 8px; }
     #bracket { flex-direction: column; align-items: stretch; }
     #bracket .col { min-width: 0; }
     #joyZone { width: 48%; }
@@ -287,7 +302,7 @@
     #teamGrid { max-height: 132px; overflow: auto; touch-action: pan-y; }
     #bracket { max-height: 130px; overflow: auto; touch-action: pan-y; }
     #bracket .col { min-width: 0; }
-    .teamBtn { min-width: 0; flex: 1 1 140px; padding: 4px 8px; }
+    .teamBtn { flex: 1 1 100%; padding: 4px 8px; }
     #trophyCanvas { width: min(220px, 42vw); }
     #onlineHint, .sub, .eyebrow { display: none; }
   }
@@ -3487,10 +3502,10 @@ function flagHtml(team, height, opts) {
   const colors = flagColorsOf(team);
   const src = flagDataUrl(id, height, colors);
   const w = Math.round(height * flagRatio(id));
-  const wave = opts.wave && height >= 32;
+  const wave = opts.wave && height >= 30;
   return "<span class='flagBadge" + (wave ? " wave" : "") + "' style='height:" + height + "px;width:" + w + "px'>" +
     "<img alt='' width='" + w + "' height='" + height + "' src='" + src + "'>" +
-    (height >= 28 ? "<i class='shine'></i>" : "") + "</span>";
+    (height >= 22 ? "<i class='shine'></i>" : "") + "</span>";
 }
 
 function flagRound(c, x, y, w, h, r) {
@@ -5616,7 +5631,7 @@ function renderMenu() {
   // team cards + the kits they will actually wear (away kit on a clash)
   const B = teamDef(settings.blue), R = teamDef(settings.red);
   const kits = buildTeamKits(B, R);
-  const card = (side, T, k) => flagHtml(T, 40, { wave: true }) + "<span class='teamMeta'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span><br><span class='stars'>" + stars(k.rating) + "</span>" + (k.away ? " <span class='away'>away kit</span>" : "") + "</span>";
+  const card = (side, T, k) => flagHtml(T, 26, { wave: true }) + "<span class='teamMeta'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span><br><span class='stars'>" + stars(k.rating) + "</span>" + (k.away ? " <span class='away'>away kit</span>" : "") + "</span>";
   $("blueTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P1" : "YOU") + "</span>" + card("blue", B, kits.blue);
   $("redTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P2" : settings.kind === "cup" ? "CUP" : "CPU") + "</span>" + (settings.kind === "cup" ? "<b>7 random teams</b><br><span class='stars'>knockout</span>" : card("red", R, kits.red));
   $("redTeamBtn").disabled = settings.kind === "cup";
@@ -5680,13 +5695,13 @@ function openTeamPicker(side) {
   const cur = settings[side];
   let html = "";
   for (const T of TEAM_LIST) {
-    html += "<button class='teamTile" + (T.id === cur ? " selected" : "") + "' data-team='" + T.id + "'>" + flagHtml(T, 54, { wave: true }) +
-      "<span class='kitRow'>" + kitHtml(T.home, 22) + kitHtml(T.away, 16) + "</span>" +
-      "<b>" + esc(T.name) + "</b><span class='code'>" + T.short + "</span><span class='stars'>" + stars(T.rating) + "</span></button>";
+    html += "<button class='teamTile" + (T.id === cur ? " selected" : "") + "' data-team='" + T.id + "'>" + flagHtml(T, 32, { wave: true }) +
+      "<span class='kitRow'>" + kitHtml(T.home, 18) + kitHtml(T.away, 14) + "</span>" +
+      "<span class='teamName'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span></span><span class='stars'>" + stars(T.rating) + "</span></button>";
   }
   const C = customTeam(settings.custom);
-  html += "<button class='teamTile custom" + (cur === "custom" ? " selected" : "") + "' data-team='custom'>" + flagHtml(C, 54, { wave: true }) +
-    "<span class='kitRow'>" + kitHtml(C.home, 22) + "</span><b>" + esc(C.name) + "</b><span class='code'>" + C.short + "</span><span class='stars'>Custom</span></button>";
+  html += "<button class='teamTile custom" + (cur === "custom" ? " selected" : "") + "' data-team='custom'>" + flagHtml(C, 32, { wave: true }) +
+    "<span class='kitRow'>" + kitHtml(C.home, 18) + "</span><span class='teamName'><b>" + esc(C.name) + "</b> <span class='code'>" + C.short + "</span></span><span class='stars'>Custom</span></button>";
   $("teamGrid").innerHTML = html;
   $("customName").value = settings.custom.name;
   $("customShirt").value = settings.custom.shirt; $("customShorts").value = settings.custom.shorts; $("customSocks").value = settings.custom.socks;
@@ -5824,7 +5839,7 @@ $("trophyCupBtn").addEventListener("click", () => showCup());
 let trophyAnim = null;
 function showTrophy() {
   showScreen("trophyScreen");
-  $("trophyTeam").innerHTML = cup ? flagHtml(cup.teams[0], 36, { wave: true }) + "<span>" + esc(cup.teams[0].name) + "</span>" : "";
+  $("trophyTeam").innerHTML = cup ? flagHtml(cup.teams[0], 28, { wave: true }) + "<span>" + esc(cup.teams[0].name) + "</span>" : "";
   Sound.init(); Sound.fanfare();
   const cv = $("trophyCanvas"), g = cv.getContext("2d");
   const W = cv.width = 360, H = cv.height = 300;
@@ -5877,7 +5892,7 @@ function showWin() {
   const so = game.shootout;
   $("winTitle").textContent = w ? TEAMS[w].name + " win!" : "It's a draw!";
   $("winTitle").style.color = w ? TEAMS[w].ui : "#fff";
-  const sideMark = (side) => flagHtml({ id: TEAMS[side].id, kit: TEAMS[side].kit }, 32) + "<span>" + esc(TEAMS[side].short) + "</span>";
+  const sideMark = (side) => flagHtml({ id: TEAMS[side].id, kit: TEAMS[side].kit }, 22) + "<span>" + esc(TEAMS[side].short) + "</span>";
   let score = sideMark("blue") + "<span>" + game.score.blue + " - " + game.score.red + "</span>" + sideMark("red");
   if (so) {
     const pb = so.kicks.blue.reduce((a, b) => a + b, 0), pr = so.kicks.red.reduce((a, b) => a + b, 0);

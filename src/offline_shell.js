@@ -301,7 +301,7 @@ function renderMenu() {
   // team cards + the kits they will actually wear (away kit on a clash)
   const B = teamDef(settings.blue), R = teamDef(settings.red);
   const kits = buildTeamKits(B, R);
-  const card = (side, T, k) => flagHtml(T, 40, { wave: true }) + "<span class='teamMeta'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span><br><span class='stars'>" + stars(k.rating) + "</span>" + (k.away ? " <span class='away'>away kit</span>" : "") + "</span>";
+  const card = (side, T, k) => flagHtml(T, 26, { wave: true }) + "<span class='teamMeta'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span><br><span class='stars'>" + stars(k.rating) + "</span>" + (k.away ? " <span class='away'>away kit</span>" : "") + "</span>";
   $("blueTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P1" : "YOU") + "</span>" + card("blue", B, kits.blue);
   $("redTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P2" : settings.kind === "cup" ? "CUP" : "CPU") + "</span>" + (settings.kind === "cup" ? "<b>7 random teams</b><br><span class='stars'>knockout</span>" : card("red", R, kits.red));
   $("redTeamBtn").disabled = settings.kind === "cup";
@@ -365,13 +365,13 @@ function openTeamPicker(side) {
   const cur = settings[side];
   let html = "";
   for (const T of TEAM_LIST) {
-    html += "<button class='teamTile" + (T.id === cur ? " selected" : "") + "' data-team='" + T.id + "'>" + flagHtml(T, 54, { wave: true }) +
-      "<span class='kitRow'>" + kitHtml(T.home, 22) + kitHtml(T.away, 16) + "</span>" +
-      "<b>" + esc(T.name) + "</b><span class='code'>" + T.short + "</span><span class='stars'>" + stars(T.rating) + "</span></button>";
+    html += "<button class='teamTile" + (T.id === cur ? " selected" : "") + "' data-team='" + T.id + "'>" + flagHtml(T, 32, { wave: true }) +
+      "<span class='kitRow'>" + kitHtml(T.home, 18) + kitHtml(T.away, 14) + "</span>" +
+      "<span class='teamName'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span></span><span class='stars'>" + stars(T.rating) + "</span></button>";
   }
   const C = customTeam(settings.custom);
-  html += "<button class='teamTile custom" + (cur === "custom" ? " selected" : "") + "' data-team='custom'>" + flagHtml(C, 54, { wave: true }) +
-    "<span class='kitRow'>" + kitHtml(C.home, 22) + "</span><b>" + esc(C.name) + "</b><span class='code'>" + C.short + "</span><span class='stars'>Custom</span></button>";
+  html += "<button class='teamTile custom" + (cur === "custom" ? " selected" : "") + "' data-team='custom'>" + flagHtml(C, 32, { wave: true }) +
+    "<span class='kitRow'>" + kitHtml(C.home, 18) + "</span><span class='teamName'><b>" + esc(C.name) + "</b> <span class='code'>" + C.short + "</span></span><span class='stars'>Custom</span></button>";
   $("teamGrid").innerHTML = html;
   $("customName").value = settings.custom.name;
   $("customShirt").value = settings.custom.shirt; $("customShorts").value = settings.custom.shorts; $("customSocks").value = settings.custom.socks;
@@ -509,7 +509,7 @@ $("trophyCupBtn").addEventListener("click", () => showCup());
 let trophyAnim = null;
 function showTrophy() {
   showScreen("trophyScreen");
-  $("trophyTeam").innerHTML = cup ? flagHtml(cup.teams[0], 36, { wave: true }) + "<span>" + esc(cup.teams[0].name) + "</span>" : "";
+  $("trophyTeam").innerHTML = cup ? flagHtml(cup.teams[0], 28, { wave: true }) + "<span>" + esc(cup.teams[0].name) + "</span>" : "";
   Sound.init(); Sound.fanfare();
   const cv = $("trophyCanvas"), g = cv.getContext("2d");
   const W = cv.width = 360, H = cv.height = 300;
@@ -562,7 +562,7 @@ function showWin() {
   const so = game.shootout;
   $("winTitle").textContent = w ? TEAMS[w].name + " win!" : "It's a draw!";
   $("winTitle").style.color = w ? TEAMS[w].ui : "#fff";
-  const sideMark = (side) => flagHtml({ id: TEAMS[side].id, kit: TEAMS[side].kit }, 32) + "<span>" + esc(TEAMS[side].short) + "</span>";
+  const sideMark = (side) => flagHtml({ id: TEAMS[side].id, kit: TEAMS[side].kit }, 22) + "<span>" + esc(TEAMS[side].short) + "</span>";
   let score = sideMark("blue") + "<span>" + game.score.blue + " - " + game.score.red + "</span>" + sideMark("red");
   if (so) {
     const pb = so.kicks.blue.reduce((a, b) => a + b, 0), pr = so.kicks.red.reduce((a, b) => a + b, 0);

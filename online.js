@@ -1514,10 +1514,10 @@ function flagHtml(team, height, opts) {
   const colors = flagColorsOf(team);
   const src = flagDataUrl(id, height, colors);
   const w = Math.round(height * flagRatio(id));
-  const wave = opts.wave && height >= 32;
+  const wave = opts.wave && height >= 30;
   return "<span class='flagBadge" + (wave ? " wave" : "") + "' style='height:" + height + "px;width:" + w + "px'>" +
     "<img alt='' width='" + w + "' height='" + height + "' src='" + src + "'>" +
-    (height >= 28 ? "<i class='shine'></i>" : "") + "</span>";
+    (height >= 22 ? "<i class='shine'></i>" : "") + "</span>";
 }
 
 function flagRound(c, x, y, w, h, r) {
@@ -3390,7 +3390,7 @@ function renderLobby() {
     sel.value = side === "blue" ? room.blueTeam || "blue" : room.redTeam || "red";
     sel.disabled = !host;
     const k = kits[side];
-    $(side + "Title").innerHTML = flagHtml(k, 28, { wave: true }) + "<span>" + esc(k.name) + (k.away ? " <span class='tag'>away kit</span>" : "") + "</span>";
+    $(side + "Title").innerHTML = flagHtml(k, 22, { wave: true }) + "<span class='teamName'>" + esc(k.name) + (k.away ? " <span class='tag'>away kit</span>" : "") + "</span>";
   }
   const me = room.members.find((m) => m.id === myId);
   for (const team of ["blue", "red"]) {
@@ -3416,7 +3416,7 @@ function renderWin() {
   title.style.color = w ? TEAMS[w].ui : "#fff";
   const me = room && room.members.find((m) => m.id === myId);
   $("winSub").textContent = me && me.team ? (me.team === w ? "Great game - you won!" : "Good effort - try again!") : "";
-  const sideMark = (side) => flagHtml({ id: TEAMS[side].id, kit: TEAMS[side].kit }, 28) + "<span>" + esc(TEAMS[side].short) + "</span>";
+  const sideMark = (side) => flagHtml({ id: TEAMS[side].id, kit: TEAMS[side].kit }, 22) + "<span>" + esc(TEAMS[side].short) + "</span>";
   let score = sideMark("blue") + "<span>" + game.score.blue + " - " + game.score.red + "</span>" + sideMark("red");
   const so = game.shootout;
   if (so) {

@@ -164,7 +164,9 @@
   @media (prefers-reduced-motion: reduce) {
     .flagBadge.wave, .flagBadge .shine { animation: none; }
   }
-  .team h3, #winScore { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .team { min-width: 0; max-width: 100%; }
+  .team h3, #winScore { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+  .team h3 .teamName, #winScore span { min-width: 0; overflow-wrap: anywhere; }
   .rules label { margin: 0 8px; font-size: 15px; cursor: pointer; }
   .rules input { transform: scale(1.25); margin-right: 4px; vertical-align: middle; }
   @media (max-height: 500px) { #lobby .help { font-size: 12px; } #roomCode { font-size: 36px; } .team { padding: 4px 8px; } }
