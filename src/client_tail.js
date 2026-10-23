@@ -54,7 +54,7 @@ function renderLobby() {
     sel.value = side === "blue" ? room.blueTeam || "blue" : room.redTeam || "red";
     sel.disabled = !host;
     const k = kits[side];
-    $(side + "Title").innerHTML = "<span class='kitDot' style='background:" + k.kit.shirt + "'></span>" + esc(k.name) + (k.away ? " <span class='tag'>away kit</span>" : "");
+    $(side + "Title").innerHTML = flagHtml(k, 28, { wave: true }) + "<span>" + esc(k.name) + (k.away ? " <span class='tag'>away kit</span>" : "") + "</span>";
   }
   const me = room.members.find((m) => m.id === myId);
   for (const team of ["blue", "red"]) {
@@ -80,13 +80,16 @@ function renderWin() {
   title.style.color = w ? TEAMS[w].ui : "#fff";
   const me = room && room.members.find((m) => m.id === myId);
   $("winSub").textContent = me && me.team ? (me.team === w ? "Great game - you won!" : "Good effort - try again!") : "";
-  let score = TEAMS.blue.short + " " + game.score.blue + "  -  " + game.score.red + " " + TEAMS.red.short;
+  const sideMark = (side) => flagHtml({ id: TEAMS[side].id, kit: TEAMS[side].kit }, 28) + "<span>" + esc(TEAMS[side].short) + "</span>";
+  let score = sideMark("blue") + "<span>" + game.score.blue + " - " + game.score.red + "</span>" + sideMark("red");
   const so = game.shootout;
   if (so) {
     const pb = so.kicks.blue.reduce((a, b) => a + b, 0), pr = so.kicks.red.reduce((a, b) => a + b, 0);
-    score = game.matchType === "shootout" ? TEAMS.blue.short + " " + pb + " - " + pr + " " + TEAMS.red.short + " (penalties)" : score + " (" + pb + "-" + pr + " pens)";
+    score = game.matchType === "shootout"
+      ? sideMark("blue") + "<span>" + pb + " - " + pr + " (penalties)</span>" + sideMark("red")
+      : score + "<span>(" + pb + "-" + pr + " pens)</span>";
   }
-  $("winScore").textContent = score;
+  $("winScore").innerHTML = score;
   const s = game.stats;
   $("winStats").textContent = !s ? "" : game.matchType === "shootout" ? "Penalties scored: " + s.pens.scored + "  \u2022  missed / saved: " + s.pens.missed :
     "Shots: " + s.shots.blue + " - " + s.shots.red + "  \u2022  Saves: " + s.saves + "  \u2022  Corners: " + s.corner +

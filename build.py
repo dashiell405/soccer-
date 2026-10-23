@@ -4,6 +4,7 @@ Build script: makes the playable files from the source files in src/.
 
   src/sim.js              game logic (shared: offline game AND online server)
   src/sound.js            sound effects (shared)
+  src/flags.js            team and country flags, drawn in code
   src/render.js           drawing (shared)
   src/offline_shell.js    offline menus, cup, shootout, keyboard/touch
   src/offline_template.html   HTML + CSS of the offline game
@@ -40,7 +41,8 @@ banner = lambda title: "\n// " + "=" * 69 + "\n// " + title + "\n// " + "=" * 69
 
 # 1) offline single file
 scripts = ('"use strict";\n' + banner("GAME LOGIC (same code as the online server: multiplayer/public/game.js)")
-           + read("sim.js") + banner("SOUND") + read("sound.js") + banner("DRAWING") + read("render.js")
+           + read("sim.js") + banner("SOUND") + read("sound.js") + banner("FLAGS") + read("flags.js")
+           + banner("DRAWING") + read("render.js")
            + banner("OFFLINE SHELL") + read("offline_shell.js"))
 html = read("offline_template.html").replace("/*__SCRIPTS__*/", scripts)
 write(os.path.join(HERE, "soccer.html"), html)
@@ -54,7 +56,7 @@ def bundle(*names):
 game = read("sim.js")
 write(os.path.join(MP, "public", "game.js"), game)
 write(os.path.join(HERE, "game.js"), game)
-parts = ("client_head.js", "sound.js", "client_net.js", "render.js", "client_tail.js")
+parts = ("client_head.js", "sound.js", "client_net.js", "flags.js", "render.js", "client_tail.js")
 write(os.path.join(MP, "public", "client.js"), bundle("client_head.js", "sound.js", "client_ws.js", *parts[2:]))
 write(os.path.join(HERE, "online.js"), bundle("client_head.js", "sound.js", "p2p_net.js", *parts[2:]))
 
