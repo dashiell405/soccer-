@@ -233,7 +233,7 @@ const SQUADS = {
     P(2, "RB", "Ty Calloway", [82, 50, 66, 72, 74, 86, 12], [5, 0, "buzz", 1.04, 5], "", ""),
     P(11, "LM", "Casey Nguyen", [80, 68, 76, 82, 46, 84, 12], [1, 0, "long", 0.96, 7], "", ""),
     P(6, "LCM", "Riley Cho", [72, 64, 80, 74, 64, 86, 12], [3, 1, "curly", 0.98, 6], "engine", ""),
-    P(10, "RCM", "Dashiell Green", [100, 100, 100, 100, 100, 100, 12], [0, 3, "short", 0.97, 3], "playmaker", "S"),
+    P(10, "RCM", "Dashiell G.", [100, 100, 100, 100, 100, 100, 12], [0, 3, "short", 0.97, 3], "playmaker", "S"),
     P(17, "RM", "Sam Ortega", [78, 70, 72, 84, 44, 82, 12], [2, 4, "mohawk", 0.96, 1], "dribbler", ""),
     P(9, "LST", "Jordan Hale", [78, 86, 66, 74, 36, 82, 12], [0, 1, "short", 1.04, 2], "finisher", "S"),
     P(18, "RST", "Avery Cole", [76, 78, 66, 74, 34, 80, 12], [6, 1, "afro", 1.00, 5], "", ""),
@@ -308,7 +308,7 @@ const SQUADS = {
 // Dashiell stays on USA even when Play as me is off. The flag makes kickoff
 // start on him when that side is the one you control.
 (function markUsaYou() {
-  const p = SQUADS.usa.players.find((q) => q.name === "Dashiell Green");
+  const p = SQUADS.usa.players.find((q) => q.name === "Dashiell G.");
   if (p) p.me = true;
 })();
 
@@ -350,7 +350,7 @@ function escHtml(s) {
 
 // Device-only "play as me". This is not written into the squad list.
 // To take it out later, set on to false here (or delete this block).
-const PLAY_AS_ME_DEFAULT = { on: true, name: "Dashiell Green" };
+const PLAY_AS_ME_DEFAULT = { on: true, name: "Dashiell G." };
 const PLAY_AS_ME_NUM = 10;
 
 function loadPlayAsMe() {
@@ -363,6 +363,13 @@ function loadPlayAsMe() {
   let name = saved && typeof saved.name === "string" ? saved.name : fallback.name;
   name = String(name).replace(/[<>]/g, "").trim().slice(0, 18);
   if (!name) name = fallback.name;
+  // Phones that already saved the old default should pick up the shorter name.
+  if (name === "Dashiell Green") {
+    name = fallback.name;
+    try {
+      if (typeof localStorage !== "undefined") localStorage.setItem("soccerPlayAsMe", JSON.stringify({ on: !!on, name: name }));
+    } catch (e) { /* ignore */ }
+  }
   return { on: !!on, name: name };
 }
 
