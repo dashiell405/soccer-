@@ -12,7 +12,7 @@ Open this link on a computer, iPhone, or iPad:
 
 **https://dashiell405.github.io/soccer-/**
 
-Hold a phone sideways. The green **KICK OFF** button starts a match. Every match is **10 minutes**. The team with more goals when the clock hits 0:00 wins. In the Cup, a draw goes to penalties. If you open it upright, a yellow note asks you to turn the phone. You can still play upright.
+Hold a phone sideways. The green **KICK OFF** button starts a match. Every match is **5 minutes**. The team with more goals when the clock hits 0:00 wins. In the Cup, a draw goes to penalties. If you open it upright, a yellow note asks you to turn the phone. You can still play upright.
 
 One player: left thumb on the stick, right thumb on **SHOOT**, **PASS**, **RUN** and **SKILL**. Two players on one phone each get a stick and those four buttons, P1 on the left and P2 on the right. The crowd starts after the first tap (phones block sound until then). Tap the **II** button to pause. You do not need a keyboard.
 

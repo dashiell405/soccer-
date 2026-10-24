@@ -44,7 +44,7 @@ const PEN_SPOT = 140;              // penalty spot distance from goal line
 const CIRCLE_R = 115;              // center circle radius
 const POST_R = 4;
 
-const MATCH_LENGTH = 600;         // every real match is 10:00 of game time. No goal limit.
+const MATCH_LENGTH = 300;         // every real match is 5:00 of game time. No goal limit.
 // Overhead throw-in: wind the ball up behind the head, then swing it forward.
 const THROW_WIND = 0.42;          // seconds with the ball going up and back
 const THROW_RELEASE = 0.70;       // when the ball leaves the hands
@@ -290,7 +290,7 @@ function createSim(opts = {}) {
     difficulty: DIFFICULTY[opts.difficulty] ? opts.difficulty : "normal",
     teams: opts.teams || buildTeamKits(TEAM_LIST[0], TEAM_LIST[1]),   // names, kits, ratings
     rules: { ...DEFAULT_RULES, ...(opts.rules || {}) },               // offside / cards on or off
-    // A normal match is always 10:00. A penalty-shootout mode has no clock.
+    // A normal match is always 5:00. A penalty-shootout mode has no clock.
     // Old goal-limit and match-length options are ignored.
     timeLimit: opts.matchType === "shootout" ? 0 : MATCH_LENGTH,
     knockout: opts.matchType === "shootout" ? false : !!opts.knockout, // a draw goes to penalties
@@ -2026,7 +2026,7 @@ function scoreGoal(team, side) {
   cancelCharging();
 }
 
-// The 10:00 clock ran out. Most goals wins. A draw is a draw, unless this
+// The 5:00 clock ran out. Most goals wins. A draw is a draw, unless this
 // is a cup match, which goes to a penalty shootout.
 function fullTime() {
   emit("whistleLong");
