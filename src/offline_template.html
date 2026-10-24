@@ -118,9 +118,13 @@
   .stat em { font-style: normal; width: 22px; text-align: right; }
   .renameBtn { font-size: 13px; padding: 4px 8px; min-height: 32px; margin-top: 4px; }
   #squadRename { margin-top: 8px; }
-  #squadRename input, #squadTeam { font: inherit; font-size: 16px; padding: 8px; border-radius: 8px; border: 1px solid #fff; max-width: 92%; color: #111; background: #fff; }
+  #squadRename input, #squadTeam, #playAsMeName { font: inherit; font-size: 16px; padding: 8px; border-radius: 8px; border: 1px solid #fff; max-width: 92%; color: #111; background: #fff; }
   #squadScreen input, #squadTeam { user-select: text; -webkit-user-select: text; }
   #squadNote { font-size: 13px; opacity: .85; }
+  #playAsMe { text-align: left; margin: 8px 0 2px; }
+  #playAsMe label { font-weight: 700; margin-right: 8px; }
+  #playAsMeName { max-width: 220px; }
+  .sqrow.me { background: rgba(255, 211, 61, 0.18); border-radius: 8px; }
   .scorers { text-align: left; margin: 8px auto 10px; max-width: 360px; }
   .scline { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; font-size: 15px; }
   .scorers.empty { text-align: center; opacity: .7; }
@@ -483,7 +487,11 @@
 <div id="squadScreen" class="overlay hidden">
   <div class="panel">
     <h1 style="font-size:28px">Squads</h1>
-    <p id="squadNote">Made-up players. A star plays better. Rename stays on this device only. Online games still show the team list.</p>
+    <p id="squadNote">Made-up players. A star plays better. Rename stays on this device only. Play as me puts you in as number 10 on the team you control. Online games still use the team list.</p>
+    <div id="playAsMe">
+      <label><input type="checkbox" id="playAsMeOn" checked> Play as me</label>
+      <input id="playAsMeName" type="text" maxlength="18" value="Dashiell Green" autocomplete="off" aria-label="Your name">
+    </div>
     <div class="row"><select id="squadTeam"></select></div>
     <div id="squadList"></div>
     <div id="squadRename" class="hidden">

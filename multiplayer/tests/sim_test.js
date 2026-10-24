@@ -242,3 +242,63 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   const info = sim.staticInfo();
   assert(info.length === 22 && info[0][5] === blue[0].name && info[0].length >= 13, 'online gets the same names');
 }
+// 13. Play as me: number 10, same stats, only the teams you control.
+{
+  S.setPlayAsMeSides({ blue: true });
+  const sim = S.createSim({ teams: S.buildTeamKits(S.findTeam('bra'), S.findTeam('arg')) });
+  sim.addController('p1', 'P1', 'blue');
+  sim.start();
+  const blue = sim.roster.filter((p) => p.team === 'blue');
+  const red = sim.roster.filter((p) => p.team === 'red');
+  const me = blue.find((p) => p.me);
+  assert(me && me.name === 'Dashiell Green' && me.num === 10 && me.star && me.pos === 'CAM' && me.trait === 'playmaker', 'Dashiell takes the Brazil playmaker slot as number 10');
+  assert(me.pace === 82 && me.shoot === 78 && me.pass === 92 && me.dribble === 88, 'he keeps that slot stats');
+  assert(!blue.some((p) => p.name === 'Luan Pires'), 'the replaced player is not also in the team');
+  assert(new Set(blue.map((p) => p.num)).size === 11, 'shirt numbers stay unique');
+  assert(red.some((p) => p.name === 'Santi Ojeda') && !red.some((p) => p.me), 'the other team keeps its own players');
+  let sawKick = false;
+  let selected = false;
+  for (let n = 0; n < 30 && !sawKick; n++) {
+    sim.start();
+    sim.update(1 / 120);
+    const c = sim.controllers.find((k) => k.id === 'p1');
+    const mine = sim.roster.find((p) => p.me && p.team === 'blue');
+    selected = c.active === mine;
+    if (sim.game.setpiece && sim.game.setpiece.team === 'blue') {
+      sawKick = sim.game.setpiece.taker === mine;
+    }
+  }
+  assert(selected, 'kickoff starts with Dashiell selected');
+  assert(sawKick, 'he takes the kickoff when his team has it');
+  sim.ball.lastTeam = 'blue';
+  sim.game.phase = 'play';
+  sim.forceGoal('blue');
+  assert(sim.game.comment.text.indexOf('Dashiell Green') >= 0, 'goal banner names him: ' + sim.game.comment.text);
+  assert(sim.game.stats.scorers.some((g) => g.name === 'Dashiell Green' && g.num === 10), 'full-time list names him');
+
+  S.setPlayAsMeSides({ blue: true });
+  const same = S.createSim({ teams: S.buildTeamKits(S.findTeam('bra'), S.findTeam('bra')) });
+  same.start();
+  const left = same.roster.filter((p) => p.team === 'blue');
+  const right = same.roster.filter((p) => p.team === 'red');
+  assert(left.some((p) => p.name === 'Dashiell Green') && !right.some((p) => p.name === 'Dashiell Green'), 'same squad on both sides: only the left team');
+  assert(right.some((p) => p.name === 'Luan Pires') && !left.some((p) => p.name === 'Luan Pires'), 'the right team keeps the original player');
+
+  S.setPlayAsMeSides({ blue: true, red: true });
+  const both = S.createSim({ teams: S.buildTeamKits(S.findTeam('bra'), S.findTeam('arg')) });
+  both.start();
+  assert(both.roster.filter((p) => p.name === 'Dashiell Green').length === 2, 'two different teams in 2-player each get him');
+  assert(!both.roster.some((p) => p.name === 'Luan Pires' || p.name === 'Santi Ojeda'), 'neither original playmaker is left in');
+
+  S.setPlayAsMeSides({ blue: true });
+  const ita = S.createSim({ teams: S.buildTeamKits(S.findTeam('ita'), S.findTeam('fra')) });
+  ita.start();
+  const fab = ita.roster.find((p) => p.team === 'blue' && p.me);
+  assert(fab && fab.name === 'Dashiell Green' && fab.num === 10 && fab.trait === 'playmaker' && fab.pos === 'RCM', 'a team with no number 10 uses the playmaker');
+  assert(!ita.roster.some((p) => p.team === 'blue' && p.name === 'Fabio Riva'), 'Fabio is replaced, not duplicated');
+
+  S.setPlayAsMeSides({});
+  const plain = S.createSim({ teams: S.buildTeamKits(S.findTeam('bra'), S.findTeam('arg')) });
+  plain.start();
+  assert(plain.roster.some((p) => p.name === 'Luan Pires') && !plain.roster.some((p) => p.name === 'Dashiell Green'), 'with it off, the squad list is unchanged');
+}

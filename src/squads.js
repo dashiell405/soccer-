@@ -341,6 +341,59 @@ function escHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// Device-only "play as me". This is not written into the squad list.
+// To take it out later, set on to false here (or delete this block).
+const PLAY_AS_ME_DEFAULT = { on: true, name: "Dashiell Green" };
+const PLAY_AS_ME_NUM = 10;
+
+function loadPlayAsMe() {
+  const fallback = PLAY_AS_ME_DEFAULT;
+  let saved = null;
+  try {
+    if (typeof localStorage !== "undefined") saved = JSON.parse(localStorage.getItem("soccerPlayAsMe") || "null");
+  } catch (e) { saved = null; }
+  const on = saved && typeof saved.on === "boolean" ? saved.on : fallback.on;
+  let name = saved && typeof saved.name === "string" ? saved.name : fallback.name;
+  name = String(name).replace(/[<>]/g, "").trim().slice(0, 18);
+  if (!name) name = fallback.name;
+  return { on: !!on, name: name };
+}
+
+function savePlayAsMe(next) {
+  const cur = loadPlayAsMe();
+  const on = next && typeof next.on === "boolean" ? next.on : cur.on;
+  let name = next && typeof next.name === "string" ? next.name : cur.name;
+  name = String(name).replace(/[<>]/g, "").trim().slice(0, 18) || PLAY_AS_ME_DEFAULT.name;
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem("soccerPlayAsMe", JSON.stringify({ on: !!on, name: name }));
+  } catch (e) { /* ignore */ }
+  return { on: !!on, name: name };
+}
+
+// The outfield player he replaces: shirt 10, or the attacking midfielder / playmaker.
+function mePlayerIndex(players) {
+  if (!players || !players.length) return -1;
+  let i = players.findIndex((p) => p && p.num === PLAY_AS_ME_NUM && p.pos !== "GK");
+  if (i >= 0) return i;
+  i = players.findIndex((p) => p && p.pos === "CAM");
+  if (i >= 0) return i;
+  i = players.findIndex((p) => p && p.trait === "playmaker" && p.pos !== "GK");
+  return i;
+}
+
+// A copy of the squad with one outfield player wearing his name and number 10.
+// Stats, position and trait stay with that slot so the team stays balanced.
+function withPlayAsMe(squad) {
+  const me = loadPlayAsMe();
+  if (!me.on || !squad || !squad.players) return squad;
+  const players = squad.players.map((p) => Object.assign({}, p));
+  const i = mePlayerIndex(players);
+  if (i < 0) return squad;
+  const old = players[i];
+  players[i] = Object.assign({}, old, { name: me.name, num: PLAY_AS_ME_NUM, star: true, me: true });
+  return Object.assign({}, squad, { players: players });
+}
+
 function loadRenames() {
   try {
     const raw = JSON.parse(localStorage.getItem("soccerRenames") || "{}");
@@ -365,20 +418,22 @@ function statBits(p) {
 
 function squadCardHtml(teamId) {
   const meta = (typeof findTeam === "function" && findTeam(teamId)) || { id: teamId || "custom", name: "My Team", rating: 3 };
-  const sq = squadById(meta.id, meta);
+  let sq = squadById(meta.id, meta);
+  if (loadPlayAsMe().on) sq = withPlayAsMe(sq);
   const head = "<div class='sqhead'><b>" + escHtml(sq.formation) + "</b> · " + escHtml(STYLE_TEXT[sq.style] || "") +
     " · " + "\u2605".repeat(meta.rating || 3) + "</div>";
   const rows = sq.players.map((p) => {
-    const priv = renameFor(meta.id, p.num);
+    const priv = p.me ? "" : renameFor(meta.id, p.num);
     const shown = priv || p.name;
     const trait = p.trait ? "<div class='trait'>" + escHtml(TRAIT_NAME[p.trait] || p.trait) + " · " + escHtml(TRAIT_BLURB[p.trait] || "") + "</div>" : "";
-    const note = priv ? "<div class='official'>Team list: " + escHtml(p.name) + "</div>" : "";
-    return "<div class='sqrow'>" +
+    const note = priv && !p.me ? "<div class='official'>Team list: " + escHtml(p.name) + "</div>" : "";
+    const rename = p.me ? "" : "<button type='button' class='renameBtn' data-rename='" + p.num + "' data-name='" + escHtml(p.name) + "'>Rename</button>";
+    return "<div class='sqrow" + (p.me ? " me" : "") + "'>" +
       "<div class='who'><span class='pos'>" + escHtml(p.pos) + "</span> " +
       "<b>" + (p.star ? "<span class='star'>\u2605</span> " : "") + escHtml(shown) + "</b> " +
       "<span class='num'>#" + p.num + (p.captain ? " C" : "") + "</span>" +
       note + trait +
-      "<button type='button' class='renameBtn' data-rename='" + p.num + "' data-name='" + escHtml(p.name) + "'>Rename</button></div>" +
+      rename + "</div>" +
       "<div class='bars'>" + statBits(p) + "</div></div>";
   }).join("");
   return head + rows;
@@ -411,8 +466,17 @@ function openSquadScreen() {
   } catch (e) { /* ignore */ }
   const box = document.getElementById("squadRename");
   if (box) box.classList.add("hidden");
+  paintPlayAsMe();
   paintSquad();
   screen.classList.remove("hidden");
+}
+
+function paintPlayAsMe() {
+  const me = loadPlayAsMe();
+  const on = document.getElementById("playAsMeOn");
+  const name = document.getElementById("playAsMeName");
+  if (on) on.checked = me.on;
+  if (name && document.activeElement !== name) name.value = me.name;
 }
 
 function bindSquadScreen() {
@@ -459,6 +523,16 @@ function bindSquadScreen() {
     else map[key] = name;
     try { localStorage.setItem("soccerRenames", JSON.stringify(map)); } catch (e) { /* ignore */ }
     box.classList.add("hidden");
+    paintSquad();
+  });
+  const playOn = document.getElementById("playAsMeOn");
+  const playName = document.getElementById("playAsMeName");
+  if (playOn) playOn.addEventListener("change", () => {
+    savePlayAsMe({ on: playOn.checked, name: playName ? playName.value : "" });
+    paintSquad();
+  });
+  if (playName) playName.addEventListener("input", () => {
+    savePlayAsMe({ on: playOn ? playOn.checked : true, name: playName.value });
     paintSquad();
   });
   const clear = document.getElementById("squadRenameClear");
