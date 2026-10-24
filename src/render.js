@@ -27,8 +27,20 @@ function depthT(y) {
   return clamp((y - y0) / (y1 - y0), 0, 1);
 }
 function smooth01(t) { return t * t * (3 - 2 * t); }
+// A phone touch screen. Desktop keeps the original TV framing.
+function phonePlay() {
+  return typeof touchActive === "function" && touchActive();
+}
 function camShape() {
   const land = VIEW_W / Math.max(1, VIEW_H) > 1.15;
+  // On a phone the buttons sit in the bottom corners. Pull the near
+  // touchline up so the ball is not hidden under them, and keep the
+  // players big enough to see.
+  if (phonePlay()) {
+    return land
+      ? { far: 0.10, near: 0.70, sFar: 0.62, sNear: 1.05 }
+      : { far: 0.12, near: 0.56, sFar: 0.64, sNear: 0.98 };
+  }
   return land
     ? { far: 0.11, near: 0.90, sFar: 0.66, sNear: 1.16 }
     : { far: 0.20, near: 0.76, sFar: 0.70, sNear: 1.04 };
@@ -41,8 +53,110 @@ function groundYAt(t) {
   const L = camShape();
   return lerp(L.far, L.near, smooth01(t)) * VIEW_H;
 }
+// ---- First person (local only: it is never sent online) ----
+// "tv" is the sideline broadcast camera. "fp" is the view from just
+// behind the player you control, looking the way he faces.
+let cameraFP = false;
+let fpFollowId = null;
+function loadCameraMode() {
+  try { cameraFP = localStorage.getItem("soccerCamera") === "fp"; } catch (e) { /* ignore */ }
+  syncViewBtn();
+}
+function setCameraFP(on) {
+  cameraFP = !!on;
+  try { localStorage.setItem("soccerCamera", cameraFP ? "fp" : "tv"); } catch (e) { /* ignore */ }
+  syncViewBtn();
+}
+function toggleCamera() { setCameraFP(!cameraFP); }
+function syncViewBtn() {
+  const btn = document.getElementById("viewBtn");
+  if (!btn) return;
+  btn.textContent = cameraFP ? "1ST" : "TV";
+  btn.classList.toggle("on", cameraFP);
+  btn.title = cameraFP ? "First person (C)" : "TV camera (C)";
+}
+function noteFpFollow(id) { if (id) fpFollowId = id; }
+// Penalties stay on the TV camera: up and down on the stick aim the kick.
+function fpAllowed() {
+  if (!cameraFP || !game) return false;
+  if (typeof isReplaying === "function" && isReplaying()) return false;
+  if (game.penalty && (game.phase === "setpiece" || game.phase === "shootout" || game.phase === "pkflight")) return false;
+  return game.phase === "play" || game.phase === "setpiece" || game.phase === "dead";
+}
+function fpSubject() {
+  if (!fpAllowed()) return null;
+  if (typeof isLocal !== "function" || !controllers) return null;
+  const mine = controllers.filter((c) => c && !c.cpu && c.active && !c.active.sentOff && isLocal(c));
+  if (!mine.length) return null;
+  return (mine.find((c) => c.id === fpFollowId) || mine[0]).active;
+}
+// Stick / keys match the picture. Up moves the way the camera looks.
+// The match still hears ordinary world directions, so online stays the same.
+function cameraStick(mx, my) {
+  const sub = fpSubject();
+  if (!sub) return { mx, my };
+  const fl = Math.hypot(sub.fx || 1, sub.fy || 0) || 1;
+  const fx = (sub.fx || 1) / fl, fy = (sub.fy || 0) / fl;
+  const rx = -fy, ry = fx;
+  return { mx: rx * mx - fx * my, my: ry * mx - fy * my };
+}
+// Eyes just behind and above the player. `behind` means the point is
+// too close to (or past) the camera, so it must not be drawn.
+function w2sEyes(x, y, z, sub) {
+  const fl = Math.hypot(sub.fx || 1, sub.fy || 0) || 1;
+  const fx = (sub.fx || 1) / fl, fy = (sub.fy || 0) / fl;
+  const pitch = 0.40;
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const lx = fx * cp, ly = fy * cp, lz = -sp;
+  const rx = -fy, ry = fx;
+  const upx = -lz * ry, upy = lz * rx, upz = lx * ry - ly * rx;
+  const camX = sub.x - fx * 78, camY = sub.y - fy * 78, camZ = 46;
+  const dx = x - camX, dy = y - camY, dz = (z || 0) - camZ;
+  const depth = dx * lx + dy * ly + dz * lz;
+  const right = dx * rx + dy * ry;
+  const up = dx * upx + dy * upy + dz * upz;
+  const focal = Math.min(VIEW_W, VIEW_H) * 0.92;
+  const d = Math.max(depth, 0.5);
+  const sx = VIEW_W * 0.5 + (right / d) * focal;
+  const sy = VIEW_H * 0.58 - (up / d) * focal;
+  const behind = depth < 18 || Math.abs(sx) > VIEW_W * 3 || Math.abs(sy) > VIEW_H * 3;
+  return { x: sx, y: sy, s: clamp(focal / d * 0.155, 0.16, 2.3), t: clamp(depth / 900, 0, 1), behind, depth };
+}
+// A finger tap lands on a teammate if it is close to him on screen.
+function playerAtScreen(clientX, clientY, team) {
+  if (!players || !canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  const vx = (clientX - rect.left) / Math.max(0.35, viewScale);
+  const vy = (clientY - rect.top) / Math.max(0.35, viewScale);
+  const reach = 46 / Math.max(0.35, viewScale);
+  let best = null, bd = reach;
+  for (const p of players) {
+    if (!p || p.sentOff || p.role === "GK") continue;
+    if (team && p.team !== team) continue;
+    const s = w2s(p.x, p.y, 18);
+    if (s.behind) continue;
+    const d = Math.hypot(s.x - vx, s.y - vy);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+function bindViewButton() {
+  const btn = document.getElementById("viewBtn");
+  if (!btn || btn._bound) return;
+  btn._bound = true;
+  btn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleCamera();
+  });
+}
+loadCameraMode();
+bindViewButton();
+
 // Project a point on the pitch (z = height) into view pixels.
 function w2s(x, y, z) {
+  const sub = fpSubject();
+  if (sub) return w2sEyes(x, y, z || 0, sub);
   const t = depthT(y);
   const zoom = (game && game.camera && game.camera.zoom) || 1;
   const cx = (game && game.camera && game.camera.cx) || PITCH.cx;
@@ -52,6 +166,7 @@ function w2s(x, y, z) {
     y: groundYAt(t) - (z || 0) * s * ZMUL,
     s: s,
     t: t,
+    depth: 0,
   };
 }
 function proj(x, y, z) { return w2s(x, y, z || 0); }
@@ -74,7 +189,8 @@ function updateCamera(dt, snap = false) {
 
   let tx = bx + clamp(bvx, -420, 420) * 0.3;
   let ty = by;
-  let zoom = 1.04;
+  const phone = phonePlay();
+  let zoom = phone ? 1.0 : 1.04;
 
   if (game.phase === "menu" || game.phase === "lobby") {
     tx = PITCH.cx + Math.sin(viewTime * 0.18) * 90;
@@ -82,7 +198,7 @@ function updateCamera(dt, snap = false) {
     zoom = 0.94;
   }
   if (game.phase === "goal") {
-    zoom = replayOn ? 1.42 : 1.24;
+    zoom = replayOn ? (phone ? 1.16 : 1.42) : (phone ? 1.08 : 1.24);
     if (!replayOn && game.celebration && game.celebration.scorer) {
       tx = game.celebration.scorer.x;
       ty = game.celebration.scorer.y;
@@ -93,9 +209,9 @@ function updateCamera(dt, snap = false) {
     const A = TEAMS[pen.team];
     tx = A.targetGoalX - A.dir * 110;
     ty = PITCH.cy;
-    zoom = 1.46;
+    zoom = phone ? 1.18 : 1.46;
   } else if (game.phase === "setpiece" && game.setpiece) {
-    zoom = game.setpiece.type === "kickoff" ? 1.0 : game.setpiece.type === "throw" ? 1.42 : 1.28;
+    zoom = game.setpiece.type === "kickoff" ? 1.0 : game.setpiece.type === "throw" ? (phone ? 1.14 : 1.42) : (phone ? 1.1 : 1.28);
   }
   if (game.phase === "win") { zoom = 0.98; tx = PITCH.cx; }
 
@@ -295,6 +411,7 @@ let shownOfficials = null; // referee and linesmen for this frame
 let quality = "high";
 
 function quad(a, b, c, d, color) {
+  if (!a || !b || !c || !d || a.behind || b.behind || c.behind || d.behind) return;
   ctx.beginPath();
   ctx.moveTo(a.x, a.y);
   ctx.lineTo(b.x, b.y);
@@ -327,6 +444,7 @@ function drawSky() {
 function drawTower(x, y, glow) {
   const base = w2s(x, y, 0);
   const top = w2s(x, y, 108);
+  if (base.behind || top.behind) return;
   const lamp = w2s(x, y, 102);
   ctx.lineCap = "round";
   ctx.strokeStyle = "#9aa6b5";
@@ -358,6 +476,7 @@ function drawStandFace(x0, x1, y, z0, z1, row) {
   if (!crowdSheet) return;
   const bl = w2s(x0, y, z0), br = w2s(x1, y, z0);
   const tl = w2s(x0, y, z1), tr = w2s(x1, y, z1);
+  if (bl.behind || br.behind || tl.behind || tr.behind) return;
   quad(bl, br, tr, tl, row % 2 ? "#1c232e" : "#2a3340");
   const left = Math.min(bl.x, tl.x), right = Math.max(br.x, tr.x);
   const top = Math.min(tl.y, tr.y), bot = Math.max(bl.y, br.y);
@@ -470,6 +589,7 @@ const ADS = [
 function drawBoard(x0, y0, x1, y1, label, color, z1) {
   z1 = z1 || 13;
   const a = w2s(x0, y0, 0), b = w2s(x1, y1, 0), c = w2s(x1, y1, z1), d = w2s(x0, y0, z1);
+  if (a.behind || b.behind || c.behind || d.behind) return;
   quad(a, b, c, d, color);
   ctx.beginPath();
   ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.closePath();
@@ -507,7 +627,31 @@ function drawBoards(near) {
   drawBoard(PITCH.right + 6, GOAL_BOTTOM + 8, PITCH.right + 6, PITCH.bottom - 8, "CUP", "#0e3d28");
 }
 
+function drawPitchEyes() {
+  const sub = fpSubject();
+  if (sub) {
+    const fl = Math.hypot(sub.fx || 1, sub.fy || 0) || 1;
+    const far = w2s(sub.x + (sub.fx || 1) / fl * 5000, sub.y + (sub.fy || 0) / fl * 5000, 0);
+    const hy = far.behind ? VIEW_H * 0.42 : clamp(far.y, 0, VIEW_H);
+    ctx.fillStyle = "#145226";
+    ctx.fillRect(0, hy, VIEW_W, VIEW_H - hy + 2);
+  }
+  const step = PITCH.w / 14;
+  for (let x = PITCH.left - step; x < PITCH.right + step; x += step) {
+    for (let y = PITCH.top - step; y < PITCH.bottom + step; y += step) {
+      const x2 = x + step, y2 = y + step;
+      const a = w2s(x, y, 0), b = w2s(x2, y, 0), c = w2s(x2, y2, 0), d = w2s(x, y2, 0);
+      if (a.behind || b.behind || c.behind || d.behind) continue;
+      const ix = x + step * 0.5, iy = y + step * 0.5;
+      const on = ix >= PITCH.left && ix < PITCH.right && iy >= PITCH.top && iy < PITCH.bottom;
+      const stripe = Math.floor((ix - PITCH.left) / step);
+      const col = !on ? "#145226" : (stripe % 2 ? "#17692c" : "#1e7c36");
+      quad(a, b, c, d, col);
+    }
+  }
+}
 function drawPitch() {
+  if (fpSubject()) { drawPitchEyes(); return; }
   // Apron around the grass.
   quad(
     w2s(PITCH.left - 36, PITCH.top - 16, 0),
@@ -559,11 +703,13 @@ function drawPitch() {
 function worldPolyline(pts, width, color) {
   if (!pts.length) return;
   ctx.beginPath();
-  pts.forEach((p, i) => {
+  let open = false;
+  for (const p of pts) {
     const s = w2s(p.x, p.y, p.z || 0);
-    if (i) ctx.lineTo(s.x, s.y);
-    else ctx.moveTo(s.x, s.y);
-  });
+    if (s.behind) { open = false; continue; }
+    if (open) ctx.lineTo(s.x, s.y);
+    else { ctx.moveTo(s.x, s.y); open = true; }
+  }
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.stroke();
@@ -586,9 +732,11 @@ function drawMarkings() {
   worldPolyline(circle, lw, col);
   const spot = w2s(PITCH.cx, PITCH.cy, 0);
   ctx.fillStyle = col;
-  ctx.beginPath();
-  ctx.arc(spot.x, spot.y, Math.max(2, spot.s * 3.5), 0, Math.PI * 2);
-  ctx.fill();
+  if (!spot.behind) {
+    ctx.beginPath();
+    ctx.arc(spot.x, spot.y, Math.max(2, spot.s * 3.5), 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   for (const s of [1, -1]) {
     const L = s === 1 ? PITCH.left : PITCH.right;
@@ -606,9 +754,11 @@ function drawMarkings() {
     ], lw, col);
     const spotX = L + s * PEN_SPOT;
     const ps = w2s(spotX, PITCH.cy, 0);
-    ctx.beginPath();
-    ctx.arc(ps.x, ps.y, Math.max(1.6, ps.s * 2.6), 0, Math.PI * 2);
-    ctx.fill();
+    if (!ps.behind) {
+      ctx.beginPath();
+      ctx.arc(ps.x, ps.y, Math.max(1.6, ps.s * 2.6), 0, Math.PI * 2);
+      ctx.fill();
+    }
     const ang = Math.acos(clamp((BOX.depth - PEN_SPOT) / CIRCLE_R, -1, 1));
     const arc = [];
     const steps = 12;
@@ -632,6 +782,7 @@ function drawMarkings() {
 function drawFlag(x, y) {
   const b = w2s(x, y, 0);
   const t = w2s(x, y, 20);
+  if (b.behind || t.behind) return;
   ctx.strokeStyle = "#eee";
   ctx.lineWidth = Math.max(1, b.s * 1.4);
   ctx.beginPath();
@@ -650,6 +801,7 @@ function drawFlag(x, y) {
 
 function postLine(x1, y1, z1, x2, y2, z2) {
   const a = w2s(x1, y1, z1), b = w2s(x2, y2, z2);
+  if (a.behind || b.behind) return;
   ctx.lineCap = "round";
   ctx.strokeStyle = "rgba(0,0,0,0.45)";
   ctx.lineWidth = Math.max(2.5, a.s * 5);
@@ -675,6 +827,7 @@ function netPoint(x, y, z, u, v) {
   return { x: s.x + rip, y: s.y + rip * 0.35 };
 }
 function netPanel(x1, y1, z1, x2, y2, z2, x3, y3, z3, x4, y4, z4, nu, nv) {
+  if ([w2s(x1, y1, z1), w2s(x2, y2, z2), w2s(x3, y3, z3), w2s(x4, y4, z4)].some((c) => c.behind)) return;
   function at(u, v) {
     const x = lerp(lerp(x1, x2, u), lerp(x4, x3, u), v);
     const y = lerp(lerp(y1, y2, u), lerp(y4, y3, u), v);
@@ -755,6 +908,7 @@ function limb(x1, y1, x2, y2, x3, y3, color, width) {
 function drawOfficial(o) {
   if (!o) return;
   const foot = w2s(o.x, o.y, 0);
+  if (foot.behind) return;
   const S = foot.s;
   const H = 34 * ZMUL * S;
   if (H < 6) return;
@@ -940,9 +1094,12 @@ function drawThrowArmsOnTop(cast) {
 
 function drawPlayer(p) {
   if (!p || p.sentOff) return;
+  const eyes = fpSubject();
+  if (eyes && p === eyes) return;
   const T = TEAMS[p.team];
   if (!T) return;
   const foot = w2s(p.x, p.y, 0);
+  if (foot.behind) return;
   const S = foot.s;
   const H = 34 * ZMUL * S;
   if (H < 7) return;
@@ -1104,7 +1261,9 @@ function drawPlayer(p) {
 }
 
 function drawPlayerHud(p, c) {
+  if (fpSubject() === p) return;
   const foot = w2s(p.x, p.y, 0);
+  if (foot.behind) return;
   const H = 34 * ZMUL * foot.s;
   const mine = isLocal(c);
   const label = (labelFor(c) || "") + "  #" + p.num;
@@ -1162,6 +1321,7 @@ function drawBall() {
   if (!b) return;
   const z = b.z || 0;
   const gnd = w2s(b.x, b.y, 0);
+  if (gnd.behind) return;
   const sh = clamp(1 - z / 170, 0.32, 1);
   ctx.fillStyle = "rgba(0,0,0," + clamp(0.45 - z / 210, 0.07, 0.45).toFixed(3) + ")";
   ctx.beginPath();
@@ -1717,7 +1877,9 @@ function draw() {
   const replayOn = isReplaying();
   const sample = replayOn ? replaySample() : null;
   ballSrc = sample ? sample.ball : ball;
-  const cast = sample ? sample.ps.filter((p) => p && !p.sentOff) : onPitch();
+  const eyes = fpSubject();
+  let cast = sample ? sample.ps.filter((p) => p && !p.sentOff) : onPitch();
+  if (eyes) cast = cast.filter((p) => p !== eyes);
   shownOfficials = (sample && sample.offs && sample.offs.length) ? sample.offs : (game.officials || []);
 
   drawSky();
@@ -1735,8 +1897,15 @@ function draw() {
   for (const o of crew) if (o.side !== "near") things.push({ y: o.y, o: o });
   const bz = (ballSrc && ballSrc.z) || 0;
   if (bz <= 14) things.push({ y: ballSrc.y + 0.2, ball: true });
-  things.sort((a, b) => a.y - b.y);
+  if (eyes) {
+    for (const t of things) {
+      const pos = t.ball ? ballSrc : (t.p || t.o);
+      t.depth = w2s(pos.x, pos.y, t.ball ? bz : 0).depth || 0;
+    }
+    things.sort((a, b) => b.depth - a.depth);
+  } else things.sort((a, b) => a.y - b.y);
   for (const t of things) { if (t.ball) drawBall(); else if (t.o) drawOfficial(t.o); else drawPlayer(t.p); }
+  if (eyes) drawCrosshair();
   if (bz > 14) drawBall();
 
   drawBoards(true);
@@ -1766,6 +1935,18 @@ function draw() {
   drawConfetti();
   ballSrc = ball;
   considerQuality();
+}
+
+function drawCrosshair() {
+  const x = VIEW_W * 0.5, y = VIEW_H * 0.56;
+  ctx.strokeStyle = "rgba(255,211,61,0.92)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x - 12, y); ctx.lineTo(x - 4, y);
+  ctx.moveTo(x + 4, y); ctx.lineTo(x + 12, y);
+  ctx.moveTo(x, y - 12); ctx.lineTo(x, y - 4);
+  ctx.moveTo(x, y + 4); ctx.lineTo(x, y + 12);
+  ctx.stroke();
 }
 
 function roundRect(c, x, y, w, h, r) {
@@ -1815,7 +1996,10 @@ function resize() {
   const w = box.w, h = box.h, aspect = w / Math.max(1, h);
   VIEW_H = 640;
   VIEW_W = VIEW_H * aspect;
-  if (VIEW_W < 900) { VIEW_W = 900; VIEW_H = VIEW_W / aspect; }
+  // A tall phone used to force a very wide picture, which made the
+  // players tiny. Keep them about as big as in landscape.
+  const minW = touch && aspect < 1 ? 640 : 900;
+  if (VIEW_W < minW) { VIEW_W = minW; VIEW_H = VIEW_W / aspect; }
   viewScale = w / VIEW_W;
   readSafeArea();
   canvas.width = Math.round(w * dpr);

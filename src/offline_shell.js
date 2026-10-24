@@ -90,7 +90,13 @@ function onKeyPressed(code) {
   if (!inMatch()) return;
   if (code === "KeyP" || code === "Escape") { togglePause(); return; }
   if (code === "KeyM") { toggleSound(); return; }
+  if (code === "KeyC" || code === "KeyV") { toggleCamera(); return; }
   if (paused) return;
+  for (const id of humanIds()) {
+    const s = controlScheme(id);
+    const codes = s.up.concat(s.down, s.left, s.right, s.shoot, s.pass, s.sprint, s.swap, s.skill, s.flick);
+    if (codes.includes(code)) noteFpFollow(id);
+  }
   // any key skips a goal celebration
   if (game.phase === "goal") { sim.press("p1", "skip"); return; }
   for (const id of humanIds()) {
@@ -110,7 +116,8 @@ function feedInput() {
     if (isDown(id, "down")) my += 1;
     const pad = touchActive() ? pads[id] : null;
     if (pad && !mx && !my) { mx = pad.x; my = pad.y; }
-    sim.setInput(id, { mx, my, sprint: isDown(id, "sprint"), shoot: isDown(id, "shoot"), pass: isDown(id, "pass") });
+    const stick = cameraStick(mx, my);
+    sim.setInput(id, { mx: stick.mx, my: stick.my, sprint: isDown(id, "sprint"), shoot: isDown(id, "shoot"), pass: isDown(id, "pass") });
   }
 }
 
@@ -130,6 +137,7 @@ function bindPad(playerId, ids) {
   }
   zone.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    noteFpFollow(playerId);
     if (inMatch() && game.phase === "goal") sim.press(playerId, "skip");
     pad.pointerId = e.pointerId; pad.baseX = e.clientX; pad.baseY = e.clientY;
     base.style.left = (e.clientX - base.offsetWidth / 2) + "px";
@@ -156,6 +164,7 @@ function bindPad(playerId, ids) {
       pad[action] = true; el.classList.add("pressed");
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
       if (inMatch() && !paused) {
+        noteFpFollow(playerId);
         if (game.phase === "goal") sim.press(playerId, "skip");
         else if (action !== "sprint") sim.press(playerId, action);
       }
@@ -170,8 +179,31 @@ const pads = {
   p1: bindPad("p1", { zone: "joyZone", base: "joyBase", knob: "joyKnob", shoot: "shootBtn", pass: "passBtn", sprint: "sprintBtn", skill: "skillBtn" }),
   p2: bindPad("p2", { zone: "joyZone2", base: "joyBase2", knob: "joyKnob2", shoot: "shootBtn2", pass: "passBtn2", sprint: "sprintBtn2", skill: "skillBtn2" }),
 };
-// Tapping the pitch skips a goal celebration too
-$("game").addEventListener("pointerdown", () => { if (inMatch() && game.phase === "goal") sim.press("p1", "skip"); });
+// A short tap on a teammate switches to him. The joystick and buttons
+// sit on top of the picture, so a touch there never counts as a tap.
+(function bindPitchTap() {
+  const el = $("game");
+  let down = null;
+  el.addEventListener("pointerdown", (e) => {
+    if (inMatch() && game.phase === "goal") sim.press("p1", "skip");
+    down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+  });
+  el.addEventListener("pointerup", (e) => {
+    if (!down || e.pointerId !== down.id) return;
+    const start = down;
+    down = null;
+    if (!touchActive() || !inMatch() || paused || game.phase !== "play") return;
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 18) return;
+    if (performance.now() - start.t > 400) return;
+    const team = settings.mode === "2p" ? (start.x < window.innerWidth / 2 ? "blue" : "red") : "blue";
+    const id = settings.mode === "2p" ? (team === "blue" ? "p1" : "p2") : "p1";
+    const p = playerAtScreen(start.x, start.y, team);
+    if (!p) return;
+    const idx = sim.roster.indexOf(p);
+    if (idx >= 0 && sim.switchTo(id, idx)) noteFpFollow(id);
+  });
+  el.addEventListener("pointercancel", () => { down = null; });
+})();
 // Phones only start sound after a tap. The first tap anywhere unlocks it.
 window.addEventListener("pointerdown", () => Sound.init());
 
@@ -261,6 +293,9 @@ function updateHud() {
   const controls = $("touchControls");
   const touchOn = playing && touchActive();
   controls.classList.toggle("hidden", !touchOn);
+  const view = $("viewBtn");
+  if (view) view.classList.toggle("hidden", !playing);
+  syncViewBtn();
   controls.classList.toggle("split", touchOn && splitTouch());
   const portrait = isPortrait();
   const hint = $("rotateHint");
@@ -324,17 +359,19 @@ function updateControlsHelp() {
       "<b>You attack the goal on the right.</b><br>" +
       "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob).<br>" +
       "<b>RUN</b> sprints. <b>SKILL</b> does a trick. The pause button is in the top corner.<br>" +
+      "Tap a teammate to control him. <b>TV</b> / <b>1ST</b> changes the camera.<br>" +
       "Penalty: slide the stick up or down, then hold SHOOT. In goal: slide up or down.";
   } else if (isTouchDevice) {
     help.innerHTML =
       "<b>Two players, one phone.</b> Hold it sideways.<br>" +
       "<b style='color:#9cc4ff'>P1</b> uses the left stick and the left SHOOT, PASS, RUN and SKILL buttons.<br>" +
       "<b style='color:#ffb0b0'>P2</b> uses the right stick and the right buttons.<br>" +
+      "Tap your own players to control them. <b>TV</b> / <b>1ST</b> changes the camera.<br>" +
       "Hold SHOOT for a bigger kick. Tap the pause button in the top corner to pause.";
   } else if (settings.mode === "1p") {
     help.innerHTML =
       "<b>You attack the goal on the right</b><br>" +
-      "Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> &nbsp; Sprint <kbd>Shift</kbd> &nbsp; Switch <kbd>Q</kbd><br>" +
+      "Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> &nbsp; Sprint <kbd>Shift</kbd> &nbsp; Switch <kbd>Q</kbd> &nbsp; Camera <kbd>C</kbd><br>" +
       "<kbd>Space</kbd> shoot (hold = power) &bull; no ball: slide tackle<br>" +
       "<kbd>E</kbd> pass (hold = lob) &bull; no ball: switch player<br>" +
       "<kbd>R</kbd> skill move (push sideways = spin, back = flick, +Shift = burst) &nbsp; <kbd>F</kbd> rainbow flick<br>" +
@@ -342,7 +379,7 @@ function updateControlsHelp() {
       "<kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound";
   } else {
     help.innerHTML =
-      "<b style='color:#9cc4ff'>P1</b>: <kbd>WASD</kbd> move, <kbd>L-Shift</kbd> sprint, <kbd>Space</kbd> shoot, <kbd>E</kbd> pass, <kbd>Q</kbd> switch, <kbd>R</kbd> skill, <kbd>F</kbd> flick<br>" +
+      "<b style='color:#9cc4ff'>P1</b>: <kbd>WASD</kbd> move, <kbd>L-Shift</kbd> sprint, <kbd>Space</kbd> shoot, <kbd>E</kbd> pass, <kbd>Q</kbd> switch, <kbd>R</kbd> skill, <kbd>F</kbd> flick, <kbd>C</kbd> camera<br>" +
       "<b style='color:#ffb0b0'>P2</b>: <kbd>Arrows</kbd> move, <kbd>/</kbd> sprint, <kbd>Enter</kbd> shoot, <kbd>R-Shift</kbd> pass, <kbd>.</kbd> switch, <kbd>'</kbd> skill, <kbd>;</kbd> flick<br>" +
       "Hold shoot for power, hold pass to lob &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound";
   }
@@ -655,6 +692,8 @@ window.soccerDebug = {
       throwT: game.setpiece && game.setpiece.type === "throw" ? game.setpiece.throwT || 0 : 0,
       hint: game.setpiece && game.setpiece.type === "throw" ? keysHint("throw") : "",
       zoom: game.camera ? Math.round(game.camera.zoom * 100) / 100 : 1,
+      camera: cameraFP ? "fp" : "tv",
+      active: controllers.filter((c) => !c.cpu && c.active).map((c) => ({ id: c.id, num: c.active.num, team: c.active.team })),
       ballZ: ball ? Math.round(ball.z || 0) : 0,
       linesman: game.officials ? game.officials.map((o) => o.sig) : [],
       ball: { x: Math.round(ball.x), y: Math.round(ball.y), z: Math.round(ball.z) },
@@ -680,6 +719,14 @@ window.soccerDebug = {
   offside(team = "blue") { return sim.debugOffside(team); },
   skill(team = "blue", type = "stepover") { return sim.debugSkill(team, type); },
   press(id, action) { sim.press(id, action); },
+  switchTo(id, index) { return !!(sim && sim.switchTo(id, index)); },
+  where(index) {
+    const p = sim && sim.roster[index];
+    if (!p) return null;
+    const s = w2s(p.x, p.y, 18);
+    const rect = $("game").getBoundingClientRect();
+    return { x: rect.left + s.x * viewScale, y: rect.top + s.y * viewScale, num: p.num, team: p.team, role: p.role };
+  },
   setInput(id, inp) { sim.setInput(id, inp); },
   // Put the ball over a touchline so the next step is a throw-in.
   ballOut(side = "near") {

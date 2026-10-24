@@ -367,6 +367,9 @@ function handleFrom(member, msg) {
     case "press":
       if (room.sim && member.team) room.sim.press(member.id, msg.a);
       break;
+    case "switch":
+      if (room.sim && member.team) room.sim.switchTo(member.id, msg.i | 0);
+      break;
     case "team": {
       if (room.state !== "lobby") return;
       const t = msg.team === "blue" || msg.team === "red" ? msg.team : null;

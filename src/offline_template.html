@@ -107,11 +107,22 @@
     z-index: 15; width: 44px; height: 44px; min-height: 44px;
     padding: 0; font-size: 18px; font-weight: bold; background: rgba(0,0,0,.45); touch-action: none;
   }
+  #viewBtn {
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); left: calc(8px + env(safe-area-inset-left));
+    z-index: 15; width: 56px; height: 44px; min-height: 44px; padding: 0;
+    font-size: 15px; font-weight: bold; letter-spacing: 0.5px;
+    background: rgba(0,0,0,.55); color: #fff; border: 2px solid #fff; border-radius: 10px;
+    touch-action: manipulation;
+  }
+  #viewBtn.on { background: #ffd33d; color: #1a1404; border-color: #ffe27a; }
 
-  /* ---- Touch controls. One stick on the left for 1 player.
-          Two players on one phone: class "split" gives each side a stick. ---- */
-  #joyZone, #joyZone2 { position: fixed; top: 0; height: 100%; z-index: 5; touch-action: none; }
-  #joyZone { left: 0; width: 46%; }
+  /* ---- Touch controls. The stick only lives in the bottom corner,
+          so it does not cover the pitch. Two players: one corner each. ---- */
+  #joyZone, #joyZone2 {
+    position: fixed; top: auto; bottom: 0; height: min(46vh, 240px);
+    z-index: 5; touch-action: none;
+  }
+  #joyZone { left: 0; width: min(42vw, 220px); }
   #joyBase, #joyBase2 {
     position: fixed; width: 130px; height: 130px; z-index: 6;
     border-radius: 50%; background: rgba(255,255,255,.10); border: 3px solid rgba(255,255,255,.5);
@@ -236,7 +247,7 @@
     .teamBtn { flex: 1 1 100%; padding: 8px; }
     #bracket { flex-direction: column; align-items: stretch; }
     #bracket .col { min-width: 0; }
-    #joyZone { width: 48%; }
+    #joyZone { width: min(46vw, 200px); height: min(34vh, 260px); }
     #joyBase { width: 116px; height: 116px; }
     #shootBtn, #passBtn, #sprintBtn, #skillBtn {
       right: calc(10px + env(safe-area-inset-right)); left: auto;
@@ -249,8 +260,8 @@
   }
 
   /* Two players, phone sideways: each thumb gets a stick and four buttons. */
-  #touchControls.split #joyZone { width: 50%; }
-  #touchControls.split #joyZone2 { display: block; right: 0; left: auto; width: 50%; }
+  #touchControls.split #joyZone { width: min(34vw, 200px); height: min(52vh, 220px); }
+  #touchControls.split #joyZone2 { display: block; right: 0; left: auto; width: min(34vw, 200px); height: min(52vh, 220px); }
   #touchControls.split #joyBase { width: 112px; height: 112px; left: calc(12px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom)); }
   #touchControls.split #joyBase2 {
     display: block; width: 112px; height: 112px;
@@ -269,11 +280,13 @@
   #touchControls.split #passBtn2 { display: flex; right: calc(214px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); background: rgba(47,123,255,.6); }
   #touchControls.split #sprintBtn2 { display: flex; right: calc(136px + env(safe-area-inset-right)); bottom: calc(92px + env(safe-area-inset-bottom)); background: rgba(46,204,64,.55); }
   #touchControls.split #skillBtn2 { display: flex; right: calc(208px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
-  #touchControls.split #padTag1 { display: block; left: calc(14px + env(safe-area-inset-left)); top: calc(44px + env(safe-area-inset-top)); color: #9cc4ff; }
+  #touchControls.split #padTag1 { display: block; left: calc(14px + env(safe-area-inset-left)); top: calc(58px + env(safe-area-inset-top)); color: #9cc4ff; }
   #touchControls.split #padTag2 { display: block; right: calc(14px + env(safe-area-inset-right)); top: calc(44px + env(safe-area-inset-top)); color: #ffb0b0; }
 
   /* Two players, phone upright: stack each side so the buttons stay in their half. */
   @media (max-width: 700px) {
+    #touchControls.split #joyZone { left: 0; right: auto; width: 46%; height: min(32vh, 280px); }
+    #touchControls.split #joyZone2 { left: auto; right: 0; width: 46%; height: min(32vh, 280px); }
     #touchControls.split #joyBase, #touchControls.split #joyBase2 { width: 100px; height: 100px; right: auto; }
     #touchControls.split #joyBase { left: calc(25% - 50px); bottom: calc(10px + env(safe-area-inset-bottom)); }
     #touchControls.split #joyBase2 { display: block; left: calc(75% - 50px); bottom: calc(10px + env(safe-area-inset-bottom)); }
@@ -416,7 +429,8 @@
 </div>
 
 <button id="pauseBtn" class="hidden" title="Pause">II</button>
-<div id="keysHint" class="hidden"><kbd>R</kbd> skill &nbsp;<kbd>F</kbd> flick &nbsp;<kbd>Q</kbd> switch &nbsp;<kbd>P</kbd> pause &nbsp;<kbd>M</kbd> sound</div>
+<button id="viewBtn" class="hidden" type="button">TV</button>
+<div id="keysHint" class="hidden"><kbd>C</kbd> camera &nbsp;<kbd>R</kbd> skill &nbsp;<kbd>F</kbd> flick &nbsp;<kbd>Q</kbd> switch &nbsp;<kbd>P</kbd> pause &nbsp;<kbd>M</kbd> sound</div>
 
 <!-- Touch controls. The second set is for player 2 on the same phone. -->
 <div id="touchControls" class="hidden">

@@ -486,11 +486,14 @@ function canKick(p) {
     if (key) {
       keyHolder = cs.find((c) => c.active === key);
       if (!keyHolder) {
-        // The human who made the pass keeps control of the receiver;
-        // otherwise the human whose player is closest takes over.
-        keyHolder = cs.find((c) => c.active && c.active === ball.lastTouch) ||
-          cs.reduce((a, b) => (dist(a.active || key, key) <= dist(b.active || key, key) ? a : b));
-        setActive(keyHolder, key);
+        // A tap (or the switch button) holds the player you picked for
+        // a moment. After that, the ball carrier takes over again.
+        const pool = cs.filter((c) => !(c.switchLock > 0 && c.active));
+        if (pool.length) {
+          keyHolder = pool.find((c) => c.active && c.active === ball.lastTouch) ||
+            pool.reduce((a, b) => (dist(a.active || key, key) <= dist(b.active || key, key) ? a : b));
+          setActive(keyHolder, key);
+        }
       }
     }
     // 2) Everyone else: the free player nearest the ball (a bit "sticky")
@@ -509,6 +512,20 @@ function canKick(p) {
     if (game.phase === "setpiece") return;
     const next = nearestToBall(available(c).filter((p) => p !== c.active));
     if (next) { setActive(c, next); c.switchLock = 1.2; }
+  }
+
+  // Switch to one teammate (a finger tap, or a message from online).
+  // index is that player's place in the roster. The goalkeeper stays
+  // with the computer. Returns true when the switch happened.
+  function switchTo(id, index) {
+    const c = findController(id);
+    const p = roster[index];
+    if (!c || c.cpu || !p || p.sentOff || p.team !== c.team || p.role === "GK") return false;
+    if (game.phase === "setpiece" || game.phase === "shootout" || game.phase === "pkflight") return false;
+    if (c.active !== p && !available(c).includes(p)) return false;
+    setActive(c, p);
+    c.switchLock = 3.5;
+    return true;
   }
 
 // --- Human kicks ---
@@ -2702,7 +2719,7 @@ function update(dt) {
     get players() { return players; },
     get roster() { return roster; },
     start: startGame, update,
-    addController, setConnected, removeController, setInput, press,
+    addController, setConnected, removeController, setInput, press, switchTo,
     snapshot, staticInfo, matchInfo,
     debugFoul, debugOffside, debugSkill,
     startShootout() { startShootout(); },
