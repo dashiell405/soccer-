@@ -88,9 +88,17 @@
     position: fixed; top: 8px; right: 8px; z-index: 15; width: 44px; height: 44px;
     padding: 0; font-size: 18px; font-weight: bold; background: rgba(0,0,0,.45);
   }
+  #viewBtn {
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); left: calc(8px + env(safe-area-inset-left));
+    z-index: 15; width: 56px; height: 44px; min-height: 44px; padding: 0;
+    font-size: 15px; font-weight: bold; letter-spacing: 0.5px;
+    background: rgba(0,0,0,.55); color: #fff; border: 2px solid #fff; border-radius: 10px;
+    touch-action: manipulation;
+  }
+  #viewBtn.on { background: #ffd33d; color: #1a1404; border-color: #ffe27a; }
 
-  /* ---- Touch controls (phones / tablets, 1 Player mode) ---- */
-  #joyZone { position: fixed; left: 0; top: 0; width: 45%; height: 100%; z-index: 5; }
+  /* ---- Touch controls. The stick only lives in the bottom corner. ---- */
+  #joyZone { position: fixed; left: 0; top: auto; bottom: 0; width: min(42vw, 220px); height: min(46vh, 240px); z-index: 5; }
   #joyBase {
     position: fixed; left: 20px; bottom: 20px; width: 130px; height: 130px; z-index: 6;
     border-radius: 50%; background: rgba(255,255,255,.10); border: 3px solid rgba(255,255,255,.5);
@@ -221,6 +229,7 @@
     h1 { font-size: 26px; }
     #home .sub, #home .help { display: none; }
     #joyBase { width: 116px; height: 116px; }
+    #joyZone { width: min(46vw, 200px); height: min(34vh, 260px); }
     #shootBtn, #passBtn, #sprintBtn, #skillBtn {
       right: calc(10px + env(safe-area-inset-right)); left: auto;
       width: 64px; height: 64px; font-size: 11px;
@@ -335,6 +344,7 @@
 </div>
 
 <button id="menuBtn" class="hidden">Menu</button>
+<button id="viewBtn" class="hidden" type="button">TV</button>
 <div id="pingBox" class="hidden">-- ms</div>
 <div id="connBanner" class="hidden" role="status">Connection trouble. Trying again...</div>
 

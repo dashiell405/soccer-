@@ -14,6 +14,8 @@ function updateScreens() {
   const me = room && room.members.find((m) => m.id === myId);
   const playing = inRoom && state === "playing" && game.phase !== "win";
   show("touchControls", playing && isTouchDevice && !!(me && me.team) && !menuOpen);
+  show("viewBtn", playing && !menuOpen);
+  syncViewBtn();
   show("menuBtn", playing);
   show("pingBox", inRoom);
   show("rotateHint", isTouchDevice && isPortrait());
@@ -190,7 +192,7 @@ $("copyBtn").addEventListener("click", () => {
 // Sound can only start after a tap / key press (browser rule)
 window.addEventListener("pointerdown", () => Sound.init());
 if (isTouchDevice && $("matchHelp")) {
-  $("matchHelp").innerHTML = "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob). <b>RUN</b> sprints. <b>SKILL</b> does a trick.<br>Penalty: slide up or down, then hold SHOOT. In goal: slide up or down. Tap the picture to skip a celebration.";
+  $("matchHelp").innerHTML = "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob). <b>RUN</b> sprints. <b>SKILL</b> does a trick.<br>Tap a teammate to control him. <b>TV</b> / <b>1ST</b> changes the camera.<br>Penalty: slide up or down, then hold SHOOT. In goal: slide up or down. Tap the picture to skip a celebration.";
 }
 
 // ---- Start up ----

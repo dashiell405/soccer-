@@ -273,6 +273,9 @@ wss.on("connection", (ws) => {
       case "press":
         if (room && room.sim && me && me.team) room.sim.press(me.id, msg.a);
         break;
+      case "switch":
+        if (room && room.sim && me && me.team) room.sim.switchTo(me.id, msg.i | 0);
+        break;
       case "team": {
         if (!room || room.state !== "lobby" || !me) return;
         const t = msg.team === "blue" || msg.team === "red" ? msg.team : null;

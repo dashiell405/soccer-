@@ -194,6 +194,8 @@ window.addEventListener("keydown", (e) => {
   if (!first || !inMatch()) return;
   if (e.code === "KeyM") { toggleSound(); return; }
   if (e.code === "Escape" || e.code === "KeyP") { toggleMenu(); return; }
+  if (e.code === "KeyC" || e.code === "KeyV") { toggleCamera(); return; }
+  if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight", "Space", "KeyE", "KeyQ", "KeyR", "KeyF"].includes(e.code)) noteFpFollow(myId);
   if (game.phase === "goal") { sendMsg({ t: "press", a: "skip" }); return; }   // skip the celebration
   for (const a of ["shoot", "pass", "swap", "skill", "flick"]) if (KEYMAP[a].includes(e.code)) sendMsg({ t: "press", a });
   sendInput(true);
@@ -207,6 +209,7 @@ const joyZone = $("joyZone"), joyBase = $("joyBase"), joyKnob = $("joyKnob");
 const JOY_MAX = 50;
 joyZone.addEventListener("pointerdown", (e) => {
   e.preventDefault();
+  noteFpFollow(myId);
   if (game.phase === "goal") sendMsg({ t: "press", a: "skip" });
   touch.pointerId = e.pointerId; touch.baseX = e.clientX; touch.baseY = e.clientY;
   joyBase.style.left = (e.clientX - 65) + "px"; joyBase.style.top = (e.clientY - 65) + "px"; joyBase.style.bottom = "auto";
@@ -236,6 +239,7 @@ for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprint
     e.preventDefault();
     touch[action] = true; el.classList.add("pressed");
     try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    noteFpFollow(myId);
     if (game.phase === "goal") sendMsg({ t: "press", a: "skip" });
     else if (action !== "sprint") sendMsg({ t: "press", a: action });
     sendInput(true);
@@ -244,6 +248,35 @@ for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprint
   el.addEventListener("pointerup", up);
   el.addEventListener("pointercancel", up);
 }
+
+// Tap one of your teammates to control him. The stick and buttons are
+// on top of the picture, so they never count as a tap.
+(function bindPitchTap() {
+  const el = $("game");
+  if (!el) return;
+  let down = null;
+  el.addEventListener("pointerdown", (e) => {
+    if (inMatch() && game.phase === "goal") sendMsg({ t: "press", a: "skip" });
+    down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+  });
+  el.addEventListener("pointerup", (e) => {
+    if (!down || e.pointerId !== down.id) return;
+    const start = down;
+    down = null;
+    if (!touchActive() || !inMatch() || menuOpen || game.phase !== "play") return;
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 18) return;
+    if (performance.now() - start.t > 400) return;
+    const me = room && room.members.find((m) => m.id === myId);
+    if (!me || !me.team) return;
+    const p = playerAtScreen(start.x, start.y, me.team);
+    if (!p) return;
+    const i = players.indexOf(p);
+    if (i < 0) return;
+    noteFpFollow(myId);
+    sendMsg({ t: "switch", i });
+  });
+  el.addEventListener("pointercancel", () => { down = null; });
+})();
 
 // Send our buttons to the server when they change (and 10x a second anyway)
 let lastInput = "", lastInputAt = 0;
@@ -254,6 +287,8 @@ function sendInput(force) {
   if (held("up")) my -= 1;
   if (held("down")) my += 1;
   if (!mx && !my && (touch.x || touch.y)) { mx = touch.x; my = touch.y; }
+  const stick = cameraStick(mx, my);
+  mx = stick.mx; my = stick.my;
   const msg = { t: "input", mx: Math.round(mx * 100) / 100, my: Math.round(my * 100) / 100, sprint: held("sprint"), shoot: held("shoot"), pass: held("pass") };
   const str = JSON.stringify(msg);
   const now = performance.now();
