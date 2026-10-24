@@ -15,9 +15,19 @@
 <meta name="apple-mobile-web-app-title" content="Soccer">
 <meta name="application-name" content="Stadium Soccer">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+<meta property="og:title" content="Stadium Soccer">
+<meta property="og:description" content="Pick your team. Own the pitch.">
+<meta property="og:image" content="https://dashiell405.github.io/soccer-/assets/cover.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="720">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Stadium Soccer">
+<meta name="twitter:description" content="Pick your team. Own the pitch.">
+<meta name="twitter:image" content="https://dashiell405.github.io/soccer-/assets/cover.png">
 <!--
   =====================================================================
    SOCCER SHOWDOWN 2  -  "Stadium Edition"
@@ -73,6 +83,23 @@
     background: radial-gradient(ellipse at 50% 30%, rgba(20,40,70,.35), rgba(0,0,0,.62));
     box-sizing: border-box;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  /* The title screen sits on the app photo. The panel stays dark so the buttons stay easy to read. */
+  #menu.overlay {
+    background:
+      linear-gradient(180deg, rgba(3, 12, 24, .42), rgba(3, 10, 18, .62)),
+      url("assets/cover.png") center 40% / cover no-repeat;
+  }
+  #menu .panel { padding: 0 18px 12px; }
+  #menu .coverBanner {
+    display: block; width: calc(100% + 36px); height: clamp(64px, 18vh, 148px);
+    margin: 0 -18px 6px; object-fit: cover; object-position: center 34%;
+    border-radius: 17px 17px 0 0; pointer-events: none;
+  }
+  /* The picture already says Stadium Soccer. Keep the heading for the build and for screen readers. */
+  #menu h1, #menu .eyebrow {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
   }
   .hidden { display: none !important; }
   .panel {
@@ -369,6 +396,12 @@
     .teamBtn { flex: 1 1 100%; padding: 4px 8px; }
     #trophyCanvas { width: min(220px, 42vw); }
     #onlineHint, .sub, .eyebrow { display: none; }
+    /* A banner here pushes KICK OFF off a landscape phone. The photo stays as the background. */
+    #menu .coverBanner { display: none; }
+    #menu .panel {
+      padding: 6px 12px;
+      background: linear-gradient(180deg, rgba(8, 16, 28, .80), rgba(4, 12, 14, .86));
+    }
   }
 
   /* ---- Home Screen app: no bounce, keep clear of the iPhone notch ---- */
@@ -401,6 +434,7 @@
 <!-- Start menu -->
 <div id="menu" class="overlay">
   <div class="panel">
+    <img class="coverBanner" src="assets/cover.png" alt="Stadium Soccer. Pick your team. Own the pitch.">
     <p class="eyebrow">Night match</p>
     <h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>
     <div class="row kindRow">
