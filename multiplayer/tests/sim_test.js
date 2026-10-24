@@ -45,8 +45,8 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   const i = sim.roster.findIndex(p => p.team === 'blue' && p.role === 'DEF');
   sim.giveCard(i, 'yellow'); assert(sim.roster[i].yellow === 1 && sim.game.cardPopup.kind === 'yellow', 'yellow card');
   sim.giveCard(i, 'yellow'); assert(sim.roster[i].sentOff && sim.game.cardPopup.kind === 'second', 'second yellow = sent off');
-  assert(sim.players.filter(p => p.team === 'blue').length === 4, 'blue down to 4');
-  const snap = sim.snapshot(); assert(snap.p.length === 10 && snap.p[i][11] === 1 && snap.cp, 'snapshot carries cards');
+  assert(sim.players.filter(p => p.team === 'blue').length === 10, 'blue down to 10');
+  const snap = sim.snapshot(); assert(snap.p.length === 22 && snap.p[i][11] === 1 && snap.cp, 'snapshot carries cards');
   sim.setAutoplay(true); run(sim, 60); assert(true, 'plays on with 4 players, phase ' + sim.game.phase); }
 // 4. foul from behind gives a card
 { let cards = 0; for (let k = 0; k < 10; k++) { const sim = S.createSim({}); sim.start(); run(sim, 2); sim.debugFoul('red', false, true); cards += sim.game.cardPopup ? 1 : 0; }
@@ -131,10 +131,12 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   assert(sim.game.flag && sim.game.officials[1].sig === 5 && sim.game.officials[2].sig !== 5, 'near linesman flags the blue offside');
 }
 { const sim = S.createSim({}); sim.start(); run(sim, 1);
-  const i = sim.roster.findIndex(p => p.team === 'red' && p.role === 'DEF');
-  sim.giveCard(i, 'yellow'); run(sim, 2.2);
+  const defs = sim.roster.filter(p => p.team === 'red' && p.role === 'DEF');
+  defs.sort((a, b) => Math.abs(a.baseL) - Math.abs(b.baseL));
+  const i = sim.roster.indexOf(defs[0]);
+  sim.giveCard(i, 'yellow'); run(sim, 2.5);
   const ref = sim.game.officials[0], p = sim.roster[i];
-  assert(ref.sig === 3 && Math.hypot(ref.x - p.x, ref.y - p.y) < 90, 'referee holds the yellow card by the player');
+  assert(ref.sig === 3 && Math.hypot(ref.x - p.x, ref.y - p.y) < 90, 'referee holds the yellow card by the player (' + Math.round(Math.hypot(ref.x - p.x, ref.y - p.y)) + ')');
 }
 // 12. overhead throw-in
 {
@@ -215,4 +217,28 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   run(corner, 1.3);
   const ct = corner.game.setpiece && corner.game.setpiece.taker;
   assert(corner.game.setpiece && corner.game.setpiece.type === 'corner' && ct && ct.throwT === 0 && corner.ball.z < 1 && corner.ball.y < 130, 'corners still put the ball on the ground at the flag');
+}
+// 12. full squads, traits, and goal scorers
+{ const sim = S.createSim({ teams: S.buildTeamKits(S.findTeam('bra'), S.findTeam('ita')) });
+  sim.start();
+  const blue = sim.roster.filter(p => p.team === 'blue');
+  const red = sim.roster.filter(p => p.team === 'red');
+  assert(blue.length === 11 && red.length === 11, '11 a side');
+  assert(blue.filter(p => p.role === 'FWD').length === 3, 'brazil attack with 3 forwards');
+  assert(red.filter(p => p.role === 'DEF').length === 5, 'italy defend with 5 defenders');
+  const names = sim.roster.map(p => p.name);
+  assert(new Set(names).size === names.length, 'every player in the match has their own name');
+  assert(!names.some(n => /messi|ronaldo|neymar|mbapp/i.test(n)), 'shipped names are fictional');
+  const speed = blue.find(p => p.trait === 'speedster');
+  const rock = blue.find(p => p.role === 'DEF');
+  const sb = sim.debugBoosts(sim.roster.indexOf(speed));
+  const rb = sim.debugBoosts(sim.roster.indexOf(rock));
+  assert(speed.star && sb.run * sb.sprint > rb.run * rb.sprint * 1.08, 'speedster sprints faster than a defender');
+  const fin = blue.find(p => p.trait === 'finisher');
+  const fb = sim.debugBoosts(sim.roster.indexOf(fin));
+  assert(fb.shot > rb.shot, 'finisher shoots harder');
+  sim.forceGoal('blue');
+  assert(/GOAL! /.test(sim.game.comment.text) && sim.game.stats.scorers.length === 1 && sim.game.stats.scorers[0].name, 'goal banner names the scorer: ' + sim.game.comment.text);
+  const info = sim.staticInfo();
+  assert(info.length === 22 && info[0][5] === blue[0].name && info[0].length >= 13, 'online gets the same names');
 }

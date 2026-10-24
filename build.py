@@ -40,7 +40,9 @@ def write(path, text):
 banner = lambda title: "\n// " + "=" * 69 + "\n// " + title + "\n// " + "=" * 69 + "\n"
 
 # 1) offline single file
-scripts = ('"use strict";\n' + banner("GAME LOGIC (same code as the online server: multiplayer/public/game.js)")
+scripts = ('"use strict";\n' + banner("SQUADS (original players, same list as game.js)")
+           + read("squads.js")
+           + banner("GAME LOGIC (same code as the online server: multiplayer/public/game.js)")
            + read("sim.js") + banner("SOUND") + read("sound.js") + banner("FLAGS") + read("flags.js")
            + banner("DRAWING") + read("render.js")
            + banner("OFFLINE SHELL") + read("offline_shell.js"))
@@ -53,7 +55,7 @@ def bundle(*names):
 # 2) online files
 #    Node server: browsers talk to server.js over a WebSocket.
 #    GitHub Pages: no server. The host's browser runs the sim (p2p_net.js).
-game = read("sim.js")
+game = read("squads.js") + "\n" + read("sim.js")
 write(os.path.join(MP, "public", "game.js"), game)
 write(os.path.join(HERE, "game.js"), game)
 parts = ("client_head.js", "sound.js", "client_net.js", "flags.js", "render.js", "client_tail.js")

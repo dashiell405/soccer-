@@ -63,8 +63,11 @@ const snaps = [];               // recent snapshots: {at: local time, s: data}
 const INTERP_DELAY = 100;       // draw 100 ms in the past so we can blend
 
 function setupPlayers(info) {
-  players = info.map(([team, role, num, skin, hair]) => ({
-    team, role, num, skin, hair, x: 0, y: 0, vx: 0, vy: 0, fx: 1, fy: 0,
+  players = info.map((row) => ({
+    team: row[0], role: row[1], num: row[2], skin: row[3], hair: row[4],
+    name: row[5] || "", trait: row[6] || "", tall: row[7] || 1, boots: row[8] || "#111111",
+    cut: row[9] || "short", captain: !!row[10], star: !!row[11], pos: row[12] || row[1],
+    x: 0, y: 0, vx: 0, vy: 0, fx: 1, fy: 0,
     state: "run", fallDir: 1, stamina: 1, sprinting: false, anim: Math.random() * 6,
     yellow: 0, sentOff: false, skill: null, skillT: 0,
   }));
