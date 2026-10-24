@@ -68,7 +68,7 @@ const showHud = () => !!(room && room.state !== "lobby" && players.length);
 const localActives = () => { const a = myActive(); return a ? [a] : []; };
 const rosterList = () => players;
 function hudSubtitle() {
-  const fmt = game.matchType === "shootout" ? "Penalty shootout" : "10 minute game";
+  const fmt = game.matchType === "shootout" ? "Penalty shootout" : "5 minute game";
   return fmt + "  \u2022  Room " + (room ? room.code : "") + "  \u2022  " + game.mode + " (CPU: " + game.difficulty + ")";
 }
 function keysHint(kind) {
@@ -979,7 +979,7 @@ function applyMatchInfo(info) {
   game.teams = info.teams; game.rules = info.rules || game.rules;
   game.matchType = info.matchType === "shootout" ? "shootout" : "match";
   game.knockout = !!info.knockout;
-  // The host's match is 10:00. A shootout has no clock. 0 must not fall back to 10:00.
+  // The host's match is 5:00. A shootout has no clock. 0 must not fall back to 5:00.
   game.timeLimit = game.matchType === "shootout" ? 0 : (Number(info.timeLimit) > 0 ? Number(info.timeLimit) : MATCH_LENGTH);
   if (info.teams) { applyTeamKits(info.teams); renderBackground(); }
 }

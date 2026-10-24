@@ -43,7 +43,7 @@
      * yellow + red cards (sent-off players leave: play a man down)
      * OFFSIDE with the assistant referee's flag (can be switched off)
      * 16 teams + your own custom team, home / away kits
-     * every match is 10 minutes of game time (no goal limit)
+     * every match is 5 minutes of game time (no goal limit)
      * CUP mode (8-team knockout with a bracket and a trophy)
      * PENALTY SHOOTOUT mode (1 player or 2 players)
      * skill moves (step-over, roulette, rainbow flick, burst)
@@ -1232,7 +1232,7 @@ const PEN_SPOT = 140;              // penalty spot distance from goal line
 const CIRCLE_R = 115;              // center circle radius
 const POST_R = 4;
 
-const MATCH_LENGTH = 600;         // every real match is 10:00 of game time. No goal limit.
+const MATCH_LENGTH = 300;         // every real match is 5:00 of game time. No goal limit.
 // Overhead throw-in: wind the ball up behind the head, then swing it forward.
 const THROW_WIND = 0.42;          // seconds with the ball going up and back
 const THROW_RELEASE = 0.70;       // when the ball leaves the hands
@@ -1478,7 +1478,7 @@ function createSim(opts = {}) {
     difficulty: DIFFICULTY[opts.difficulty] ? opts.difficulty : "normal",
     teams: opts.teams || buildTeamKits(TEAM_LIST[0], TEAM_LIST[1]),   // names, kits, ratings
     rules: { ...DEFAULT_RULES, ...(opts.rules || {}) },               // offside / cards on or off
-    // A normal match is always 10:00. A penalty-shootout mode has no clock.
+    // A normal match is always 5:00. A penalty-shootout mode has no clock.
     // Old goal-limit and match-length options are ignored.
     timeLimit: opts.matchType === "shootout" ? 0 : MATCH_LENGTH,
     knockout: opts.matchType === "shootout" ? false : !!opts.knockout, // a draw goes to penalties
@@ -3214,7 +3214,7 @@ function scoreGoal(team, side) {
   cancelCharging();
 }
 
-// The 10:00 clock ran out. Most goals wins. A draw is a draw, unless this
+// The 5:00 clock ran out. Most goals wins. A draw is a draw, unless this
 // is a cup match, which goes to a penalty shootout.
 function fullTime() {
   emit("whistleLong");
@@ -6932,7 +6932,7 @@ const rosterList = () => (sim ? sim.roster : []);
 function hudSubtitle() {
   const kindText = matchKind === "cup" ? "CUP " + CUP_ROUND_NAMES[cup ? cup.round : 0] + ": " : "";
   if (game.matchType === "shootout") return "Penalty shootout \u2022 5 kicks each, then sudden death";
-  const fmt = game.knockout ? "10 minute game \u2022 a draw goes to penalties" : "10 minute game";
+  const fmt = game.knockout ? "5 minute game \u2022 a draw goes to penalties" : "5 minute game";
   const who = settings.mode === "1p" ? "1P vs CPU (" + game.difficulty + ")" : "2 Players";
   return kindText + fmt + "  \u2022  " + who;
 }
@@ -6951,7 +6951,7 @@ function keysHint(kind) {
 // D. STARTING MATCHES
 // =====================================================================
 // Build a new match. opts: {kind, blue, red (team defs), knockout, matchType}
-// Every match is 10 minutes. A cup match sends a draw to penalties.
+// Every match is 5 minutes. A cup match sends a draw to penalties.
 // Your player is on every team you control. If both sides are the same
 // squad in a 2-player game, only the left team gets him.
 function applyPlayAsMeSides(blue, red) {
@@ -7068,8 +7068,8 @@ function renderMenu() {
   $("blueTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P1" : "YOU") + "</span>" + card("blue", B, kits.blue);
   $("redTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P2" : settings.kind === "cup" ? "CUP" : "CPU") + "</span>" + (settings.kind === "cup" ? "<b>7 random teams</b><br><span class='stars'>knockout</span>" : card("red", R, kits.red));
   $("redTeamBtn").disabled = settings.kind === "cup";
-  const fmt = { quick: "Quick match \u2022 11-a-side \u2022 10 minute game \u2022 most goals wins",
-                cup: "Cup \u2022 8 teams, knockout \u2022 every match is 10 minutes \u2022 a draw goes to penalties",
+  const fmt = { quick: "Quick match \u2022 11-a-side \u2022 5 minute game \u2022 most goals wins",
+                cup: "Cup \u2022 8 teams, knockout \u2022 every match is 5 minutes \u2022 a draw goes to penalties",
                 shootout: "Penalty shootout \u2022 5 kicks each, then sudden death" }[settings.kind];
   $("formatLine").textContent = fmt;
   $("startBtn").textContent = settings.kind === "cup" ? "START NEW CUP" : settings.kind === "shootout" ? "TAKE PENALTIES" : "KICK OFF";
@@ -7249,7 +7249,7 @@ function showCup() {
     html += "<div class='col'><div class='label'>" + CUP_ROUND_NAMES[r] + "</div>" + list.map(matchLine).join("") + "</div>";
   }
   $("bracket").innerHTML = html;
-  $("cupFormat").textContent = "Each match is 10 minutes \u2022 most goals wins \u2022 a draw goes to a penalty shootout";
+  $("cupFormat").textContent = "Each match is 5 minutes \u2022 most goals wins \u2022 a draw goes to a penalty shootout";
   const m = cup.over ? null : myCupMatch();
   let status;
   if (cup.over) status = cup.champion === 0 ? "\ud83c\udfc6 You won the cup!" : esc(cup.teams[cup.champion].name) + " won the cup." + (cup.out ? " You were knocked out - try again!" : "");
