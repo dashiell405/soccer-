@@ -1,10 +1,11 @@
 """Makes public/offline.html (the single-device game for the app) from ../soccer.html
 and adds the Home Screen app bits to public/index.html.  Safe to run again.
 Run:  python3 tools/build_offline.py"""
-import os, re
+import os, re, shutil
 HERE = os.path.dirname(os.path.abspath(__file__))
 PUB = os.path.join(HERE, "..", "public")
 SRC = os.path.join(HERE, "..", "..", "soccer.html")   # the standalone offline game
+COVER = os.path.join(HERE, "..", "..", "assets", "cover.png")
 
 def head_tags(title):
     return f'''<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -18,9 +19,10 @@ def head_tags(title):
 <meta name="apple-mobile-web-app-title" content="Soccer">
 <meta name="application-name" content="Stadium Soccer">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">'''
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">'''
 
 def pwa_css(menu_id):
     return f'''
@@ -60,6 +62,12 @@ assert 'id="onlineLink"' in s
 s = s.replace('<h1><span class="b">SOCCER</span> <span class="r">SHOWDOWN</span> 2</h1>', '<h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>', 1)
 s = s.replace("</body>", PWA_SCRIPT + "</body>", 1)
 open(os.path.join(PUB, "offline.html"), "w", encoding="utf-8").write(s)
+# The menu banner is assets/cover.png. The Pages site serves it from the
+# repo root; this copy is for the Node server, next to offline.html.
+if not os.path.isfile(COVER):
+    raise SystemExit("missing assets/cover.png")
+os.makedirs(os.path.join(PUB, "assets"), exist_ok=True)
+shutil.copy2(COVER, os.path.join(PUB, "assets", "cover.png"))
 
 # ---------- index.html ----------
 p = os.path.join(PUB, "index.html")

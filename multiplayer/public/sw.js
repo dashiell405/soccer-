@@ -8,7 +8,7 @@
    Online matches still need the server, of course!
    Change VERSION whenever you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-v2";
+const VERSION = "stadium-soccer-v3";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -23,6 +23,7 @@ const APP_SHELL = [
   "icons/maskable-192.png",
   "icons/maskable-512.png",
   "icons/favicon-32.png",
+  "assets/cover.png",
 ];
 const NETWORK_TIMEOUT_MS = 4000;  // slow network? use the saved copy instead
 

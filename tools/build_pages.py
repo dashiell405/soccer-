@@ -36,6 +36,7 @@ SHELL_FILES = [
     "icons/maskable-192.png",
     "icons/maskable-512.png",
     "icons/favicon-32.png",
+    "assets/cover.png",
 ]
 ONLINE_SRC = os.path.join(ROOT, "multiplayer", "public", "index.html")
 
@@ -53,9 +54,19 @@ def head_tags():
 <meta name="apple-mobile-web-app-title" content="Soccer">
 <meta name="application-name" content="Stadium Soccer">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">'''
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+<meta property="og:title" content="Stadium Soccer">
+<meta property="og:description" content="Pick your team. Own the pitch.">
+<meta property="og:image" content="https://dashiell405.github.io/soccer-/assets/cover.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="720">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Stadium Soccer">
+<meta name="twitter:description" content="Pick your team. Own the pitch.">
+<meta name="twitter:image" content="https://dashiell405.github.io/soccer-/assets/cover.png">'''
 
 def extra_css():
     return '''
@@ -93,7 +104,7 @@ SW_JS = r'''/* =================================================================
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-pages-v17";
+const VERSION = "stadium-soccer-pages-v18";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -109,6 +120,7 @@ const APP_SHELL = [
   "icons/maskable-192.png",
   "icons/maskable-512.png",
   "icons/favicon-32.png",
+  "assets/cover.png",
 ];
 const NETWORK_TIMEOUT_MS = 4000;
 
@@ -283,6 +295,7 @@ def main():
         ("menu is not the lobby", 'id="createBtn"' not in index and 'id="codeInput"' not in index),
         ("relative manifest", 'href="manifest.webmanifest"' in index),
         ("relative apple icon", 'href="icons/apple-touch-icon.png"' in index),
+        ("app photo", 'src="assets/cover.png"' in index and 'https://dashiell405.github.io/soccer-/assets/cover.png' in index and 'name="twitter:image"' in index),
         ("relative pwa.js", '<script src="pwa.js"></script>' in index),
         ("no root-absolute asset", 'href="/' not in index and 'src="/' not in index),
         ("room links open online", 'location.replace("online.html"' in index),
@@ -324,7 +337,7 @@ def main():
         if re.search(r'''(?:href|src|register)\s*[\(=]\s*["']/(?!/)''', text):
             raise SystemExit(rel + " has a root-absolute URL; Pages needs relative paths")
     sw = open(os.path.join(ROOT, "sw.js"), encoding="utf-8").read()
-    if "stadium-soccer-pages-v17" not in sw or "url.origin !== self.location.origin" not in sw:
+    if "stadium-soccer-pages-v18" not in sw or "assets/cover.png" not in sw or "url.origin !== self.location.origin" not in sw:
         raise SystemExit("service worker is missing the cache bump or the cross-origin bypass")
     online_js = open(os.path.join(ROOT, "online.js"), encoding="utf-8").read()
     if "new WebSocket" in online_js or "SOCCER" not in online_js or "stun:stun.l.google.com:19302" not in online_js:

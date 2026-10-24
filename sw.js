@@ -10,7 +10,7 @@
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-pages-v17";
+const VERSION = "stadium-soccer-pages-v18";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -26,6 +26,7 @@ const APP_SHELL = [
   "icons/maskable-192.png",
   "icons/maskable-512.png",
   "icons/favicon-32.png",
+  "assets/cover.png",
 ];
 const NETWORK_TIMEOUT_MS = 4000;
 
