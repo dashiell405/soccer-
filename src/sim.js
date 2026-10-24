@@ -259,6 +259,17 @@ const DEFAULT_RULES = { offside: true, cards: true };
 // =====================================================================
 // createSim(): makes ONE match. The server makes one per room.
 // =====================================================================
+// Official squad name, unless this device has a private rename (offline only).
+// Kept outside the match so the pitch labels, goal banner, and full-time list can see it.
+function shownName(p) {
+  if (!p) return "";
+  if (typeof localRename === "function") {
+    const n = localRename(p);
+    if (n) return n;
+  }
+  return p.name || ("#" + p.num);
+}
+
 function createSim(opts = {}) {
 
   // ===================================================================
@@ -562,15 +573,6 @@ function boosts(p) {
   if (t === "wall") { gkCatch += 0.14; gkDive *= 1.12; gkReact *= 0.8; }
   if (p.star) { run *= 1.03; shot *= 1.04; passErr *= 0.9; }
   return { run, sprint, shot, aim, passErr, hold, steal, stamDrain, gkCatch, gkDive, gkReact };
-}
-// Official squad name, unless this device has a private rename (offline only).
-function shownName(p) {
-  if (!p) return "";
-  if (typeof localRename === "function") {
-    const n = localRename(p);
-    if (n) return n;
-  }
-  return p.name || ("#" + p.num);
 }
 function aimPoint(p, target) {
   const spread = Math.max(0, boosts(p).passErr - 0.35) * dist(ball, target) * 0.045;

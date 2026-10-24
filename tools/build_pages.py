@@ -93,7 +93,7 @@ SW_JS = r'''/* =================================================================
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-pages-v13";
+const VERSION = "stadium-soccer-pages-v14";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -324,7 +324,7 @@ def main():
         if re.search(r'''(?:href|src|register)\s*[\(=]\s*["']/(?!/)''', text):
             raise SystemExit(rel + " has a root-absolute URL; Pages needs relative paths")
     sw = open(os.path.join(ROOT, "sw.js"), encoding="utf-8").read()
-    if "stadium-soccer-pages-v13" not in sw or "url.origin !== self.location.origin" not in sw:
+    if "stadium-soccer-pages-v14" not in sw or "url.origin !== self.location.origin" not in sw:
         raise SystemExit("service worker is missing the cache bump or the cross-origin bypass")
     online_js = open(os.path.join(ROOT, "online.js"), encoding="utf-8").read()
     if "new WebSocket" in online_js or "SOCCER" not in online_js or "stun:stun.l.google.com:19302" not in online_js:
