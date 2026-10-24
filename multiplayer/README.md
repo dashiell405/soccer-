@@ -8,8 +8,8 @@ Play soccer on **2 or 4 different devices** (phones, tablets or computers) at th
 
 - **1 vs 1:** 2 players, one on Blue and one on Red.
 - **2 vs 2:** 4 players, two on each team.
-- The computer plays the goalies and everyone else. First to **5 goals** wins.
-- The host picks the **teams** (16 countries / made-up teams), **offside** and **cards** on/off, and **Match** or **Penalty shootout**.
+- The computer plays the goalies and everyone else. Every match is **10 minutes**. The team with more goals at the end wins. A draw stays a draw.
+- The host picks the **teams** (16 countries / made-up teams), **offside** and **cards** on/off, and **10 minute game** or **Penalty shootout**.
 
 **New in version 1.2:** penalties, yellow and red cards, offside, team picker with home/away kits, skill moves, goal celebrations, and online penalty shootouts. The offline game (Offline vs Computer, or `soccer.html`) also has a **Cup** mode (8-team knockout with a trophy) and a **Penalty shootout** mode.
 

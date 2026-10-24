@@ -16,6 +16,12 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++
   const D = (fn, ...a) => page.evaluate(fn, ...a);
   // --- menu + team picker ---
   ok(await page.isVisible('#menu'), 'menu visible');
+  const menuFmt = await page.textContent('#formatLine');
+  ok(/10 minute game/.test(menuFmt) && !/first to/i.test(menuFmt), 'menu says 10 minute game: ' + menuFmt);
+  await page.click('[data-kind="cup"]');
+  const cupFmt = await page.textContent('#formatLine');
+  ok(/10 minutes/.test(cupFmt) && /penalt/i.test(cupFmt) && !/first to/i.test(cupFmt), 'cup menu: 10 minutes, draw = penalties: ' + cupFmt);
+  await page.click('[data-kind="quick"]');
   await page.click('#blueTeamBtn'); await sleep(200);
   ok(await page.isVisible('#teamPicker'), 'team picker opens');
   await page.screenshot({ path: SHOTS + '01_team_picker.png' });
@@ -39,14 +45,33 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++
   await page.click('#customSaveBtn'); await sleep(150);
   st = await D(() => soccerDebug.start({}));
   ok(st.teams.blue.name === 'Dash FC' && st.teams.blue.shirt === '#ff00aa' && st.teams.blue.short === 'DAS', 'custom team applied ' + JSON.stringify(st.teams.blue));
-  // --- CPU vs CPU to 5 ---
+  // --- 10:00 match: goals do not end it, the clock does ---
   st = await D(() => soccerDebug.start({ blue: 'fra', red: 'esp', difficulty: 'hard' }));
+  ok(st.timeLimit === 600 && !st.knockout, 'quick match is 10:00 with no goal limit');
   await D(() => soccerDebug.setAutoplay(true));
-  for (let i = 0; i < 80 && st.phase !== 'win'; i++) st = await D(() => soccerDebug.step(10));
+  st = await D(() => soccerDebug.step(2));
+  for (let i = 0; i < 15 && st.phase !== 'play'; i++) st = await D(() => soccerDebug.step(0.25));
+  st = await D(() => soccerDebug.setScore(7, 4));
+  st = await D(() => soccerDebug.step(1));
+  ok(st.phase !== 'win' && st.score.blue === 7 && st.score.red === 4, 'seven goals does not end the match: ' + st.phase + ' ' + st.score.blue + '-' + st.score.red);
+  await D(() => soccerDebug.setClock(599.85));
+  for (let i = 0; i < 40 && st.phase !== 'win'; i++) st = await D(() => soccerDebug.step(0.25));
   await sleep(1300);
   st = await D(() => soccerDebug.state());
-  ok(st.phase === 'win' && Math.max(st.score.blue, st.score.red) === 5 && st.screens.includes('winScreen'), 'CPU vs CPU reaches 5 + win screen: ' + st.score.blue + '-' + st.score.red);
+  ok(st.phase === 'win' && st.winner === 'blue' && st.clock >= 599 && st.screens.includes('winScreen'), 'full time result screen: ' + st.score.blue + '-' + st.score.red + ' clock ' + st.clock + ' winner ' + st.winner);
+  const winText = await page.textContent('#winTitle');
+  ok(/win!/.test(winText) && !/first to/i.test(await page.textContent('#winScreen')), 'result names the winner: ' + winText);
   console.log('     stats', JSON.stringify(st.stats));
+  // a friendly draw stays a draw
+  st = await D(() => soccerDebug.start({ blue: 'fra', red: 'esp' }));
+  await D(() => soccerDebug.step(1));
+  for (let i = 0; i < 15 && (await D(() => soccerDebug.state())).phase !== 'play'; i++) await D(() => soccerDebug.step(0.25));
+  await D(() => soccerDebug.setScore(2, 2));
+  st = await D(() => soccerDebug.setClock(599.85));
+  for (let i = 0; i < 40 && st.phase !== 'win'; i++) st = await D(() => soccerDebug.step(0.25));
+  await sleep(1300);
+  st = await D(() => soccerDebug.state());
+  ok(st.phase === 'win' && st.winner === null && /draw/i.test(await page.textContent('#winTitle')), 'friendly draw stays a draw: ' + await page.textContent('#winTitle'));
   // --- penalty from a foul in the box ---
   st = await D(() => soccerDebug.start({ blue: 'ned', red: 'por' }));
   await D(() => soccerDebug.step(2));
@@ -157,6 +182,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++
   await sleep(200);
   st = await D(() => soccerDebug.state());
   ok(st.screens.includes('cupScreen'), 'cup bracket shown');
+  ok(/10 minutes/.test(await page.textContent('#cupFormat')) && !/first to/i.test(await page.textContent('#cupFormat')), 'cup screen: ' + await page.textContent('#cupFormat'));
   await page.screenshot({ path: SHOTS + '11_cup_bracket.png' });
   for (let r = 0; r < 3; r++) {
     await page.click('#cupPlayBtn'); await sleep(200);
@@ -181,9 +207,14 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++
   await D(() => soccerDebug.start({ kind: 'cup', blue: 'usa' }));
   await page.click('#cupPlayBtn'); await sleep(200);
   await D(() => soccerDebug.setAutoplay(true));
+  st = await D(() => soccerDebug.step(1));
+  for (let i = 0; i < 20 && st.phase !== 'play'; i++) st = await D(() => soccerDebug.step(0.25));
+  ok(st.timeLimit === 600 && st.knockout, 'cup match is 10:00 and a draw goes to penalties');
+  await D(() => soccerDebug.setScore(1, 1));
+  await D(() => soccerDebug.setClock(599.85));
   let sawPens = false;
-  for (let i = 0; i < 80; i++) { st = await D(() => soccerDebug.step(5)); if (st.shootout) sawPens = true; if (st.phase === 'win') break; }
-  ok(st.phase === 'win' && st.clock <= 241, 'timed cup match ends by ' + st.clock + 's: ' + st.score.blue + '-' + st.score.red + (sawPens ? ' (pens)' : ''));
+  for (let i = 0; i < 400; i++) { st = await D(() => soccerDebug.step(0.5)); if (st.shootout) sawPens = true; if (st.phase === 'win') break; }
+  ok(st.phase === 'win' && sawPens && st.clock >= 599, 'cup draw at 10:00 goes to penalties, clock ' + st.clock + ': ' + st.score.blue + '-' + st.score.red);
   // --- no console errors ---
   ok(errors.length === 0, 'no console errors ' + JSON.stringify(errors.slice(0, 5)));
   // --- mobile layout (iPhone landscape) ---

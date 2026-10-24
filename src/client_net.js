@@ -73,7 +73,10 @@ function setupPlayers(info) {
 function applyMatchInfo(info) {
   if (!info) return;
   game.teams = info.teams; game.rules = info.rules || game.rules;
-  game.winScore = info.winScore || WIN_SCORE; game.timeLimit = info.timeLimit || 0; game.matchType = info.matchType || "match";
+  game.matchType = info.matchType === "shootout" ? "shootout" : "match";
+  game.knockout = !!info.knockout;
+  // The host's match is 10:00. A shootout has no clock. 0 must not fall back to 10:00.
+  game.timeLimit = game.matchType === "shootout" ? 0 : (Number(info.timeLimit) > 0 ? Number(info.timeLimit) : MATCH_LENGTH);
   if (info.teams) { applyTeamKits(info.teams); renderBackground(); }
 }
 

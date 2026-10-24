@@ -44,9 +44,7 @@ const PEN_SPOT = 140;              // penalty spot distance from goal line
 const CIRCLE_R = 115;              // center circle radius
 const POST_R = 4;
 
-const WIN_SCORE = 5;               // first to this many goals wins
-const CUP_WIN_SCORE = 3;           // cup matches: first to 3 ...
-const CUP_TIME_LIMIT = 240;        // ... or whoever leads after 4:00 (a draw = penalty shootout)
+const MATCH_LENGTH = 600;         // every real match is 10:00 of game time. No goal limit.
 const GOAL_CELEBRATION_TIME = 5.5; // seconds of celebrating after a goal (tap / any key skips)
 
 // Players
@@ -262,9 +260,10 @@ function createSim(opts = {}) {
     difficulty: DIFFICULTY[opts.difficulty] ? opts.difficulty : "normal",
     teams: opts.teams || buildTeamKits(TEAM_LIST[0], TEAM_LIST[1]),   // names, kits, ratings
     rules: { ...DEFAULT_RULES, ...(opts.rules || {}) },               // offside / cards on or off
-    winScore: Number(opts.winScore) || WIN_SCORE,                      // first to this many goals
-    timeLimit: Number(opts.timeLimit) || 0,                            // seconds (0 = no limit)
-    knockout: !!opts.knockout,                                         // a draw goes to penalties
+    // A normal match is always 10:00. A penalty-shootout mode has no clock.
+    // Old goal-limit and match-length options are ignored.
+    timeLimit: opts.matchType === "shootout" ? 0 : MATCH_LENGTH,
+    knockout: opts.matchType === "shootout" ? false : !!opts.knockout, // a draw goes to penalties
     matchType: opts.matchType === "shootout" ? "shootout" : "match",   // or just a penalty shootout
     penalty: null,          // the penalty kick being taken (aim, goalie choice...)
     shootout: null,         // penalty shootout scores
@@ -1739,7 +1738,8 @@ function scoreGoal(team, side) {
   cancelCharging();
 }
 
-// The match clock ran out (cup matches): winner, or a penalty shootout
+// The 10:00 clock ran out. Most goals wins. A draw is a draw, unless this
+// is a cup match, which goes to a penalty shootout.
 function fullTime() {
   emit("whistleLong");
   if (game.score.blue !== game.score.red) endGame(game.score.blue > game.score.red ? "blue" : "red");
@@ -2397,8 +2397,8 @@ function update(dt) {
     updateBall(dt);
     if (game.timer <= 0) {
       game.celebration = null;
-      if (game.score[game.lastScorer] >= game.winScore) endGame(game.lastScorer);
-      else if (game.timeLimit && game.clock >= game.timeLimit) fullTime();
+      // Goals never end the match. Only the clock does (after the celebration).
+      if (game.timeLimit && game.clock >= game.timeLimit) fullTime();
       else beginSetpiece("kickoff", other(game.lastScorer), PITCH.cx, PITCH.cy);
     }
   } else if (game.phase === "shootout") {
@@ -2488,7 +2488,7 @@ function update(dt) {
   function staticInfo() { return roster.map((p) => [p.team, p.role, p.num, p.skin, p.hair]); }
   // Everything else a browser needs to know about this match
   function matchInfo() {
-    return { teams: game.teams, rules: game.rules, winScore: game.winScore, timeLimit: game.timeLimit, knockout: game.knockout, matchType: game.matchType };
+    return { teams: game.teams, rules: game.rules, timeLimit: game.timeLimit, knockout: game.knockout, matchType: game.matchType };
   }
 
   // ---------------- debug / test helpers ----------------
@@ -2565,6 +2565,6 @@ function update(dt) {
 
 // Node.js (the server) loads this file with require()
 if (typeof module === "object" && module.exports) {
-  module.exports = { createSim, WIN_SCORE, CUP_WIN_SCORE, CUP_TIME_LIMIT, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
+  module.exports = { createSim, MATCH_LENGTH, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
                      TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES };
 }

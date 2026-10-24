@@ -1,11 +1,38 @@
 const S = require(require('path').join(__dirname, '..', 'public', 'game.js'));
 const assert = (c, m) => { if (!c) { console.log('FAIL', m); process.exitCode = 1; } else console.log('ok  ', m); };
 const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120); };
-// 1. CPU vs CPU full match
-{ const sim = S.createSim({ difficulty: 'hard' }); sim.start(); sim.setAutoplay(true);
-  let t = 0; while (sim.game.phase !== 'win' && t < 1200) { run(sim, 1); t++; }
-  const g = sim.game; assert(g.phase === 'win' && Math.max(g.score.blue, g.score.red) === 5, `cpu match ends ${g.score.blue}-${g.score.red} in ${t}s game clock ${g.clock.toFixed(0)}`);
-  console.log('   stats', JSON.stringify(g.stats)); sim.snapshot(); }
+// 1. Every match is 10:00. Goals never end it. Most goals wins. A draw stays a draw.
+{ const sim = S.createSim({ difficulty: 'hard', winScore: 1, timeLimit: 20 }); sim.start();
+  assert(sim.game.timeLimit === S.MATCH_LENGTH && sim.game.timeLimit === 600, 'a match is 10:00 even if old options are passed');
+  assert(S.createSim({ matchType: 'shootout' }).game.timeLimit === 0, 'a penalty shootout has no clock');
+  sim.game.phase = 'play'; sim.game.setpiece = null;
+  sim.game.score.blue = 8; sim.game.score.red = 3; sim.game.clock = 120;
+  sim.update(1/120);
+  assert(sim.game.phase !== 'win', 'a big lead does not end the match');
+  Object.assign(sim.ball, { x: 700, y: 550, z: 0, vx: 0, vy: 0, vz: 0, owner: null });
+  sim.game.phase = 'play'; sim.game.setpiece = null;
+  sim.game.score.blue = 8; sim.game.score.red = 3; sim.game.clock = 599.95;
+  run(sim, 0.2);
+  const g = sim.game;
+  assert(g.phase === 'win' && g.winner === 'blue' && g.clock >= 600, `full time ${g.score.blue}-${g.score.red} winner ${g.winner} clock ${g.clock.toFixed(2)}`);
+  const info = sim.matchInfo();
+  assert(info.timeLimit === 600 && info.winScore === undefined, 'host tells the guest the match is 10:00');
+}
+{ const sim = S.createSim({}); sim.start();
+  sim.game.phase = 'play'; sim.game.score.blue = 4; sim.game.score.red = 4; sim.game.clock = 599.9;
+  run(sim, 0.25);
+  assert(sim.game.phase === 'win' && sim.game.winner === null, 'a friendly draw stays a draw');
+}
+{ const sim = S.createSim({}); sim.start();
+  sim.game.phase = 'play'; sim.game.clock = 599.5;
+  sim.forceGoal('red');
+  assert(sim.game.phase === 'goal' && sim.game.score.red === 1, 'a goal in the last seconds still counts');
+  run(sim, 6);
+  assert(sim.game.phase !== 'win', 'the last fraction of the 10:00 is still played after the celebration');
+  sim.game.phase = 'play';
+  run(sim, 0.7);
+  assert(sim.game.phase === 'win' && sim.game.winner === 'red' && sim.game.score.red === 1, 'then full time, and that goal wins it');
+}
 // 2. penalty from foul in box
 { const sim = S.createSim({}); sim.start(); run(sim, 3);
   const r = sim.debugFoul('red', true); assert(r && sim.game.pending.type === 'penalty', 'foul in box -> penalty pending');
@@ -47,10 +74,12 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
 { const sim = S.createSim({}); sim.start(); run(sim, 1); sim.forceGoal('blue'); const ce = sim.game.celebration;
   assert(ce && ce.scorer, 'celebration ' + (ce && ce.type)); run(sim, 3); console.log('   scorer pos', ce.scorer.x.toFixed(0), ce.scorer.y.toFixed(0), 'spot', ce.spot);
   sim.addController('h', 'H', 'red'); sim.press('h', 'skip'); run(sim, 1.05); assert(sim.game.phase === 'setpiece', 'celebration skipped -> kickoff'); }
-// 9. timed knockout draw -> shootout
-{ const sim = S.createSim({ timeLimit: 20, knockout: true, winScore: 3 }); sim.start(); sim.setAutoplay(true);
-  let sawShoot = false, t = 0; while (sim.game.phase !== 'win' && t < 900) { run(sim, 1); t++; if (sim.game.shootout) sawShoot = true; }
-  assert(sim.game.phase === 'win', `timed knockout ends ${sim.game.score.blue}-${sim.game.score.red} shootout=${sawShoot} winner=${sim.game.winner}`); }
+// 9. cup: level at 10:00 -> penalty shootout
+{ const sim = S.createSim({ knockout: true, winScore: 3, timeLimit: 20 }); sim.start(); sim.setAutoplay(true);
+  assert(sim.game.timeLimit === 600 && sim.game.knockout, 'a cup match is still 10:00');
+  sim.game.phase = 'play'; sim.game.score.blue = 2; sim.game.score.red = 2; sim.game.clock = 599.9;
+  let sawShoot = false, t = 0; while (sim.game.phase !== 'win' && t < 400) { run(sim, 1); t++; if (sim.game.shootout) sawShoot = true; }
+  assert(sim.game.phase === 'win' && sawShoot, `cup draw goes to penalties ${sim.game.score.blue}-${sim.game.score.red} winner=${sim.game.winner}`); }
 // 10. human penalty: human taker aims, human keeper picks dive
 { const sim = S.createSim({}); sim.addController('a', 'A', 'blue'); sim.addController('b', 'B', 'red'); sim.start(); run(sim, 2);
   sim.debugFoul('blue', true); run(sim, 2.6);
@@ -72,7 +101,7 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   const M = 1400 / 105;
   let n = 0, sum = 0, min = 1e9, maxLine = 0, inside = 0;
   let t = 0;
-  while (sim.game.phase !== 'win' && t < 900) {
+  while (sim.game.phase !== 'win' && t < 2000) {
     for (let i = 0; i < 120; i++) {
       sim.update(1/120);
       const near = sim.game.officials[1], far = sim.game.officials[2];
@@ -89,7 +118,10 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   const minM = min / M, avgM = sum / n / M;
   console.log('   ref open-play distance m  min ' + minM.toFixed(1) + '  avg ' + avgM.toFixed(1) + '  samples ' + n);
   console.log('   linesman touchline error px ' + maxLine.toFixed(3) + '  steps onto the pitch ' + inside);
-  assert(sim.game.phase === 'win' && n > 200, 'distance check watched a whole match');
+  assert(sim.game.phase === 'win' && n > 200 && sim.game.clock >= 599 && sim.game.clock < 630, 'distance check watched a whole 10:00 (clock ' + sim.game.clock.toFixed(1) + ')');
+  const sc = sim.game.score;
+  const leader = sc.blue === sc.red ? null : (sc.blue > sc.red ? 'blue' : 'red');
+  assert(sim.game.winner === leader, 'winner is whoever has more goals (' + sc.blue + '-' + sc.red + ' -> ' + sim.game.winner + ')');
   assert(minM >= 9 && avgM >= 11 && avgM <= 22, 'referee keeps a viewing distance (min ' + minM.toFixed(1) + 'm avg ' + avgM.toFixed(1) + 'm)');
   assert(maxLine < 0.6 && inside === 0, 'linesmen never leave their touchlines');
 }
