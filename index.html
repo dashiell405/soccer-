@@ -524,7 +524,7 @@
 <div id="squadScreen" class="overlay hidden">
   <div class="panel">
     <h1 style="font-size:28px">Squads</h1>
-    <p id="squadNote">Made-up players. A star plays better. Rename stays on this device only. Play as me puts you in as number 10 on the team you control. Online games still use the team list.</p>
+    <p id="squadNote">Made-up players. A star plays better. Rename stays on this device only. Dashiell Green wears 10 for USA. Play as me can also put your name on the team you control. Online games still use the team list.</p>
     <div id="playAsMe">
       <label><input type="checkbox" id="playAsMeOn" checked> Play as me</label>
       <input id="playAsMeName" type="text" maxlength="18" value="Dashiell Green" autocomplete="off" aria-label="Your name">
@@ -780,7 +780,7 @@ const SQUADS = {
     P(2, "RB", "Ty Calloway", [82, 50, 66, 72, 74, 86, 12], [5, 0, "buzz", 1.04, 5], "", ""),
     P(11, "LM", "Casey Nguyen", [80, 68, 76, 82, 46, 84, 12], [1, 0, "long", 0.96, 7], "", ""),
     P(6, "LCM", "Riley Cho", [72, 64, 80, 74, 64, 86, 12], [3, 1, "curly", 0.98, 6], "engine", ""),
-    P(8, "RCM", "Quinn Adler", [74, 68, 86, 78, 58, 84, 12], [0, 3, "short", 0.97, 3], "playmaker", ""),
+    P(10, "RCM", "Dashiell Green", [74, 68, 86, 78, 58, 84, 12], [0, 3, "short", 0.97, 3], "playmaker", "S"),
     P(17, "RM", "Sam Ortega", [78, 70, 72, 84, 44, 82, 12], [2, 4, "mohawk", 0.96, 1], "dribbler", ""),
     P(9, "LST", "Jordan Hale", [78, 86, 66, 74, 36, 82, 12], [0, 1, "short", 1.04, 2], "finisher", "S"),
     P(18, "RST", "Avery Cole", [76, 78, 66, 74, 34, 80, 12], [6, 1, "afro", 1.00, 5], "", ""),
@@ -851,6 +851,13 @@ const SQUADS = {
     P(17, "RW", "Pip Vega", [86, 76, 72, 90, 34, 78, 12], [0, 3, "long", 0.94, 5], "dribbler", ""),
   ] },
 };
+
+// Dashiell stays on USA even when Play as me is off. The flag makes kickoff
+// start on him when that side is the one you control.
+(function markUsaYou() {
+  const p = SQUADS.usa.players.find((q) => q.name === "Dashiell Green");
+  if (p) p.me = true;
+})();
 
 function customSquad(meta) {
   const last = String((meta && meta.name) || "Custom").replace(/[<>]/g, "").trim().slice(0, 12) || "Custom";

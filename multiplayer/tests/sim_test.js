@@ -302,3 +302,45 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   plain.start();
   assert(plain.roster.some((p) => p.name === 'Luan Pires') && !plain.roster.some((p) => p.name === 'Dashiell Green'), 'with it off, the squad list is unchanged');
 }
+// 14. USA always has Dashiell Green at number 10, even with Play as me off.
+{
+  S.setPlayAsMeSides({});
+  const sim = S.createSim({ teams: S.buildTeamKits(S.findTeam('usa'), S.findTeam('mex')) });
+  sim.addController('p1', 'P1', 'blue');
+  sim.start();
+  const blue = sim.roster.filter((p) => p.team === 'blue');
+  const red = sim.roster.filter((p) => p.team === 'red');
+  const me = blue.find((p) => p.name === 'Dashiell Green');
+  assert(me && me.num === 10 && me.star && me.pos === 'RCM' && me.trait === 'playmaker' && me.me, 'USA squad has Dashiell Green at number 10');
+  assert(me.pace === 74 && me.shoot === 68 && me.pass === 86 && me.dribble === 78 && me.defend === 58, 'he keeps the USA playmaker stats');
+  assert(!blue.some((p) => p.name === 'Quinn Adler'), 'Quinn Adler is replaced, not listed twice');
+  assert(new Set(blue.map((p) => p.num)).size === 11, 'USA shirt numbers stay unique');
+  assert(!red.some((p) => p.name === 'Dashiell Green'), 'the other team does not get a copy');
+  let sawKick = false;
+  let selected = false;
+  for (let n = 0; n < 30 && !sawKick; n++) {
+    sim.start();
+    sim.update(1 / 120);
+    const c = sim.controllers.find((k) => k.id === 'p1');
+    const mine = sim.roster.find((p) => p.team === 'blue' && p.name === 'Dashiell Green');
+    selected = c.active === mine;
+    if (sim.game.setpiece && sim.game.setpiece.team === 'blue') sawKick = sim.game.setpiece.taker === mine;
+  }
+  assert(selected, 'playing as USA starts on Dashiell');
+  assert(sawKick, 'he takes the USA kickoff');
+  sim.roster.forEach((p) => { if (p.team === 'blue' && p.name !== 'Dashiell Green') p.star = false; });
+  sim.ball.lastTeam = 'blue';
+  sim.game.phase = 'play';
+  sim.forceGoal('blue');
+  assert(sim.game.comment.text.indexOf('Dashiell Green') >= 0, 'USA goal banner names him: ' + sim.game.comment.text);
+  assert(sim.game.stats.scorers.some((g) => g.name === 'Dashiell Green' && g.num === 10), 'USA scorer list names him');
+
+  const opp = S.createSim({ teams: S.buildTeamKits(S.findTeam('mex'), S.findTeam('usa')) });
+  opp.addController('p1', 'P1', 'blue');
+  opp.start();
+  opp.update(1 / 120);
+  const cpu = opp.roster.find((p) => p.team === 'red' && p.name === 'Dashiell Green');
+  const human = opp.controllers.find((k) => k.id === 'p1');
+  assert(cpu && cpu.num === 10, 'Dashiell still plays when USA is the other team');
+  assert(human.active !== cpu, 'you do not control him when you picked the other team');
+}
