@@ -248,6 +248,7 @@ window.mpDebug = {
       cardPopup: game.cardPopup ? game.cardPopup.kind : null, flag: !!game.flag,
       sentOff: players.filter((p) => p.sentOff).length, yellows: players.reduce((n, p) => n + (p.yellow || 0), 0),
       skills: players.filter((p) => p.skill).map((p) => p.skill), matchType: game.matchType, rules: game.rules,
+      clock: game.clock, timeLimit: game.timeLimit, knockout: !!game.knockout,
     };
   },
   send(m) { sendMsg(m); },

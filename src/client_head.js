@@ -32,7 +32,7 @@ const game = {
   setpiece: null, lastScorer: null, winner: null, stats: null,
   camera: { x: 0, y: 0, cx: PITCH.cx, cy: PITCH.cy, zoom: 1 },
   // match info (sent when a match starts)
-  teams: null, rules: { ...DEFAULT_RULES }, winScore: WIN_SCORE, timeLimit: 0, matchType: "match",
+  teams: null, rules: { ...DEFAULT_RULES }, timeLimit: MATCH_LENGTH, knockout: false, matchType: "match",
   // decoded from snapshots
   penalty: null, shootout: null, celebration: null, cardPopup: null, flag: null,
   officials: null,       // referee + two linesmen, filled in from snapshots
@@ -68,7 +68,7 @@ const showHud = () => !!(room && room.state !== "lobby" && players.length);
 const localActives = () => { const a = myActive(); return a ? [a] : []; };
 const rosterList = () => players;
 function hudSubtitle() {
-  const fmt = game.matchType === "shootout" ? "Penalty shootout" : "First to " + game.winScore + " wins!";
+  const fmt = game.matchType === "shootout" ? "Penalty shootout" : "10 minute game";
   return fmt + "  \u2022  Room " + (room ? room.code : "") + "  \u2022  " + game.mode + " (CPU: " + game.difficulty + ")";
 }
 function keysHint(kind) {

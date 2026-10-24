@@ -1212,7 +1212,8 @@ function drawScoreboard() {
   let fh = 30;
   const bRatio = flagRatio(teamFlagId("blue"));
   const rRatio = flagRatio(teamFlagId("red"));
-  const clockW = 74;
+  const shootoutHud = game.matchType === "shootout" || !!game.shootout;
+  const clockW = shootoutHud ? 74 : 86;
   const scoreGap = 108;
   const fit = () => 8 + fh * bRatio + 8 + bNameW + 10 + scoreGap + 10 + rNameW + 8 + fh * rRatio + 8;
   let midW = fit();
@@ -1248,12 +1249,26 @@ function drawScoreboard() {
 
   ctx.fillStyle = "rgba(255,255,255,0.08)";
   ctx.fillRect(x + midW, y, clockW, h);
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 16px monospace";
-  const left = game.timeLimit ? Math.max(0, game.timeLimit - game.clock) : 0;
-  if (game.timeLimit && left < 30) ctx.fillStyle = "#ff9f1c";
-  const clock = game.matchType === "shootout" || game.shootout ? "PENS" : formatClock(game.timeLimit ? Math.ceil(left) : game.clock);
-  ctx.fillText(clock, x + midW + clockW / 2, y + h * 0.5);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const cx = x + midW + clockW / 2;
+  if (shootoutHud) {
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 16px monospace";
+    ctx.fillText("PENS", cx, y + h * 0.5);
+  } else if (game.timeLimit) {
+    const left = Math.max(0, game.timeLimit - game.clock);
+    ctx.fillStyle = left < 30 ? "#ff9f1c" : "#fff";
+    ctx.font = "bold 16px monospace";
+    ctx.fillText(formatClock(Math.ceil(left)), cx, y + h * 0.36);
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.font = "bold 11px monospace";
+    ctx.fillText("/ " + formatClock(game.timeLimit), cx, y + h * 0.72);
+  } else {
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 16px monospace";
+    ctx.fillText(formatClock(game.clock), cx, y + h * 0.5);
+  }
 
   ctx.font = "bold 16px Arial";
   drawTeamCards("blue", bTextX + bNameW + 6, y + 14, 1);
@@ -1264,7 +1279,7 @@ function drawScoreboard() {
   ctx.textAlign = "left";
   ctx.fillStyle = "rgba(255,255,255,0.82)";
   let sub = hudSubtitle() || "";
-  if (sub.length > 48) sub = sub.slice(0, 46) + "…";
+  if (sub.length > 72) sub = sub.slice(0, 70) + "…";
   ctx.fillText(sub, x + 2, y + h + 12);
   if (game.shootout) drawShootoutDots(x, y + h + 28);
 }

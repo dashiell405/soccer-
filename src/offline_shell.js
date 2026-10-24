@@ -186,7 +186,7 @@ const rosterList = () => (sim ? sim.roster : []);
 function hudSubtitle() {
   const kindText = matchKind === "cup" ? "CUP " + CUP_ROUND_NAMES[cup ? cup.round : 0] + ": " : "";
   if (game.matchType === "shootout") return "Penalty shootout \u2022 5 kicks each, then sudden death";
-  const fmt = game.timeLimit ? "First to " + game.winScore + " or " + formatClock(game.timeLimit) + " \u2022 draw = penalties" : "First to " + game.winScore + " wins!";
+  const fmt = game.knockout ? "10 minute game \u2022 a draw goes to penalties" : "10 minute game";
   const who = settings.mode === "1p" ? "1P vs CPU (" + game.difficulty + ")" : "2 Players";
   return kindText + fmt + "  \u2022  " + who;
 }
@@ -203,14 +203,15 @@ function keysHint(kind) {
 // =====================================================================
 // D. STARTING MATCHES
 // =====================================================================
-// Build a new match. opts: {kind, blue, red (team defs), winScore, timeLimit, knockout, matchType}
+// Build a new match. opts: {kind, blue, red (team defs), knockout, matchType}
+// Every match is 10 minutes. A cup match sends a draw to penalties.
 function newMatch(opts) {
   const kits = buildTeamKits(opts.blue, opts.red);
   applyTeamKits(kits);
   renderBackground();         // the fans in the stands wear the new colours
   sim = createSim({
     mode: settings.mode === "2p" ? "2 players" : "1 player", difficulty: settings.difficulty, teams: kits,
-    rules: settings.rules, winScore: opts.winScore, timeLimit: opts.timeLimit, knockout: opts.knockout, matchType: opts.matchType,
+    rules: settings.rules, knockout: opts.knockout, matchType: opts.matchType,
   });
   game = sim.game; ball = sim.ball; controllers = sim.controllers; players = sim.players;
   sim.addController("p1", "P1", "blue");
@@ -225,7 +226,7 @@ function newMatch(opts) {
   updateCamera(0, true);
 }
 function startQuickMatch() {
-  newMatch({ kind: "quick", blue: teamDef(settings.blue), red: teamDef(settings.red), winScore: WIN_SCORE });
+  newMatch({ kind: "quick", blue: teamDef(settings.blue), red: teamDef(settings.red) });
 }
 function startShootoutMatch() {
   newMatch({ kind: "shootout", blue: teamDef(settings.blue), red: teamDef(settings.red), matchType: "shootout" });
@@ -305,8 +306,8 @@ function renderMenu() {
   $("blueTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P1" : "YOU") + "</span>" + card("blue", B, kits.blue);
   $("redTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P2" : settings.kind === "cup" ? "CUP" : "CPU") + "</span>" + (settings.kind === "cup" ? "<b>7 random teams</b><br><span class='stars'>knockout</span>" : card("red", R, kits.red));
   $("redTeamBtn").disabled = settings.kind === "cup";
-  const fmt = { quick: "Quick match \u2022 first to " + WIN_SCORE + " goals wins",
-                cup: "Cup \u2022 8 teams, knockout \u2022 matches: first to " + CUP_WIN_SCORE + " or " + formatClock(CUP_TIME_LIMIT) + ", a draw = penalty shootout",
+  const fmt = { quick: "Quick match \u2022 10 minute game \u2022 most goals wins",
+                cup: "Cup \u2022 8 teams, knockout \u2022 every match is 10 minutes \u2022 a draw goes to penalties",
                 shootout: "Penalty shootout \u2022 5 kicks each, then sudden death" }[settings.kind];
   $("formatLine").textContent = fmt;
   $("startBtn").textContent = settings.kind === "cup" ? "START NEW CUP" : settings.kind === "shootout" ? "TAKE PENALTIES" : "KICK OFF";
@@ -421,9 +422,8 @@ const myCupMatch = () => cup.rounds[cup.round].find((m) => m.a === 0 || m.b === 
 // Results of computer vs computer matches (better rating = better chance)
 function simulateCupMatch(m) {
   const ra = cup.teams[m.a].rating || 3, rb = cup.teams[m.b].rating || 3;
-  const goals = (r, o) => { let g = 0; for (let i = 0; i < 6; i++) if (Math.random() < 0.28 + 0.06 * (r - o)) g++; return Math.min(g, CUP_WIN_SCORE); };
+  const goals = (r, o) => { let g = 0; for (let i = 0; i < 8; i++) if (Math.random() < 0.22 + 0.05 * (r - o)) g++; return g; };
   m.sa = goals(ra, rb); m.sb = goals(rb, ra);
-  if (m.sa === CUP_WIN_SCORE && m.sb === CUP_WIN_SCORE) { if (Math.random() < 0.5 + 0.08 * (ra - rb)) m.sb--; else m.sa--; }
   if (m.sa === m.sb) {
     // penalties!
     let pa = 0, pb = 0;
@@ -450,7 +450,7 @@ function playCupMatch() {
   if (!m) return;
   const oppIdx = m.a === 0 ? m.b : m.a;
   settings.difficulty = cup.difficulty || settings.difficulty; settings.mode = "1p";
-  newMatch({ kind: "cup", blue: cup.teams[0], red: cup.teams[oppIdx], winScore: CUP_WIN_SCORE, timeLimit: CUP_TIME_LIMIT, knockout: true });
+  newMatch({ kind: "cup", blue: cup.teams[0], red: cup.teams[oppIdx], knockout: true });
 }
 // Called when your cup match ends
 function recordCupResult() {
@@ -485,7 +485,7 @@ function showCup() {
     html += "<div class='col'><div class='label'>" + CUP_ROUND_NAMES[r] + "</div>" + list.map(matchLine).join("") + "</div>";
   }
   $("bracket").innerHTML = html;
-  $("cupFormat").textContent = "Each match: first to " + CUP_WIN_SCORE + " goals or " + formatClock(CUP_TIME_LIMIT) + " \u2022 a draw = penalty shootout";
+  $("cupFormat").textContent = "Each match is 10 minutes \u2022 most goals wins \u2022 a draw goes to a penalty shootout";
   const m = cup.over ? null : myCupMatch();
   let status;
   if (cup.over) status = cup.champion === 0 ? "\ud83c\udfc6 You won the cup!" : esc(cup.teams[cup.champion].name) + " won the cup." + (cup.out ? " You were knocked out - try again!" : "");
@@ -649,6 +649,7 @@ window.soccerDebug = {
     return {
       phase: game.phase, mode: settings.mode, kind: matchKind, difficulty: game.difficulty,
       score: { ...game.score }, winner: game.winner, clock: Math.round(game.clock),
+      timeLimit: game.timeLimit, knockout: !!game.knockout,
       setpiece: game.setpiece ? game.setpiece.type : null, indirect: !!(game.setpiece && game.setpiece.indirect),
       ball: { x: Math.round(ball.x), y: Math.round(ball.y), z: Math.round(ball.z) },
       stats: game.stats ? JSON.parse(JSON.stringify(game.stats)) : null,
@@ -666,6 +667,8 @@ window.soccerDebug = {
     };
   },
   forceGoal(team) { if (inMatch()) sim.forceGoal(team); },
+  setClock(seconds) { if (game) game.clock = Math.max(0, Number(seconds) || 0); return this.state(); },
+  setScore(blue, red) { if (game) { game.score.blue = Math.max(0, blue | 0); game.score.red = Math.max(0, red | 0); } return this.state(); },
   foul(team = "red", inBox = true, behind = false) { return sim.debugFoul(team, inBox, behind); },
   card(index, kind) { sim.giveCard(index, kind); return this.state().cards; },
   offside(team = "blue") { return sim.debugOffside(team); },

@@ -32,7 +32,7 @@ const game = {
   setpiece: null, lastScorer: null, winner: null, stats: null,
   camera: { x: 0, y: 0, cx: PITCH.cx, cy: PITCH.cy, zoom: 1 },
   // match info (sent when a match starts)
-  teams: null, rules: { ...DEFAULT_RULES }, winScore: WIN_SCORE, timeLimit: 0, matchType: "match",
+  teams: null, rules: { ...DEFAULT_RULES }, timeLimit: MATCH_LENGTH, knockout: false, matchType: "match",
   // decoded from snapshots
   penalty: null, shootout: null, celebration: null, cardPopup: null, flag: null,
   officials: null,       // referee + two linesmen, filled in from snapshots
@@ -68,7 +68,7 @@ const showHud = () => !!(room && room.state !== "lobby" && players.length);
 const localActives = () => { const a = myActive(); return a ? [a] : []; };
 const rosterList = () => players;
 function hudSubtitle() {
-  const fmt = game.matchType === "shootout" ? "Penalty shootout" : "First to " + game.winScore + " wins!";
+  const fmt = game.matchType === "shootout" ? "Penalty shootout" : "10 minute game";
   return fmt + "  \u2022  Room " + (room ? room.code : "") + "  \u2022  " + game.mode + " (CPU: " + game.difficulty + ")";
 }
 function keysHint(kind) {
@@ -316,7 +316,10 @@ function setupPlayers(info) {
 function applyMatchInfo(info) {
   if (!info) return;
   game.teams = info.teams; game.rules = info.rules || game.rules;
-  game.winScore = info.winScore || WIN_SCORE; game.timeLimit = info.timeLimit || 0; game.matchType = info.matchType || "match";
+  game.matchType = info.matchType === "shootout" ? "shootout" : "match";
+  game.knockout = !!info.knockout;
+  // The host's match is 10:00. A shootout has no clock. 0 must not fall back to 10:00.
+  game.timeLimit = game.matchType === "shootout" ? 0 : (Number(info.timeLimit) > 0 ? Number(info.timeLimit) : MATCH_LENGTH);
   if (info.teams) { applyTeamKits(info.teams); renderBackground(); }
 }
 
@@ -2142,7 +2145,8 @@ function drawScoreboard() {
   let fh = 30;
   const bRatio = flagRatio(teamFlagId("blue"));
   const rRatio = flagRatio(teamFlagId("red"));
-  const clockW = 74;
+  const shootoutHud = game.matchType === "shootout" || !!game.shootout;
+  const clockW = shootoutHud ? 74 : 86;
   const scoreGap = 108;
   const fit = () => 8 + fh * bRatio + 8 + bNameW + 10 + scoreGap + 10 + rNameW + 8 + fh * rRatio + 8;
   let midW = fit();
@@ -2178,12 +2182,26 @@ function drawScoreboard() {
 
   ctx.fillStyle = "rgba(255,255,255,0.08)";
   ctx.fillRect(x + midW, y, clockW, h);
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 16px monospace";
-  const left = game.timeLimit ? Math.max(0, game.timeLimit - game.clock) : 0;
-  if (game.timeLimit && left < 30) ctx.fillStyle = "#ff9f1c";
-  const clock = game.matchType === "shootout" || game.shootout ? "PENS" : formatClock(game.timeLimit ? Math.ceil(left) : game.clock);
-  ctx.fillText(clock, x + midW + clockW / 2, y + h * 0.5);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const cx = x + midW + clockW / 2;
+  if (shootoutHud) {
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 16px monospace";
+    ctx.fillText("PENS", cx, y + h * 0.5);
+  } else if (game.timeLimit) {
+    const left = Math.max(0, game.timeLimit - game.clock);
+    ctx.fillStyle = left < 30 ? "#ff9f1c" : "#fff";
+    ctx.font = "bold 16px monospace";
+    ctx.fillText(formatClock(Math.ceil(left)), cx, y + h * 0.36);
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.font = "bold 11px monospace";
+    ctx.fillText("/ " + formatClock(game.timeLimit), cx, y + h * 0.72);
+  } else {
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 16px monospace";
+    ctx.fillText(formatClock(game.clock), cx, y + h * 0.5);
+  }
 
   ctx.font = "bold 16px Arial";
   drawTeamCards("blue", bTextX + bNameW + 6, y + 14, 1);
@@ -2194,7 +2212,7 @@ function drawScoreboard() {
   ctx.textAlign = "left";
   ctx.fillStyle = "rgba(255,255,255,0.82)";
   let sub = hudSubtitle() || "";
-  if (sub.length > 48) sub = sub.slice(0, 46) + "…";
+  if (sub.length > 72) sub = sub.slice(0, 70) + "…";
   ctx.fillText(sub, x + 2, y + h + 12);
   if (game.shootout) drawShootoutDots(x, y + h + 28);
 }
@@ -2939,6 +2957,7 @@ window.mpDebug = {
       cardPopup: game.cardPopup ? game.cardPopup.kind : null, flag: !!game.flag,
       sentOff: players.filter((p) => p.sentOff).length, yellows: players.reduce((n, p) => n + (p.yellow || 0), 0),
       skills: players.filter((p) => p.skill).map((p) => p.skill), matchType: game.matchType, rules: game.rules,
+      clock: game.clock, timeLimit: game.timeLimit, knockout: !!game.knockout,
     };
   },
   send(m) { sendMsg(m); },

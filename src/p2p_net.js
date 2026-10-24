@@ -427,6 +427,8 @@ function handleFrom(member, msg) {
       if (msg.cmd === "skill") room.sim.debugSkill(msg.team === "red" ? "red" : "blue", String(msg.type || "stepover"));
       if (msg.cmd === "card") room.sim.giveCard(Number(msg.index) || 0, msg.kind === "red" ? "red" : "yellow");
       if (msg.cmd === "shootout") room.sim.startShootout();
+      if (msg.cmd === "clock") room.sim.game.clock = Math.max(0, Number(msg.value) || 0);
+      if (msg.cmd === "score") { room.sim.game.score.blue = Math.max(0, msg.blue | 0); room.sim.game.score.red = Math.max(0, msg.red | 0); }
       break;
     default:
       break;
