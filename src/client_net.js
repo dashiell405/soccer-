@@ -129,6 +129,7 @@ function applyInterpolation(dt) {
     p.state = STATE_NAMES[pb[6]] || "run"; p.fallDir = pb[7];
     p.stamina = pb[8]; p.sprinting = !!pb[9];
     p.yellow = pb[10] || 0; p.sentOff = !!pb[11]; p.skill = SKILL_LIST[pb[12]] || null; p.skillT = pb[13] || 0;
+    p.throwT = pb[14] || 0;
     p.anim += Math.hypot(p.vx, p.vy) * dt * 0.09;  // running animation
   });
   const ba = A.b, bb = B.b;
@@ -169,7 +170,7 @@ function applyInterpolation(dt) {
   }
 
   controllers = L.c.map(([id, ai, charging, held, cpu]) => ({ id, active: players[ai] || null, charging: charging || null, held, cpu: !!cpu }));
-  game.setpiece = L.sp ? { type: L.sp[0], team: L.sp[1], taker: players[L.sp[2]] || null, indirect: !!L.sp[3] } : null;
+  game.setpiece = L.sp ? { type: L.sp[0], team: L.sp[1], taker: players[L.sp[2]] || null, indirect: !!L.sp[3], throwT: L.sp[4] || 0 } : null;
   // the comment countdown keeps running between snapshots
   if (game.comment.timer > 0) game.comment.timer -= dt;
 }

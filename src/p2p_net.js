@@ -428,6 +428,13 @@ function handleFrom(member, msg) {
       if (msg.cmd === "card") room.sim.giveCard(Number(msg.index) || 0, msg.kind === "red" ? "red" : "yellow");
       if (msg.cmd === "shootout") room.sim.startShootout();
       if (msg.cmd === "clock") room.sim.game.clock = Math.max(0, Number(msg.value) || 0);
+      if (msg.cmd === "out") {
+        const g = room.sim.game, b = room.sim.ball;
+        g.phase = "play"; g.setpiece = null; b.owner = null;
+        b.lastTeam = msg.team === "blue" ? "blue" : "red";
+        b.x = 860; b.y = msg.side === "far" ? 80 : 1040; b.z = 0; b.vx = 0; b.vy = 0; b.vz = 0;
+      }
+      if (msg.cmd === "throwNow" && room.sim.game.setpiece && room.sim.game.setpiece.type === "throw") room.sim.game.setpiece.timer = 0.05;
       if (msg.cmd === "score") { room.sim.game.score.blue = Math.max(0, msg.blue | 0); room.sim.game.score.red = Math.max(0, msg.red | 0); }
       break;
     default:

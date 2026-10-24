@@ -234,7 +234,7 @@ window.mpDebug = {
     return {
       myId, room: room && { code: room.code, state: room.state, mode: room.mode, hostId: room.hostId, members: room.members },
       phase: game.phase, score: { ...game.score }, winner: game.winner,
-      ball: last ? { x: last.b[0], y: last.b[1] } : null, drawnBall: { x: ball.x, y: ball.y },
+      ball: last ? { x: last.b[0], y: last.b[1], z: last.b[2] } : null, drawnBall: { x: ball.x, y: ball.y, z: ball.z },
       me: a ? { index: players.indexOf(a), x: a.x, y: a.y, vx: a.vx, vy: a.vy } : null,
       myRaw: a && last ? (() => { const r = last.p[players.indexOf(a)]; return { x: r[0], y: r[1], vx: r[2], vy: r[3] }; })() : null,
       controllers: controllers.map((c) => ({ id: c.id, active: players.indexOf(c.active), cpu: c.cpu })),
@@ -243,6 +243,8 @@ window.mpDebug = {
       snapshots: snaps.length, winVisible: !$("winScreen").classList.contains("hidden"),
       teams: { blue: TEAMS.blue.short, red: TEAMS.red.short, blueShirt: TEAMS.blue.kit.shirt, redShirt: TEAMS.red.kit.shirt },
       setpiece: game.setpiece && game.setpiece.type, indirect: !!(game.setpiece && game.setpiece.indirect),
+      throwT: (game.setpiece && game.setpiece.throwT) || 0,
+      takerThrow: game.setpiece && game.setpiece.taker ? game.setpiece.taker.throwT || 0 : 0,
       penalty: game.penalty ? { team: game.penalty.team, aimY: game.penalty.aimY, gkChoice: game.penalty.gkChoice, iAmTaker: game.penalty.taker === a, iAmKeeper: game.penalty.keeper === a } : null,
       shootout: game.shootout, celebration: game.celebration ? game.celebration.type : null,
       cardPopup: game.cardPopup ? game.cardPopup.kind : null, flag: !!game.flag,
