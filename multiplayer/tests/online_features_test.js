@@ -53,12 +53,12 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++
   // cards: two yellows on red #4 -> sent off
   let rooms = await getRooms();
   await sleep(3000);
-  await dbg(A, { cmd: 'card', index: 8, kind: 'yellow' }); await sleep(400);
+  await dbg(A, { cmd: 'card', index: 12, kind: 'yellow' }); await sleep(400);
   sb = await st(B); ok(sb.cardPopup === 'yellow' && sb.yellows >= 1, 'online yellow card popup ' + JSON.stringify({cp: sb.cardPopup, y: sb.yellows, so: sb.sentOff, ph: sb.phase}));
-  await dbg(A, { cmd: 'card', index: 8, kind: 'yellow' }); await sleep(400);
+  await dbg(A, { cmd: 'card', index: 12, kind: 'yellow' }); await sleep(400);
   sb = await st(B); rooms = await getRooms();
   const g = rooms.find(r => r.code === code).game;
-  ok(sb.cardPopup === 'second' && sb.sentOff >= 1 && g.onPitch <= 9, 'second yellow -> sent off online (on pitch ' + g.onPitch + ')');
+  ok(sb.cardPopup === 'second' && sb.sentOff >= 1 && g.onPitch === 21, 'second yellow -> sent off online (on pitch ' + g.onPitch + ')');
   await B.screenshot({ path: SHOTS + '20_online_red_card.png' });
   // offside
   await sleep(2500);

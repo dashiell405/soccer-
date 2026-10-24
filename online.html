@@ -83,6 +83,33 @@
   #winTitle { font-size: clamp(30px, 6vw, 54px); margin: 0; }
   #winScore { font-size: 24px; margin: 6px 0 4px; }
   #winStats { font-size: 14px; opacity: .85; margin: 0 0 10px; }
+  #squadScreen { z-index: 30; }
+  #squadList { text-align: left; max-height: min(46vh, 480px); overflow: auto; touch-action: pan-y; margin-top: 8px; }
+  .sqhead { font-size: 14px; margin-bottom: 6px; color: #ffd33d; }
+  .sqrow { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .sqrow .who { min-width: 140px; max-width: 48%; }
+  .sqrow .pos { color: #e8c547; font-weight: bold; }
+  .sqrow .num { opacity: .8; }
+  .sqrow .star { color: #ffd33d; }
+  .sqrow .trait, .sqrow .official { font-size: 12px; opacity: .85; }
+  .sqrow .bars { flex: 1; min-width: 120px; }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 11px; margin: 1px 0; }
+  .stat span { width: 64px; opacity: .85; }
+  .stat i { flex: 1; height: 6px; background: #223; border-radius: 4px; display: block; min-width: 36px; }
+  .stat b { display: block; height: 100%; background: linear-gradient(90deg, #3dde5a, #ffd33d); border-radius: 4px; }
+  .stat em { font-style: normal; width: 22px; text-align: right; }
+  .renameBtn { font-size: 13px; padding: 4px 8px; min-height: 32px; margin-top: 4px; }
+  #squadRename { margin-top: 8px; }
+  #squadRename input, #squadTeam { font: inherit; font-size: 16px; padding: 8px; border-radius: 8px; border: 1px solid #fff; max-width: 92%; color: #111; background: #fff; }
+  #squadScreen input, #squadTeam { user-select: text; -webkit-user-select: text; }
+  #squadNote { font-size: 13px; opacity: .85; }
+  .scorers { text-align: left; margin: 8px auto 10px; max-width: 360px; }
+  .scline { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; font-size: 15px; }
+  .scorers.empty { text-align: center; opacity: .7; }
+  @media (max-width: 640px) {
+    .sqrow { flex-direction: column; }
+    .sqrow .who, .sqrow .bars { max-width: 100%; width: 100%; }
+  }
 
   #pauseBtn {
     position: fixed; top: 8px; right: 8px; z-index: 15; width: 44px; height: 44px;
@@ -261,7 +288,7 @@
   <div class="panel homepanel">
     <p class="eyebrow">Play a friend</p>
     <h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>
-    <p class="sub">5-a-side &bull; play the computer, or 1v1 / 2v2 with friends on other devices &bull; every game is 10 minutes</p>
+    <p class="sub">11-a-side &bull; play the computer, or 1v1 / 2v2 with friends on other devices &bull; every game is 10 minutes</p>
     <div class="homegrid">
       <div class="box offlinebox">
         <div class="label">On this device</div>
@@ -282,6 +309,7 @@
         </div>
       </div>
     </div>
+    <div class="row"><button type="button" class="js-squad-open">Squads</button></div>
     <div id="homeMsg" class="msg"></div>
     <div class="help homehelp">One person taps <b>Host a game</b> and reads the code out loud. Friends type that code and tap <b>Join</b>. Phones, iPads and computers can play together. No account.</div>
   </div>
@@ -336,6 +364,7 @@
     <div id="winSub" class="help"></div>
     <p id="winScore">2 - 1</p>
     <p id="winStats"></p>
+    <div id="winScorers"></div>
     <button id="rematchBtn" class="big">Rematch</button>
     <div class="row"><button id="lobbyBtn">Back to lobby (change teams)</button></div>
     <div id="waitHost2" class="msg">Waiting for the host to start a rematch...</div>
@@ -358,6 +387,20 @@
   <div id="skillBtn" class="tbtn">SKILL</div>
 </div>
 <div id="rotateHint" class="hidden">Turn your phone sideways — it's easier to play</div>
+
+<div id="squadScreen" class="overlay hidden">
+  <div class="panel">
+    <h1 style="font-size:28px">Squads</h1>
+    <p id="squadNote">Made-up players. A star plays better. A name you type stays on this device. Friends in an online game still see the team list.</p>
+    <div class="row"><select id="squadTeam"></select></div>
+    <div id="squadList"></div>
+    <div id="squadRename" class="hidden">
+      <input id="squadRenameInput" type="text" maxlength="18" placeholder="Name on this device" autocomplete="off">
+      <div class="row"><button type="button" id="squadRenameSave">Save name</button> <button type="button" id="squadRenameClear">Use team list</button></div>
+    </div>
+    <div class="row"><button type="button" id="squadBack">Back</button></div>
+  </div>
+</div>
 
 <script>
 window.soccerPeerReady = new Promise(function (resolve) {

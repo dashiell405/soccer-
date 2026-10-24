@@ -212,6 +212,12 @@ window.addEventListener("pointerdown", () => Sound.init());
 // =====================================================================
 const isLocal = () => true;                       // every human here is on this device
 const labelFor = (c) => (settings.mode === "1p" ? "YOU" : c.id === "p1" ? "P1" : "P2");
+// Private names typed on this device. Online matches keep the squad list.
+function localRename(p) {
+  if (!p || typeof renameFor !== "function") return "";
+  const id = (TEAMS[p.team] && TEAMS[p.team].id) || "";
+  return renameFor(id, p.num);
+}
 const showHud = () => !!sim && !atMenu || (!!sim && game.phase === "win");
 const localActives = () => controllers.filter((c) => !c.cpu && c.active && !game.autoplay).map((c) => c.active);
 const rosterList = () => (sim ? sim.roster : []);
@@ -338,11 +344,11 @@ function renderMenu() {
   // team cards + the kits they will actually wear (away kit on a clash)
   const B = teamDef(settings.blue), R = teamDef(settings.red);
   const kits = buildTeamKits(B, R);
-  const card = (side, T, k) => flagHtml(T, 26, { wave: true }) + "<span class='teamMeta'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span><br><span class='stars'>" + stars(k.rating) + "</span>" + (k.away ? " <span class='away'>away kit</span>" : "") + "</span>";
+  const card = (side, T, k) => flagHtml(T, 26, { wave: true }) + "<span class='teamMeta'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span>" + (k.formation ? " <span class='code'>" + esc(k.formation) + "</span>" : "") + "<br><span class='stars'>" + stars(k.rating) + "</span>" + (k.away ? " <span class='away'>away kit</span>" : "") + "</span>";
   $("blueTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P1" : "YOU") + "</span>" + card("blue", B, kits.blue);
   $("redTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P2" : settings.kind === "cup" ? "CUP" : "CPU") + "</span>" + (settings.kind === "cup" ? "<b>7 random teams</b><br><span class='stars'>knockout</span>" : card("red", R, kits.red));
   $("redTeamBtn").disabled = settings.kind === "cup";
-  const fmt = { quick: "Quick match \u2022 10 minute game \u2022 most goals wins",
+  const fmt = { quick: "Quick match \u2022 11-a-side \u2022 10 minute game \u2022 most goals wins",
                 cup: "Cup \u2022 8 teams, knockout \u2022 every match is 10 minutes \u2022 a draw goes to penalties",
                 shootout: "Penalty shootout \u2022 5 kicks each, then sudden death" }[settings.kind];
   $("formatLine").textContent = fmt;
@@ -614,6 +620,8 @@ function showWin() {
     "Shots " + s.shots.blue + " - " + s.shots.red + " \u2022 Saves " + s.saves + " \u2022 Fouls " + s.fouls +
     " \u2022 Cards \ud83d\udfe8" + (s.yellow.blue + s.yellow.red) + " \ud83d\udfe5" + (s.red.blue + s.red.red) +
     " \u2022 Offside " + s.offside + " \u2022 Skills " + s.skills + " \u2022 Time " + formatClock(game.clock);
+  const scorers = $("winScorers");
+  if (scorers) scorers.innerHTML = game.matchType === "shootout" ? "" : (typeof goalScorersHtml === "function" ? goalScorersHtml(s) : "");
   const isCup = matchKind === "cup";
   $("againBtn").classList.toggle("hidden", isCup);
   $("cupContinueBtn").classList.toggle("hidden", !isCup);

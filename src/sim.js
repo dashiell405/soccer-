@@ -181,17 +181,25 @@ function buildTeamKits(blueTeam, redTeam) {
   const gkPick = (avoid) => GK_COLORS.find((c) => avoid.every((a) => colorDist(c, a) > 120)) || "#2ecc40";
   const g1 = gkPick([blueKit.shirt, redKit.shirt]);
   const g2 = gkPick([blueKit.shirt, redKit.shirt, g1]);
-  const side = (T, kit, gkc, isAway) => ({
-    id: T.id, name: T.name, short: T.short, rating: clamp(Number(T.rating) || 3, 1, 5), away: isAway,
-    ui: uiColor(kit.shirt), kit, gk: { shirt: gkc, shorts: "#222222", socks: gkc, number: isLight(gkc) ? "#222222" : "#ffffff" },
-  });
+  const side = (T, kit, gkc, isAway) => {
+    const sq = typeof squadById === "function" ? squadById(T.id, T) : null;
+    return {
+      id: T.id, name: T.name, short: T.short, rating: clamp(Number(T.rating) || 3, 1, 5), away: isAway,
+      formation: sq ? sq.formation : "4-4-2", style: sq ? sq.style : "control",
+      ui: uiColor(kit.shirt), kit, gk: { shirt: gkc, shorts: "#222222", socks: gkc, number: isLight(gkc) ? "#222222" : "#ffffff" },
+    };
+  };
   return { blue: side(B, blueKit, g1, false), red: side(R, redKit, g2, away) };
 }
 // The browser draws with TEAMS, so copy the chosen kits + names into it
 function applyTeamKits(k) {
   for (const t of ["blue", "red"]) {
     if (!k || !k[t]) continue;
-    Object.assign(TEAMS[t], { id: k[t].id || t, name: k[t].name, short: k[t].short, ui: k[t].ui, kit: { ...k[t].kit }, gk: { ...k[t].gk } });
+    Object.assign(TEAMS[t], {
+      id: k[t].id || t, name: k[t].name, short: k[t].short, ui: k[t].ui,
+      formation: k[t].formation || "4-4-2", style: k[t].style || "control",
+      kit: { ...k[t].kit }, gk: { ...k[t].gk },
+    });
   }
 }
 
@@ -286,7 +294,7 @@ function createSim(opts = {}) {
     events: [],             // sounds etc. that happened since the last snapshot
     lastKick: null,
   };
-  let roster = [];   // all 10 players (including any that were sent off)
+  let roster = [];   // both teams (including anyone sent off)
   let players = [];  // players still on the pitch
   // The referee and two assistant referees. They never touch the ball.
   // 0 = referee on the pitch, 1 = linesman on the near touchline (blue's half),
@@ -318,7 +326,7 @@ function createSim(opts = {}) {
 
   function newStats() {
     return { throw: 0, corner: 0, goalkick: 0, free: 0, kickoff: 0, penalty: 0, saves: 0, shots: { blue: 0, red: 0 }, passes: 0, fouls: 0, tackles: 0,
-             yellow: { blue: 0, red: 0 }, red: { blue: 0, red: 0 }, offside: 0, skills: 0, pens: { scored: 0, missed: 0 } };
+             yellow: { blue: 0, red: 0 }, red: { blue: 0, red: 0 }, offside: 0, skills: 0, pens: { scored: 0, missed: 0 }, scorers: [] };
   }
 
   // ===================================================================
@@ -528,6 +536,48 @@ function canKick(p) {
     return true;
   }
 
+// --- How one player's stats change a touch ---
+function stat01(v) { return clamp((Number(v) || 60) - 45, 0, 50) / 50; }
+function boosts(p) {
+  const pace = stat01(p.pace), shoot = stat01(p.shoot), pass = stat01(p.pass);
+  const drib = stat01(p.dribble), def = stat01(p.defend), stam = stat01(p.stam), gk = stat01(p.gk);
+  const t = p.trait;
+  let run = lerp(0.92, 1.08, pace);
+  let sprint = lerp(0.94, 1.10, pace);
+  let shot = lerp(0.90, 1.12, shoot);
+  let aim = lerp(1.15, 0.55, shoot);
+  let passErr = lerp(1.25, 0.45, pass);
+  let hold = lerp(0.85, 1.35, drib);
+  let steal = lerp(0.85, 1.35, def);
+  let stamDrain = lerp(1.25, 0.62, stam);
+  let gkCatch = lerp(-0.08, 0.16, gk);
+  let gkDive = lerp(0.90, 1.15, gk);
+  let gkReact = lerp(1.10, 0.72, gk);
+  if (t === "speedster") { run *= 1.04; sprint *= 1.12; }
+  if (t === "finisher") { shot *= 1.10; aim *= 0.75; }
+  if (t === "playmaker") passErr *= 0.55;
+  if (t === "dribbler") hold *= 1.45;
+  if (t === "rock") steal *= 1.25;
+  if (t === "engine") stamDrain *= 0.65;
+  if (t === "wall") { gkCatch += 0.14; gkDive *= 1.12; gkReact *= 0.8; }
+  if (p.star) { run *= 1.03; shot *= 1.04; passErr *= 0.9; }
+  return { run, sprint, shot, aim, passErr, hold, steal, stamDrain, gkCatch, gkDive, gkReact };
+}
+// Official squad name, unless this device has a private rename (offline only).
+function shownName(p) {
+  if (!p) return "";
+  if (typeof localRename === "function") {
+    const n = localRename(p);
+    if (n) return n;
+  }
+  return p.name || ("#" + p.num);
+}
+function aimPoint(p, target) {
+  const spread = Math.max(0, boosts(p).passErr - 0.35) * dist(ball, target) * 0.045;
+  if (spread < 1) return target;
+  return { x: target.x + rand(-1, 1) * spread, y: target.y + rand(-1, 1) * spread };
+}
+
 // --- Human kicks ---
 
 function humanShoot(p, charge) {
@@ -539,9 +589,10 @@ function humanShoot(p, charge) {
     const dx = T.targetGoalX - ball.x;
     const yAt = clamp(ball.y + dir.y / dir.x * dx, GOAL_TOP + 12, GOAL_BOTTOM - 12);
     const toGoal = normalize(dx, yAt - ball.y);
-    dir = normalize(dir.x + toGoal.x, dir.y + toGoal.y);
+    const pull = (p.trait === "finisher" || (p.shoot || 0) > 85) ? 1.6 : 0.75;
+    dir = normalize(dir.x + toGoal.x * pull, dir.y + toGoal.y * pull);
   }
-  const power = lerp(SHOT_MIN, SHOT_MAX, charge);
+  const power = lerp(SHOT_MIN, SHOT_MAX, charge) * boosts(p).shot;
   const lift = 36 + 220 * charge * charge;   // full power shots climb higher
   kickBall(p, dir, power, lift, "shot");
 }
@@ -565,7 +616,7 @@ function findPassTarget(p, maxAngleDeg = 55) {
 function humanGroundPass(p) {
   const mate = findPassTarget(p);
   if (mate) {
-    const target = { x: mate.x + mate.vx * 0.35, y: mate.y + mate.vy * 0.35 };
+    const target = aimPoint(p, { x: mate.x + mate.vx * 0.35, y: mate.y + mate.vy * 0.35 });
     groundPass(p, target, mate);
   } else {
     kickBall(p, { x: p.fx, y: p.fy }, 430, 0, "pass");
@@ -581,7 +632,7 @@ function humanLoftedPass(p, charge) {
       x: mate.x + mate.vx * 0.6 + T.dir * 60 * charge,
       y: mate.y + mate.vy * 0.6,
     };
-    loftedPass(p, clampToPitch(target, 15), mate);
+    loftedPass(p, aimPoint(p, clampToPitch(target, 15)), mate);
   } else {
     const d = 200 + 550 * charge;
     loftedPass(p, { x: ball.x + p.fx * d, y: ball.y + p.fy * d }, null);
@@ -668,11 +719,49 @@ function aiMaybeSkill(p, presser, pressure) {
   // 6. SETUP
   // ===================================================================
 
+function lineupFor(side) {
+  const meta = game.teams[side] || {};
+  if (typeof squadById !== "function" || typeof FORMATIONS === "undefined") {
+    return FORMATION.map((s) => Object.assign({ name: "Player " + s.num, pos: s.role }, s));
+  }
+  const squad = squadById(meta.id, meta);
+  const form = FORMATIONS[squad.formation] || FORMATIONS["4-4-2"];
+  return form.map((slot, i) => {
+    const pl = (squad.players && squad.players[i]) || {};
+    return {
+      role: slot.role, d: slot.d, l: slot.l,
+      num: pl.num || (i + 1),
+      name: pl.name || ("Player " + (i + 1)),
+      pos: pl.pos || slot.role,
+      trait: pl.trait || "",
+      star: !!pl.star,
+      captain: !!pl.captain,
+      pace: pl.pace, shoot: pl.shoot, pass: pl.pass, dribble: pl.dribble,
+      defend: pl.defend, staminaStat: pl.stamina, gk: pl.gk,
+      skin: pl.skin, hair: pl.hair, cut: pl.cut, tall: pl.tall, boots: pl.boots,
+    };
+  });
+}
+
 function makePlayer(team, def, index) {
   const T = TEAMS[team];
   const l = team === "blue" ? def.l : -def.l;  // mirror image for red
+  const skins = ["#f1c27d", "#e0ac69", "#c68642", "#8d5524", "#ffdbac"];
+  const hairs = ["#2b1b0e", "#000000", "#6b3e1e", "#d9b25f", "#3b2a1a"];
   const p = {
     team, role: def.role, num: def.num,
+    name: def.name || ("Player " + def.num),
+    pos: def.pos || def.role,
+    trait: def.trait || "",
+    star: !!def.star,
+    captain: !!def.captain,
+    pace: def.pace || 70, shoot: def.shoot || 60, pass: def.pass || 65,
+    dribble: def.dribble || 65, defend: def.defend || 60,
+    stam: def.staminaStat != null ? def.staminaStat : 70,
+    gk: def.gk || (def.role === "GK" ? 75 : 12),
+    cut: def.cut || "short",
+    tall: def.tall || 1,
+    boots: def.boots || "#111111",
     homeX: T.ownGoalX + T.dir * def.d * PITCH.w,
     homeY: PITCH.cy + l * PITCH.h / 2,
     baseD: def.d, baseL: l,
@@ -690,18 +779,15 @@ function makePlayer(team, def, index) {
     fooled: 0, fooledDir: null,            // fooled by a step-over
     penSpot: null,                         // where to wait during a penalty
   };
-  // Give everybody a slightly different look
-  const skins = ["#f1c27d", "#e0ac69", "#c68642", "#8d5524", "#ffdbac"];
-  const hairs = ["#2b1b0e", "#000000", "#6b3e1e", "#d9b25f", "#3b2a1a"];
-  p.skin = skins[(index * 3 + (team === "red" ? 1 : 0)) % skins.length];
-  p.hair = hairs[(index * 2 + (team === "red" ? 3 : 0)) % hairs.length];
+  p.skin = def.skin || skins[(index * 3 + (team === "red" ? 1 : 0)) % skins.length];
+  p.hair = def.hair || hairs[(index * 2 + (team === "red" ? 3 : 0)) % hairs.length];
   return p;
 }
 
 function createPlayers() {
   roster = [];
   for (const team of ["blue", "red"]) {
-    FORMATION.forEach((def, i) => roster.push(makePlayer(team, def, i)));
+    lineupFor(team).forEach((def, i) => roster.push(makePlayer(team, def, i)));
   }
   players = roster.slice();
 }
@@ -1156,7 +1242,8 @@ function goalieTouch(g) {
   const ai = aiSettings(g.team);
   const s = ballSpeed();
   const dangerous = ball.shot && ball.shot.team !== g.team;
-  const catchChance = s < 480 ? 1 : ai.gkCatch * clamp(1 - (s - 480) / 1300, 0.2, 1);
+  const extra = boosts(g).gkCatch;
+  const catchChance = s < 480 ? clamp(0.92 + extra, 0.7, 0.99) : clamp((ai.gkCatch + extra) * clamp(1 - (s - 480) / 1300, 0.2, 1), 0.12, 0.95);
   if (Math.random() < catchChance) {
     takePossession(g);
     if (dangerous) { say(g.state === "dive" ? "What a save!" : "Safe hands!", "#9fffa0"); game.stats.saves++; emit("ooh"); }
@@ -1200,7 +1287,7 @@ function contestOwnedBall(dt) {
       game.stats.tackles++;
       return;
     }
-    const rate = isHumanControlled(q) ? HUMAN_STEAL : aiSettings(q.team).steal;
+    const rate = (isHumanControlled(q) ? HUMAN_STEAL : aiSettings(q.team).steal) * boosts(q).steal / Math.max(0.45, boosts(o).hold);
     if (Math.random() < rate * dt) {
       const away = normalize(ball.x - q.x, ball.y - q.y);
       const dir = normalize(away.x + q.fx, away.y + q.fy);
@@ -1279,13 +1366,15 @@ function computePlans() {
 function formationSpot(p, hasBall) {
   const T = TEAMS[p.team];
   if (p.role === "GK") return { x: T.ownGoalX + T.dir * 18, y: PITCH.cy };
+  const style = (game.teams[p.team] && game.teams[p.team].style) || "control";
+  const push = style === "attack" ? 0.06 : style === "defend" ? -0.05 : 0;
   const bd = clamp((ball.x - T.ownGoalX) * T.dir / PITCH.w, 0, 1);  // ball depth for this team
   const bl = clamp((ball.y - PITCH.cy) / (PITCH.h / 2), -1, 1);
   const shift = bd - 0.5;
   let d, l;
-  if (p.role === "DEF") { d = clamp(0.18 + shift * 0.5 + (hasBall ? 0.06 : -0.05), 0.06, 0.55); l = p.baseL * 0.82 + bl * 0.48; }
-  else if (p.role === "MID") { d = clamp(0.40 + shift * 0.58 + (hasBall ? 0.08 : -0.02), 0.18, 0.78); l = p.baseL * 0.95 + bl * 0.5; }
-  else { d = clamp(0.62 + shift * 0.42 + (hasBall ? 0.12 : 0.02), 0.38, 0.92); l = p.baseL * 0.9 + bl * 0.42; }
+  if (p.role === "DEF") { d = clamp(0.18 + shift * 0.5 + (hasBall ? 0.06 : -0.05) + push, 0.06, 0.55); l = p.baseL * 0.82 + bl * 0.48; }
+  else if (p.role === "MID") { d = clamp(0.40 + shift * 0.58 + (hasBall ? 0.08 : -0.02) + push, 0.18, 0.78); l = p.baseL * 0.95 + bl * 0.5; }
+  else { d = clamp(0.62 + shift * 0.42 + (hasBall ? 0.12 : 0.02) + push, 0.38, 0.92); l = p.baseL * 0.9 + bl * 0.42; }
   l = clamp(l, -0.88, 0.88);
   return { x: T.ownGoalX + T.dir * d * PITCH.w, y: PITCH.cy + l * PITCH.h / 2 };
 }
@@ -1313,10 +1402,13 @@ function aiDecide(p, dt) {
     if (sp.type === "corner" && p.team === sp.team && p.role !== "GK") {
       const G = TEAMS[other(p.team)];
       const nearTop = ball.y < PITCH.cy ? -1 : 1;
-      const spots = { DEF: [PEN_SPOT + 90, 0], MID: [PEN_SPOT, -nearTop * 70], FWD: [70, nearTop * 55] };
-      const [d, off] = spots[p.role];
-      const extra = p.role === "DEF" && p.baseL > 0 ? 200 : 0; // one defender stays back
-      return { x: G.ownGoalX + G.dir * (d + extra), y: PITCH.cy + off + (p.role === "DEF" ? p.baseL * 60 : 0), sprint: false };
+      const same = teamPlayers(p.team).filter((q) => q.role === p.role);
+      const slot = Math.max(0, same.indexOf(p));
+      const spots = { DEF: [PEN_SPOT + 70, 0], MID: [PEN_SPOT - 10, -nearTop * 36], FWD: [64, nearTop * 18] };
+      const [d0, off0] = spots[p.role] || spots.MID;
+      const spread = (slot - (same.length - 1) / 2) * 34;
+      const extra = p.role === "DEF" && slot === same.length - 1 ? 210 : 0;
+      return { x: G.ownGoalX + G.dir * (d0 + extra), y: clamp(PITCH.cy + off0 + spread, PITCH.top + 36, PITCH.bottom - 36), sprint: false };
     }
     return { ...formationSpot(p, sp.team === p.team), sprint: false };
   }
@@ -1368,14 +1460,17 @@ function aiDecide(p, dt) {
       if (marker === p) {
         const g = normalize(T.ownGoalX - opp.x, PITCH.cy - opp.y);
         const spot = formationSpot(p, false);
-        return { x: lerp(opp.x + g.x * 48, spot.x, 0.2), y: lerp(opp.y + g.y * 26, spot.y, 0.22), sprint: dist(p, opp) > 150 };
+        const tight = (game.teams[p.team] && game.teams[p.team].style === "defend") ? 0.1 : 0.22;
+        return { x: lerp(opp.x + g.x * 36, spot.x, tight), y: lerp(opp.y + g.y * 22, spot.y, tight), sprint: dist(p, opp) > 140 };
       }
     }
-    return { ...formationSpot(p, false), sprint: false };
+    const back = formationSpot(p, false);
+    return { ...back, sprint: dist(p, back) > 180 && p.stamina > 0.35 };
   }
 
   if (plan.mode === "attack") return supportSpot(p);
-  return { ...formationSpot(p, ball.lastTeam === p.team), sprint: false };
+  const shape = formationSpot(p, ball.lastTeam === p.team);
+  return { ...shape, sprint: dist(p, shape) > 200 && p.stamina > 0.35 };
 }
 
 // Teammates of the ball carrier: get into space and make runs
@@ -1463,7 +1558,8 @@ function bestPass(p, maxDist = 700) {
 function doPass(p, best) {
   const ai = aiSettings(p.team);
   const d = dist(ball, best.target);
-  const t = { x: best.target.x + rand(-1, 1) * ai.passErr * d * 0.15, y: best.target.y + rand(-1, 1) * ai.passErr * d * 0.15 };
+  const err = ai.passErr * boosts(p).passErr;
+  const t = { x: best.target.x + rand(-1, 1) * err * d * 0.12, y: best.target.y + rand(-1, 1) * err * d * 0.12 };
   if (best.lofted || d > 480) loftedPass(p, t, best.mate);
   else groundPass(p, t, best.mate);
   if (best.through && Math.random() < 0.4) say("Through ball!", "#fff", 1.2);
@@ -1476,7 +1572,8 @@ function aiShoot(p) {
   const gk = goalieOf(other(p.team));
   const topY = GOAL_TOP + 16, botY = GOAL_BOTTOM - 16;
   let ty = Math.abs(gk.y - topY) > Math.abs(gk.y - botY) ? topY : botY;
-  ty += rand(-1, 1) * ai.aimErr * GOAL_W * 0.5;
+  const shotB = boosts(p);
+  ty += rand(-1, 1) * ai.aimErr * shotB.aim * GOAL_W * 0.5;
   const gkOffLine = Math.abs(gk.x - T.targetGoalX) > 90;
   const distGoal = Math.hypot(T.targetGoalX - ball.x, PITCH.cy - ball.y);
   if (gkOffLine && distGoal > 200 && Math.random() < 0.6) {
@@ -1486,7 +1583,7 @@ function aiShoot(p) {
     game.stats.shots[p.team]++;
     return;
   }
-  kickBall(p, { x: T.targetGoalX - ball.x, y: ty - ball.y }, rand(900, 1150), rand(10, 120), "shot");
+  kickBall(p, { x: T.targetGoalX - ball.x, y: ty - ball.y }, rand(900, 1150) * shotB.shot, rand(10, 120), "shot");
 }
 
 // The AI player with the ball: dribble, pass or shoot
@@ -1543,11 +1640,12 @@ function goalieAI(g, dt) {
   const toward = -ball.vx * T.dir;
   if (!ball.owner && toward > 250 && g.state === "run" && ball.z < GK_HAND_HEIGHT + 20 && !(g.noReact > 0)) {
     const t = ((ball.x - g.x) * T.dir) / toward;
-    if (t > 0 && t < ai.gkReact) {
+    const gkB = boosts(g);
+    if (t > 0 && t < ai.gkReact * gkB.gkReact) {
       const py = ball.y + ball.vy * t;
       if (py > GOAL_TOP - 40 && py < GOAL_BOTTOM + 40) {
         const dy = py - g.y;
-        if (Math.abs(dy) > 20) startDive(g, dy, ai.gkDive);
+        if (Math.abs(dy) > 20) startDive(g, dy, ai.gkDive * gkB.gkDive);
       }
     }
   }
@@ -1710,14 +1808,15 @@ function updatePlayers(dt) {
       // ROULETTE: spin away sideways with the ball
       if (p.skill === "spin" && ball.owner === p && p.skillDir) { want = { x: p.skillDir.x, y: p.skillDir.y }; speedMult *= 1.1; }
 
-      // --- Sprint + stamina ---
+      // --- Sprint + stamina (a high stamina stat, or the Engine trait, tires slower) ---
+      const body = boosts(p);
       const moving = Math.hypot(want.x, want.y) > 0.3;
       p.sprinting = sprint && moving && p.stamina > 0.02;
-      if (p.sprinting) p.stamina = Math.max(0, p.stamina - STAMINA_DRAIN * dt);
+      if (p.sprinting) p.stamina = Math.max(0, p.stamina - STAMINA_DRAIN * body.stamDrain * dt);
       else p.stamina = Math.min(1, p.stamina + STAMINA_REGEN * dt);
 
-      let maxSpeed = RUN_SPEED * speedMult;
-      if (p.sprinting) maxSpeed *= SPRINT_MULT;
+      let maxSpeed = RUN_SPEED * speedMult * body.run;
+      if (p.sprinting) maxSpeed *= SPRINT_MULT * body.sprint;
       if (ball.owner === p) maxSpeed *= DRIBBLE_MULT;
       if (p.stamina < 0.15) maxSpeed *= 0.88; // tired legs
       if (p.burst > 0) maxSpeed *= 1.35;       // knock-on burst
@@ -1869,7 +1968,6 @@ function scoreGoal(team, side) {
   else if (shot && shot.chip) text = "What a chip!";
   else if (shot && Math.hypot(shot.x - ball.x, shot.y - ball.y) > 450) text = "From long range!";
   else if (shot && shot.power >= 1050) text = "What a strike!";
-  say(text, teamUi(team), 3);
   emit("cheer");
   emit("whistle");
   // ---- celebration: the scorer runs to the corner flag, teammates join ----
@@ -1878,6 +1976,10 @@ function scoreGoal(team, side) {
     let bd = Infinity;
     for (const p of teamPlayers(team)) { if (p.role === "GK") continue; const d = dist(p, ball); if (d < bd) { bd = d; scorer = p; } }
   }
+  const who = (ball.lastTeam && ball.lastTeam !== team && ball.lastTouch) ? ball.lastTouch : scorer;
+  if (who) text += " " + shownName(who);
+  say(text, teamUi(team), 3);
+  if (who) game.stats.scorers.push({ team, name: shownName(who), num: who.num, og: !!(ball.lastTeam && ball.lastTeam !== team) });
   const T = TEAMS[team];
   const top = scorer ? scorer.y < PITCH.cy : true;
   game.celebration = scorer ? {
@@ -2656,7 +2758,9 @@ function update(dt) {
     };
   }
   // Things about players that never change (sent once per match)
-  function staticInfo() { return roster.map((p) => [p.team, p.role, p.num, p.skin, p.hair]); }
+  function staticInfo() {
+    return roster.map((p) => [p.team, p.role, p.num, p.skin, p.hair, p.name, p.trait || "", p.tall || 1, p.boots || "#111111", p.cut || "short", p.captain ? 1 : 0, p.star ? 1 : 0, p.pos || p.role]);
+  }
   // Everything else a browser needs to know about this match
   function matchInfo() {
     return { teams: game.teams, rules: game.rules, timeLimit: game.timeLimit, knockout: game.knockout, matchType: game.matchType };
@@ -2695,6 +2799,15 @@ function update(dt) {
     }
     fwd.x = PITCH.cx + A.dir * 420; fwd.y = PITCH.cy; fwd.state = "run"; fwd.vx = fwd.vy = 0;
     mid.x = PITCH.cx - A.dir * 40; mid.y = PITCH.cy; mid.state = "run";
+    // Everyone else stays in their own half, so only this forward is offside.
+    let slot = 0;
+    for (const q of teamPlayers(team)) {
+      if (q === fwd || q === mid) continue;
+      q.x = A.ownGoalX + A.dir * (80 + (slot % 5) * 70);
+      q.y = PITCH.cy - 160 + (slot % 5) * 80;
+      q.vx = q.vy = 0; q.state = "run";
+      slot++;
+    }
     Object.assign(ball, { x: mid.x + A.dir * 14, y: mid.y, z: 0, vx: 0, vy: 0, owner: mid });
     mid.fx = A.dir; mid.fy = 0;
     kickBall(mid, { x: fwd.x - ball.x, y: fwd.y - ball.y }, 700, 0, "pass", fwd);
@@ -2722,12 +2835,14 @@ function update(dt) {
     addController, setConnected, removeController, setInput, press, switchTo,
     snapshot, staticInfo, matchInfo,
     debugFoul, debugOffside, debugSkill,
+    debugBoosts(i) { return roster[i] ? boosts(roster[i]) : null; },
     startShootout() { startShootout(); },
     giveCard(i, kind) { if (roster[i] && !roster[i].sentOff) giveCard(roster[i], kind); },
     setAutoplay(on) { game.autoplay = !!on; },
     forceGoal(team) {
       if (game.phase === "setpiece" || game.phase === "play") {
-        ball.owner = null; ball.lastTeam = team;
+        const sc = teamPlayers(team).find((p) => p.star && p.role !== "GK") || teamPlayers(team).find((p) => p.role === "FWD");
+        ball.owner = null; ball.lastTeam = team; ball.lastTouch = sc || ball.lastTouch;
         scoreGoal(team, team === "blue" ? "right" : "left");
       }
     },

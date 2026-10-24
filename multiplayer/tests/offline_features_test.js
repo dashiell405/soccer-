@@ -95,7 +95,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++
   ok(st.cardPopup === 'yellow' && st.cards.length === 1 && st.cards[0].yellow === 1, 'yellow card shown');
   await D((i) => soccerDebug.card(i, 'yellow'), idx);
   st = await D(() => soccerDebug.step(0.6));
-  ok(st.cardPopup === 'second' && st.onPitch.red === 4 && st.cards[0].sentOff, 'second yellow -> red, red down to ' + st.onPitch.red);
+  ok(st.cardPopup === 'second' && st.onPitch.red === 10 && st.cards[0].sentOff, 'second yellow -> red, red down to ' + st.onPitch.red);
   await page.screenshot({ path: SHOTS + '04_red_card_popup.png' });
   st = await D(() => soccerDebug.step(3));
   await page.screenshot({ path: SHOTS + '05_gameplay_cards_hud.png' });

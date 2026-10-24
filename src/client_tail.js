@@ -96,6 +96,8 @@ function renderWin() {
   $("winStats").textContent = !s ? "" : game.matchType === "shootout" ? "Penalties scored: " + s.pens.scored + "  \u2022  missed / saved: " + s.pens.missed :
     "Shots: " + s.shots.blue + " - " + s.shots.red + "  \u2022  Saves: " + s.saves + "  \u2022  Corners: " + s.corner +
     "  \u2022  Cards: " + (s.yellow.blue + s.yellow.red) + " yellow, " + (s.red.blue + s.red.red) + " red  \u2022  Offside: " + s.offside + "  \u2022  Time: " + formatClock(game.clock);
+  const scorers = $("winScorers");
+  if (scorers) scorers.innerHTML = !s || game.matchType === "shootout" ? "" : (typeof goalScorersHtml === "function" ? goalScorersHtml(s) : "");
   const host = room && room.hostId === myId;
   show("rematchBtn", host); show("lobbyBtn", host); show("waitHost2", !host);
 }
