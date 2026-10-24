@@ -233,7 +233,7 @@ const SQUADS = {
     P(2, "RB", "Ty Calloway", [82, 50, 66, 72, 74, 86, 12], [5, 0, "buzz", 1.04, 5], "", ""),
     P(11, "LM", "Casey Nguyen", [80, 68, 76, 82, 46, 84, 12], [1, 0, "long", 0.96, 7], "", ""),
     P(6, "LCM", "Riley Cho", [72, 64, 80, 74, 64, 86, 12], [3, 1, "curly", 0.98, 6], "engine", ""),
-    P(10, "RCM", "Dashiell Green", [74, 68, 86, 78, 58, 84, 12], [0, 3, "short", 0.97, 3], "playmaker", "S"),
+    P(10, "RCM", "Dashiell Green", [100, 100, 100, 100, 100, 100, 12], [0, 3, "short", 0.97, 3], "playmaker", "S"),
     P(17, "RM", "Sam Ortega", [78, 70, 72, 84, 44, 82, 12], [2, 4, "mohawk", 0.96, 1], "dribbler", ""),
     P(9, "LST", "Jordan Hale", [78, 86, 66, 74, 36, 82, 12], [0, 1, "short", 1.04, 2], "finisher", "S"),
     P(18, "RST", "Avery Cole", [76, 78, 66, 74, 34, 80, 12], [6, 1, "afro", 1.00, 5], "", ""),
@@ -397,7 +397,10 @@ function withPlayAsMe(squad) {
   const i = mePlayerIndex(players);
   if (i < 0) return squad;
   const old = players[i];
-  players[i] = Object.assign({}, old, { name: me.name, num: PLAY_AS_ME_NUM, star: true, me: true });
+  players[i] = Object.assign({}, old, {
+    name: me.name, num: PLAY_AS_ME_NUM, star: true, me: true,
+    pace: 100, shoot: 100, pass: 100, dribble: 100, defend: 100, stamina: 100,
+  });
   return Object.assign({}, squad, { players: players });
 }
 
@@ -413,12 +416,22 @@ function renameFor(teamId, num) {
   return typeof n === "string" ? n : "";
 }
 
+function overallRating(p) {
+  if (!p) return 0;
+  const vals = p.pos === "GK"
+    ? [p.pace, p.pass, p.gk, p.stamina]
+    : [p.pace, p.shoot, p.pass, p.dribble, p.defend, p.stamina];
+  let sum = 0;
+  vals.forEach((v) => { sum += Number(v) || 0; });
+  return Math.round(sum / vals.length);
+}
+
 function statBits(p) {
   const rows = p.pos === "GK"
     ? [["Pace", p.pace], ["Passing", p.pass], ["Keeping", p.gk], ["Stamina", p.stamina]]
     : [["Pace", p.pace], ["Shooting", p.shoot], ["Passing", p.pass], ["Dribbling", p.dribble], ["Defending", p.defend], ["Stamina", p.stamina]];
   return rows.map((row) => {
-    const n = Math.max(1, Math.min(99, row[1] | 0));
+    const n = Math.max(1, Math.min(100, row[1] | 0));
     return "<div class='stat'><span>" + row[0] + "</span><i><b style='width:" + n + "%'></b></i><em>" + n + "</em></div>";
   }).join("");
 }
@@ -438,6 +451,7 @@ function squadCardHtml(teamId) {
     return "<div class='sqrow" + (p.me ? " me" : "") + "'>" +
       "<div class='who'><span class='pos'>" + escHtml(p.pos) + "</span> " +
       "<b>" + (p.star ? "<span class='star'>\u2605</span> " : "") + escHtml(shown) + "</b> " +
+      (overallRating(p) >= 100 ? "<span class='ovr'>\u2605 100</span> " : "") +
       "<span class='num'>#" + p.num + (p.captain ? " C" : "") + "</span>" +
       note + trait +
       rename + "</div>" +
