@@ -4644,7 +4644,8 @@ function isThrowing(p) {
 }
 function drawThrowArms(foot, H, p) {
   const skin = p.skin || "#e0ac69";
-  const armW = Math.max(4, H * 0.095);
+  // A bit thicker than a running arm so the throw reads, but still the same size as the body.
+  const armW = Math.max(2.2, H * 0.058);
   const t = p.throwT || (game.setpiece && game.setpiece.throwT) || 0;
   const into = p.y < PITCH.cy ? 1 : -1;          // screen y grows toward the near line
   const sp = game.setpiece;
@@ -4655,25 +4656,25 @@ function drawThrowArms(foot, H, p) {
     hx = b.x; hy = b.y;
   } else {
     const u = clamp((t - THROW_RELEASE) / Math.max(0.05, THROW_DONE - THROW_RELEASE), 0, 1);
-    hx = foot.x + (p.fx || 0) * H * 0.2;
-    hy = foot.y - H * 1.05 + into * H * (0.08 + u * 0.55);
+    hx = foot.x + (p.fx || 0) * H * 0.14;
+    hy = foot.y - H * 0.96 + into * H * (0.05 + u * 0.4);
   }
-  // Both arms leave the shoulders, bow out, and meet the ball above the head.
-  const sy = foot.y - H * 0.74;
-  const slx = foot.x - H * 0.2, srx = foot.x + H * 0.2;
-  const elx = foot.x - H * 0.46, erx = foot.x + H * 0.46;
-  const ey = Math.min(sy, hy) + Math.abs(sy - hy) * 0.42;
-  const lx = hx - H * 0.07, rx = hx + H * 0.07, hy2 = hy + H * 0.04;
-  limb(slx, sy, elx, ey, lx, hy2, "rgba(0,0,0,0.55)", armW + 2.4);
-  limb(srx, sy, erx, ey, rx, hy2, "rgba(0,0,0,0.55)", armW + 2.4);
+  // Short arms: shoulders stay near the shirt, elbows only bow out a little, hands meet the ball.
+  const sy = foot.y - H * 0.72;
+  const slx = foot.x - H * 0.15, srx = foot.x + H * 0.15;
+  const elx = foot.x - H * 0.3, erx = foot.x + H * 0.3;
+  const ey = Math.min(sy, hy) + Math.abs(sy - hy) * 0.28;
+  const lx = hx - H * 0.045, rx = hx + H * 0.045, hy2 = hy + H * 0.03;
+  limb(slx, sy, elx, ey, lx, hy2, "rgba(0,0,0,0.45)", armW + 1.15);
+  limb(srx, sy, erx, ey, rx, hy2, "rgba(0,0,0,0.45)", armW + 1.15);
   limb(slx, sy, elx, ey, lx, hy2, skin, armW);
   limb(srx, sy, erx, ey, rx, hy2, skin, armW);
   ctx.fillStyle = skin;
-  ctx.strokeStyle = "rgba(0,0,0,0.45)";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(0,0,0,0.4)";
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(lx, hy2, H * 0.055, 0, Math.PI * 2);
-  ctx.arc(rx, hy2, H * 0.055, 0, Math.PI * 2);
+  ctx.arc(lx, hy2, H * 0.04, 0, Math.PI * 2);
+  ctx.arc(rx, hy2, H * 0.04, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 }
