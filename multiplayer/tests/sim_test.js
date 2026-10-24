@@ -252,7 +252,7 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   const red = sim.roster.filter((p) => p.team === 'red');
   const me = blue.find((p) => p.me);
   assert(me && me.name === 'Dashiell Green' && me.num === 10 && me.star && me.pos === 'CAM' && me.trait === 'playmaker', 'Dashiell takes the Brazil playmaker slot as number 10');
-  assert(me.pace === 82 && me.shoot === 78 && me.pass === 92 && me.dribble === 88, 'he keeps that slot stats');
+  assert(me.pace === 100 && me.shoot === 100 && me.pass === 100 && me.dribble === 100 && me.defend === 100 && me.stam === 100 && me.gk === 12, 'Play as me is 100 in every outfield stat');
   assert(!blue.some((p) => p.name === 'Luan Pires'), 'the replaced player is not also in the team');
   assert(new Set(blue.map((p) => p.num)).size === 11, 'shirt numbers stay unique');
   assert(red.some((p) => p.name === 'Santi Ojeda') && !red.some((p) => p.me), 'the other team keeps its own players');
@@ -312,7 +312,7 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   const red = sim.roster.filter((p) => p.team === 'red');
   const me = blue.find((p) => p.name === 'Dashiell Green');
   assert(me && me.num === 10 && me.star && me.pos === 'RCM' && me.trait === 'playmaker' && me.me, 'USA squad has Dashiell Green at number 10');
-  assert(me.pace === 74 && me.shoot === 68 && me.pass === 86 && me.dribble === 78 && me.defend === 58, 'he keeps the USA playmaker stats');
+  assert(me.pace === 100 && me.shoot === 100 && me.pass === 100 && me.dribble === 100 && me.defend === 100 && me.stam === 100 && me.gk === 12, 'USA Dashiell is 100 in every outfield stat');
   assert(!blue.some((p) => p.name === 'Quinn Adler'), 'Quinn Adler is replaced, not listed twice');
   assert(new Set(blue.map((p) => p.num)).size === 11, 'USA shirt numbers stay unique');
   assert(!red.some((p) => p.name === 'Dashiell Green'), 'the other team does not get a copy');
@@ -343,4 +343,20 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   const human = opp.controllers.find((k) => k.id === 'p1');
   assert(cpu && cpu.num === 10, 'Dashiell still plays when USA is the other team');
   assert(human.active !== cpu, 'you do not control him when you picked the other team');
+
+  S.setPlayAsMeSides({});
+  const cmp = S.createSim({ teams: S.buildTeamKits(S.findTeam('bra'), S.findTeam('usa')) });
+  cmp.start();
+  const boost = (p) => cmp.debugBoosts(cmp.roster.indexOf(p));
+  const dash = cmp.roster.find((p) => p.name === 'Dashiell Green');
+  const onBlue = (trait) => cmp.roster.find((p) => p.team === 'blue' && p.trait === trait);
+  const db = boost(dash);
+  const speed = boost(onBlue('speedster'));
+  const fin = boost(onBlue('finisher'));
+  assert(db.sprint > speed.sprint && db.sprint <= 1.36 && db.run > speed.run && db.run <= 1.28, 'faster than the best speedster, and the speed is capped');
+  assert(db.shot > fin.shot && db.shot <= 1.42 && db.aim < fin.aim, 'harder and more accurate shots than the best finisher, with a cap');
+  assert(db.passErr < boost(onBlue('playmaker')).passErr && db.passErr >= 0.16, 'sharper passes than the best playmaker, with a floor');
+  assert(db.hold > boost(onBlue('dribbler')).hold && db.hold <= 2.15, 'keeps the ball better than the best dribbler, with a cap');
+  assert(db.steal > boost(onBlue('rock')).steal && db.steal <= 1.82, 'tackles better than the best rock, with a cap');
+  assert(db.stamDrain < boost(onBlue('engine')).stamDrain && db.stamDrain >= 0.34, 'tires slower than the best engine, with a floor');
 }

@@ -592,6 +592,18 @@ function boosts(p) {
   if (t === "engine") stamDrain *= 0.65;
   if (t === "wall") { gkCatch += 0.14; gkDive *= 1.12; gkReact *= 0.8; }
   if (p.star) { run *= 1.03; shot *= 1.04; passErr *= 0.9; }
+  // A 100 in every outfield stat is a little better than the best specialist,
+  // then it stops. Fast, sharp, and hard to tire, but still catchable.
+  if (p.pace >= 100 && p.shoot >= 100 && p.pass >= 100 && p.dribble >= 100 && p.defend >= 100 && p.stam >= 100) {
+    run = clamp(Math.max(run, 1.25), 0, 1.28);
+    sprint = clamp(Math.max(sprint, 1.33), 0, 1.36);
+    shot = clamp(Math.max(shot, 1.38), 0, 1.42);
+    aim = clamp(Math.min(aim, 0.38), 0.34, 2);
+    passErr = clamp(Math.min(passErr, 0.20), 0.16, 2);
+    hold = clamp(Math.max(hold, 2.08), 0, 2.15);
+    steal = clamp(Math.max(steal, 1.76), 0, 1.82);
+    stamDrain = clamp(Math.min(stamDrain, 0.38), 0.34, 2);
+  }
   return { run, sprint, shot, aim, passErr, hold, steal, stamDrain, gkCatch, gkDive, gkReact };
 }
 function aimPoint(p, target) {
