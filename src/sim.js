@@ -261,6 +261,13 @@ const DEFAULT_RULES = { offside: true, cards: true };
 // =====================================================================
 // Official squad name, unless this device has a private rename (offline only).
 // Kept outside the match so the pitch labels, goal banner, and full-time list can see it.
+// Which sides get the device-only "play as me" player. Offline sets this
+// before a match. Online leaves it empty, so both players see the squad list.
+let playAsMeSides = {};
+function setPlayAsMeSides(sides) {
+  playAsMeSides = sides && typeof sides === "object" ? sides : {};
+}
+
 function shownName(p) {
   if (!p) return "";
   if (typeof localRename === "function") {
@@ -486,6 +493,19 @@ function canKick(p) {
 
     // Penalty kick: one human takes it, one human on the other team is the goalie
     const pen = game.penalty;
+    const kickoff = game.phase === "setpiece" && game.setpiece && game.setpiece.type === "kickoff";
+    if (kickoff) {
+      const meP = players.find((p) => p.team === team && p.me && !p.sentOff && p.role !== "GK");
+      if (meP && cs.length) {
+        setActive(cs[0], meP);
+        for (let i = 1; i < cs.length; i++) {
+          const avail = available(cs[i]).filter((p) => p !== meP);
+          setActive(cs[i], nearestToBall(avail));
+        }
+        return;
+      }
+    }
+
     if (pen && (game.phase === "setpiece" || game.phase === "shootout")) {
       const n = game.shootout ? game.shootout.kicks[team].length : 0;  // take turns in a shootout
       const who = cs[n % cs.length];
@@ -726,7 +746,8 @@ function lineupFor(side) {
   if (typeof squadById !== "function" || typeof FORMATIONS === "undefined") {
     return FORMATION.map((s) => Object.assign({ name: "Player " + s.num, pos: s.role }, s));
   }
-  const squad = squadById(meta.id, meta);
+  let squad = squadById(meta.id, meta);
+  if (playAsMeSides[side] && typeof withPlayAsMe === "function") squad = withPlayAsMe(squad);
   const form = FORMATIONS[squad.formation] || FORMATIONS["4-4-2"];
   return form.map((slot, i) => {
     const pl = (squad.players && squad.players[i]) || {};
@@ -737,6 +758,7 @@ function lineupFor(side) {
       pos: pl.pos || slot.role,
       trait: pl.trait || "",
       star: !!pl.star,
+      me: !!pl.me,
       captain: !!pl.captain,
       pace: pl.pace, shoot: pl.shoot, pass: pl.pass, dribble: pl.dribble,
       defend: pl.defend, staminaStat: pl.stamina, gk: pl.gk,
@@ -756,6 +778,7 @@ function makePlayer(team, def, index) {
     pos: def.pos || def.role,
     trait: def.trait || "",
     star: !!def.star,
+    me: !!def.me,
     captain: !!def.captain,
     pace: def.pace || 70, shoot: def.shoot || 60, pass: def.pass || 65,
     dribble: def.dribble || 65, defend: def.defend || 60,
@@ -2007,7 +2030,10 @@ function beginSetpiece(type, team, x, y, taker = null, indirect = false) {
   Object.assign(ball, { x, y, z: 0, vx: 0, vy: 0, vz: 0, curl: 0, inNet: null, shot: null, intended: null, offside: null, indirect: null });
 
   if (!taker || taker.state !== "run" || taker.sentOff || (type === "penalty" && taker.role === "GK" && !game.shootout)) {
-    if (type === "kickoff" || type === "penalty") taker = players.find((p) => p.team === team && p.role === "FWD") || teamPlayers(team).find((p) => p.role !== "GK");
+    if (type === "kickoff" || type === "penalty") {
+      const meP = type === "kickoff" ? players.find((p) => p.team === team && p.me && !p.sentOff && p.role !== "GK") : null;
+      taker = meP || players.find((p) => p.team === team && p.role === "FWD") || teamPlayers(team).find((p) => p.role !== "GK");
+    }
     else if (type === "goalkick") taker = goalieOf(team);
     else {
       let best = null, bd = Infinity;
@@ -2854,5 +2880,5 @@ function update(dt) {
 // Node.js (the server) loads this file with require()
 if (typeof module === "object" && module.exports) {
   module.exports = { createSim, MATCH_LENGTH, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
-                     TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES };
+                     TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES, setPlayAsMeSides };
 }

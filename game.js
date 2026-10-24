@@ -233,7 +233,7 @@ const SQUADS = {
     P(2, "RB", "Ty Calloway", [82, 50, 66, 72, 74, 86, 12], [5, 0, "buzz", 1.04, 5], "", ""),
     P(11, "LM", "Casey Nguyen", [80, 68, 76, 82, 46, 84, 12], [1, 0, "long", 0.96, 7], "", ""),
     P(6, "LCM", "Riley Cho", [72, 64, 80, 74, 64, 86, 12], [3, 1, "curly", 0.98, 6], "engine", ""),
-    P(8, "RCM", "Quinn Adler", [74, 68, 86, 78, 58, 84, 12], [0, 3, "short", 0.97, 3], "playmaker", ""),
+    P(10, "RCM", "Dashiell Green", [74, 68, 86, 78, 58, 84, 12], [0, 3, "short", 0.97, 3], "playmaker", "S"),
     P(17, "RM", "Sam Ortega", [78, 70, 72, 84, 44, 82, 12], [2, 4, "mohawk", 0.96, 1], "dribbler", ""),
     P(9, "LST", "Jordan Hale", [78, 86, 66, 74, 36, 82, 12], [0, 1, "short", 1.04, 2], "finisher", "S"),
     P(18, "RST", "Avery Cole", [76, 78, 66, 74, 34, 80, 12], [6, 1, "afro", 1.00, 5], "", ""),
@@ -305,6 +305,13 @@ const SQUADS = {
   ] },
 };
 
+// Dashiell stays on USA even when Play as me is off. The flag makes kickoff
+// start on him when that side is the one you control.
+(function markUsaYou() {
+  const p = SQUADS.usa.players.find((q) => q.name === "Dashiell Green");
+  if (p) p.me = true;
+})();
+
 function customSquad(meta) {
   const last = String((meta && meta.name) || "Custom").replace(/[<>]/g, "").trim().slice(0, 12) || "Custom";
   const first = ["Alex", "Sam", "Jordan", "Casey", "Riley", "Morgan", "Jamie", "Quinn", "Avery", "Drew", "Sky"];
@@ -341,6 +348,59 @@ function escHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// Device-only "play as me". This is not written into the squad list.
+// To take it out later, set on to false here (or delete this block).
+const PLAY_AS_ME_DEFAULT = { on: true, name: "Dashiell Green" };
+const PLAY_AS_ME_NUM = 10;
+
+function loadPlayAsMe() {
+  const fallback = PLAY_AS_ME_DEFAULT;
+  let saved = null;
+  try {
+    if (typeof localStorage !== "undefined") saved = JSON.parse(localStorage.getItem("soccerPlayAsMe") || "null");
+  } catch (e) { saved = null; }
+  const on = saved && typeof saved.on === "boolean" ? saved.on : fallback.on;
+  let name = saved && typeof saved.name === "string" ? saved.name : fallback.name;
+  name = String(name).replace(/[<>]/g, "").trim().slice(0, 18);
+  if (!name) name = fallback.name;
+  return { on: !!on, name: name };
+}
+
+function savePlayAsMe(next) {
+  const cur = loadPlayAsMe();
+  const on = next && typeof next.on === "boolean" ? next.on : cur.on;
+  let name = next && typeof next.name === "string" ? next.name : cur.name;
+  name = String(name).replace(/[<>]/g, "").trim().slice(0, 18) || PLAY_AS_ME_DEFAULT.name;
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem("soccerPlayAsMe", JSON.stringify({ on: !!on, name: name }));
+  } catch (e) { /* ignore */ }
+  return { on: !!on, name: name };
+}
+
+// The outfield player he replaces: shirt 10, or the attacking midfielder / playmaker.
+function mePlayerIndex(players) {
+  if (!players || !players.length) return -1;
+  let i = players.findIndex((p) => p && p.num === PLAY_AS_ME_NUM && p.pos !== "GK");
+  if (i >= 0) return i;
+  i = players.findIndex((p) => p && p.pos === "CAM");
+  if (i >= 0) return i;
+  i = players.findIndex((p) => p && p.trait === "playmaker" && p.pos !== "GK");
+  return i;
+}
+
+// A copy of the squad with one outfield player wearing his name and number 10.
+// Stats, position and trait stay with that slot so the team stays balanced.
+function withPlayAsMe(squad) {
+  const me = loadPlayAsMe();
+  if (!me.on || !squad || !squad.players) return squad;
+  const players = squad.players.map((p) => Object.assign({}, p));
+  const i = mePlayerIndex(players);
+  if (i < 0) return squad;
+  const old = players[i];
+  players[i] = Object.assign({}, old, { name: me.name, num: PLAY_AS_ME_NUM, star: true, me: true });
+  return Object.assign({}, squad, { players: players });
+}
+
 function loadRenames() {
   try {
     const raw = JSON.parse(localStorage.getItem("soccerRenames") || "{}");
@@ -365,20 +425,22 @@ function statBits(p) {
 
 function squadCardHtml(teamId) {
   const meta = (typeof findTeam === "function" && findTeam(teamId)) || { id: teamId || "custom", name: "My Team", rating: 3 };
-  const sq = squadById(meta.id, meta);
+  let sq = squadById(meta.id, meta);
+  if (loadPlayAsMe().on) sq = withPlayAsMe(sq);
   const head = "<div class='sqhead'><b>" + escHtml(sq.formation) + "</b> · " + escHtml(STYLE_TEXT[sq.style] || "") +
     " · " + "\u2605".repeat(meta.rating || 3) + "</div>";
   const rows = sq.players.map((p) => {
-    const priv = renameFor(meta.id, p.num);
+    const priv = p.me ? "" : renameFor(meta.id, p.num);
     const shown = priv || p.name;
     const trait = p.trait ? "<div class='trait'>" + escHtml(TRAIT_NAME[p.trait] || p.trait) + " · " + escHtml(TRAIT_BLURB[p.trait] || "") + "</div>" : "";
-    const note = priv ? "<div class='official'>Team list: " + escHtml(p.name) + "</div>" : "";
-    return "<div class='sqrow'>" +
+    const note = priv && !p.me ? "<div class='official'>Team list: " + escHtml(p.name) + "</div>" : "";
+    const rename = p.me ? "" : "<button type='button' class='renameBtn' data-rename='" + p.num + "' data-name='" + escHtml(p.name) + "'>Rename</button>";
+    return "<div class='sqrow" + (p.me ? " me" : "") + "'>" +
       "<div class='who'><span class='pos'>" + escHtml(p.pos) + "</span> " +
       "<b>" + (p.star ? "<span class='star'>\u2605</span> " : "") + escHtml(shown) + "</b> " +
       "<span class='num'>#" + p.num + (p.captain ? " C" : "") + "</span>" +
       note + trait +
-      "<button type='button' class='renameBtn' data-rename='" + p.num + "' data-name='" + escHtml(p.name) + "'>Rename</button></div>" +
+      rename + "</div>" +
       "<div class='bars'>" + statBits(p) + "</div></div>";
   }).join("");
   return head + rows;
@@ -411,8 +473,17 @@ function openSquadScreen() {
   } catch (e) { /* ignore */ }
   const box = document.getElementById("squadRename");
   if (box) box.classList.add("hidden");
+  paintPlayAsMe();
   paintSquad();
   screen.classList.remove("hidden");
+}
+
+function paintPlayAsMe() {
+  const me = loadPlayAsMe();
+  const on = document.getElementById("playAsMeOn");
+  const name = document.getElementById("playAsMeName");
+  if (on) on.checked = me.on;
+  if (name && document.activeElement !== name) name.value = me.name;
 }
 
 function bindSquadScreen() {
@@ -459,6 +530,16 @@ function bindSquadScreen() {
     else map[key] = name;
     try { localStorage.setItem("soccerRenames", JSON.stringify(map)); } catch (e) { /* ignore */ }
     box.classList.add("hidden");
+    paintSquad();
+  });
+  const playOn = document.getElementById("playAsMeOn");
+  const playName = document.getElementById("playAsMeName");
+  if (playOn) playOn.addEventListener("change", () => {
+    savePlayAsMe({ on: playOn.checked, name: playName ? playName.value : "" });
+    paintSquad();
+  });
+  if (playName) playName.addEventListener("input", () => {
+    savePlayAsMe({ on: playOn ? playOn.checked : true, name: playName.value });
     paintSquad();
   });
   const clear = document.getElementById("squadRenameClear");
@@ -758,6 +839,13 @@ const DEFAULT_RULES = { offside: true, cards: true };
 // =====================================================================
 // Official squad name, unless this device has a private rename (offline only).
 // Kept outside the match so the pitch labels, goal banner, and full-time list can see it.
+// Which sides get the device-only "play as me" player. Offline sets this
+// before a match. Online leaves it empty, so both players see the squad list.
+let playAsMeSides = {};
+function setPlayAsMeSides(sides) {
+  playAsMeSides = sides && typeof sides === "object" ? sides : {};
+}
+
 function shownName(p) {
   if (!p) return "";
   if (typeof localRename === "function") {
@@ -983,6 +1071,19 @@ function canKick(p) {
 
     // Penalty kick: one human takes it, one human on the other team is the goalie
     const pen = game.penalty;
+    const kickoff = game.phase === "setpiece" && game.setpiece && game.setpiece.type === "kickoff";
+    if (kickoff) {
+      const meP = players.find((p) => p.team === team && p.me && !p.sentOff && p.role !== "GK");
+      if (meP && cs.length) {
+        setActive(cs[0], meP);
+        for (let i = 1; i < cs.length; i++) {
+          const avail = available(cs[i]).filter((p) => p !== meP);
+          setActive(cs[i], nearestToBall(avail));
+        }
+        return;
+      }
+    }
+
     if (pen && (game.phase === "setpiece" || game.phase === "shootout")) {
       const n = game.shootout ? game.shootout.kicks[team].length : 0;  // take turns in a shootout
       const who = cs[n % cs.length];
@@ -1223,7 +1324,8 @@ function lineupFor(side) {
   if (typeof squadById !== "function" || typeof FORMATIONS === "undefined") {
     return FORMATION.map((s) => Object.assign({ name: "Player " + s.num, pos: s.role }, s));
   }
-  const squad = squadById(meta.id, meta);
+  let squad = squadById(meta.id, meta);
+  if (playAsMeSides[side] && typeof withPlayAsMe === "function") squad = withPlayAsMe(squad);
   const form = FORMATIONS[squad.formation] || FORMATIONS["4-4-2"];
   return form.map((slot, i) => {
     const pl = (squad.players && squad.players[i]) || {};
@@ -1234,6 +1336,7 @@ function lineupFor(side) {
       pos: pl.pos || slot.role,
       trait: pl.trait || "",
       star: !!pl.star,
+      me: !!pl.me,
       captain: !!pl.captain,
       pace: pl.pace, shoot: pl.shoot, pass: pl.pass, dribble: pl.dribble,
       defend: pl.defend, staminaStat: pl.stamina, gk: pl.gk,
@@ -1253,6 +1356,7 @@ function makePlayer(team, def, index) {
     pos: def.pos || def.role,
     trait: def.trait || "",
     star: !!def.star,
+    me: !!def.me,
     captain: !!def.captain,
     pace: def.pace || 70, shoot: def.shoot || 60, pass: def.pass || 65,
     dribble: def.dribble || 65, defend: def.defend || 60,
@@ -2504,7 +2608,10 @@ function beginSetpiece(type, team, x, y, taker = null, indirect = false) {
   Object.assign(ball, { x, y, z: 0, vx: 0, vy: 0, vz: 0, curl: 0, inNet: null, shot: null, intended: null, offside: null, indirect: null });
 
   if (!taker || taker.state !== "run" || taker.sentOff || (type === "penalty" && taker.role === "GK" && !game.shootout)) {
-    if (type === "kickoff" || type === "penalty") taker = players.find((p) => p.team === team && p.role === "FWD") || teamPlayers(team).find((p) => p.role !== "GK");
+    if (type === "kickoff" || type === "penalty") {
+      const meP = type === "kickoff" ? players.find((p) => p.team === team && p.me && !p.sentOff && p.role !== "GK") : null;
+      taker = meP || players.find((p) => p.team === team && p.role === "FWD") || teamPlayers(team).find((p) => p.role !== "GK");
+    }
     else if (type === "goalkick") taker = goalieOf(team);
     else {
       let best = null, bd = Infinity;
@@ -3351,5 +3458,5 @@ function update(dt) {
 // Node.js (the server) loads this file with require()
 if (typeof module === "object" && module.exports) {
   module.exports = { createSim, MATCH_LENGTH, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
-                     TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES };
+                     TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES, setPlayAsMeSides };
 }
