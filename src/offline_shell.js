@@ -214,7 +214,7 @@ const isLocal = () => true;                       // every human here is on this
 const labelFor = (c) => (settings.mode === "1p" ? "YOU" : c.id === "p1" ? "P1" : "P2");
 // Private names typed on this device. Online matches keep the squad list.
 function localRename(p) {
-  if (!p || typeof renameFor !== "function") return "";
+  if (!p || p.me || typeof renameFor !== "function") return "";
   const id = (TEAMS[p.team] && TEAMS[p.team].id) || "";
   return renameFor(id, p.num);
 }
@@ -244,7 +244,18 @@ function keysHint(kind) {
 // =====================================================================
 // Build a new match. opts: {kind, blue, red (team defs), knockout, matchType}
 // Every match is 10 minutes. A cup match sends a draw to penalties.
+// Your player is on every team you control. If both sides are the same
+// squad in a 2-player game, only the left team gets him.
+function applyPlayAsMeSides(blue, red) {
+  if (typeof setPlayAsMeSides !== "function") return;
+  const me = typeof loadPlayAsMe === "function" ? loadPlayAsMe() : { on: false };
+  if (!me.on) { setPlayAsMeSides({}); return; }
+  const same = blue && red && blue.id && blue.id === red.id;
+  if (settings.mode === "2p" && !same) setPlayAsMeSides({ blue: true, red: true });
+  else setPlayAsMeSides({ blue: true });
+}
 function newMatch(opts) {
+  applyPlayAsMeSides(opts.blue, opts.red);
   const kits = buildTeamKits(opts.blue, opts.red);
   applyTeamKits(kits);
   renderBackground();         // the fans in the stands wear the new colours
@@ -277,6 +288,7 @@ function startFromMenu() {
 }
 // An idle match so the stadium can be drawn behind the menu
 function idleSim() {
+  applyPlayAsMeSides(teamDef(settings.blue), teamDef(settings.red));
   const kits = buildTeamKits(teamDef(settings.blue), teamDef(settings.red));
   applyTeamKits(kits); renderBackground();
   sim = createSim({ teams: kits });
