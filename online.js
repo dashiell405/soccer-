@@ -74,6 +74,7 @@ function hudSubtitle() {
 function keysHint(kind) {
   const t = touchActive();
   if (kind === "skip") return t ? "Tap to skip" : "Press any key to skip";
+  if (kind === "throw") return t ? "aim with the joystick, tap PASS to throw" : "aim, then E to throw";
   if (kind === "setpiece") return t ? "aim with the joystick, tap PASS or SHOOT" : "aim, then E = pass (hold to lob), Space = shoot";
   if (kind === "penTaker") return t ? "joystick up/down = aim, hold SHOOT = power" : "W/S or \u2191/\u2193 = aim, hold Space = power (too much = over the bar!)";
   if (kind === "penKeeper") return t ? "push the joystick up or down to pick a side" : "press up or down to pick your dive (left/right = stay)";
@@ -629,6 +630,13 @@ function handleFrom(member, msg) {
       if (msg.cmd === "card") room.sim.giveCard(Number(msg.index) || 0, msg.kind === "red" ? "red" : "yellow");
       if (msg.cmd === "shootout") room.sim.startShootout();
       if (msg.cmd === "clock") room.sim.game.clock = Math.max(0, Number(msg.value) || 0);
+      if (msg.cmd === "out") {
+        const g = room.sim.game, b = room.sim.ball;
+        g.phase = "play"; g.setpiece = null; b.owner = null;
+        b.lastTeam = msg.team === "blue" ? "blue" : "red";
+        b.x = 860; b.y = msg.side === "far" ? 80 : 1040; b.z = 0; b.vx = 0; b.vy = 0; b.vz = 0;
+      }
+      if (msg.cmd === "throwNow" && room.sim.game.setpiece && room.sim.game.setpiece.type === "throw") room.sim.game.setpiece.timer = 0.05;
       if (msg.cmd === "score") { room.sim.game.score.blue = Math.max(0, msg.blue | 0); room.sim.game.score.red = Math.max(0, msg.red | 0); }
       break;
     default:
@@ -1019,6 +1027,7 @@ function applyInterpolation(dt) {
     p.state = STATE_NAMES[pb[6]] || "run"; p.fallDir = pb[7];
     p.stamina = pb[8]; p.sprinting = !!pb[9];
     p.yellow = pb[10] || 0; p.sentOff = !!pb[11]; p.skill = SKILL_LIST[pb[12]] || null; p.skillT = pb[13] || 0;
+    p.throwT = pb[14] || 0;
     p.anim += Math.hypot(p.vx, p.vy) * dt * 0.09;  // running animation
   });
   const ba = A.b, bb = B.b;
@@ -1059,7 +1068,7 @@ function applyInterpolation(dt) {
   }
 
   controllers = L.c.map(([id, ai, charging, held, cpu]) => ({ id, active: players[ai] || null, charging: charging || null, held, cpu: !!cpu }));
-  game.setpiece = L.sp ? { type: L.sp[0], team: L.sp[1], taker: players[L.sp[2]] || null, indirect: !!L.sp[3] } : null;
+  game.setpiece = L.sp ? { type: L.sp[0], team: L.sp[1], taker: players[L.sp[2]] || null, indirect: !!L.sp[3], throwT: L.sp[4] || 0 } : null;
   // the comment countdown keeps running between snapshots
   if (game.comment.timer > 0) game.comment.timer -= dt;
 }
@@ -1675,7 +1684,7 @@ function updateCamera(dt, snap = false) {
     ty = PITCH.cy;
     zoom = 1.46;
   } else if (game.phase === "setpiece" && game.setpiece) {
-    zoom = game.setpiece.type === "kickoff" ? 1.0 : 1.28;
+    zoom = game.setpiece.type === "kickoff" ? 1.0 : game.setpiece.type === "throw" ? 1.42 : 1.28;
   }
   if (game.phase === "win") { zoom = 0.98; tx = PITCH.cx; }
 
@@ -2463,6 +2472,60 @@ function drawOfficial(o) {
   }
 }
 
+// Overhead throw: both arms reach the ball while it is in the hands,
+// then swing forward as it is released.
+function isThrowing(p) {
+  if (!p) return false;
+  const sp = game.setpiece;
+  if (sp && sp.type === "throw" && sp.taker === p) return true;
+  return (p.throwT || 0) > 0;
+}
+function drawThrowArms(foot, H, p) {
+  const skin = p.skin || "#e0ac69";
+  const armW = Math.max(4, H * 0.095);
+  const t = p.throwT || (game.setpiece && game.setpiece.throwT) || 0;
+  const into = p.y < PITCH.cy ? 1 : -1;          // screen y grows toward the near line
+  const sp = game.setpiece;
+  const inHands = sp && sp.type === "throw" && sp.taker === p && t < THROW_RELEASE;
+  let hx, hy;
+  if (inHands && ball) {
+    const b = w2s(ball.x, ball.y, ball.z || 0);
+    hx = b.x; hy = b.y;
+  } else {
+    const u = clamp((t - THROW_RELEASE) / Math.max(0.05, THROW_DONE - THROW_RELEASE), 0, 1);
+    hx = foot.x + (p.fx || 0) * H * 0.2;
+    hy = foot.y - H * 1.05 + into * H * (0.08 + u * 0.55);
+  }
+  // Both arms leave the shoulders, bow out, and meet the ball above the head.
+  const sy = foot.y - H * 0.74;
+  const slx = foot.x - H * 0.2, srx = foot.x + H * 0.2;
+  const elx = foot.x - H * 0.46, erx = foot.x + H * 0.46;
+  const ey = Math.min(sy, hy) + Math.abs(sy - hy) * 0.42;
+  const lx = hx - H * 0.07, rx = hx + H * 0.07, hy2 = hy + H * 0.04;
+  limb(slx, sy, elx, ey, lx, hy2, "rgba(0,0,0,0.55)", armW + 2.4);
+  limb(srx, sy, erx, ey, rx, hy2, "rgba(0,0,0,0.55)", armW + 2.4);
+  limb(slx, sy, elx, ey, lx, hy2, skin, armW);
+  limb(srx, sy, erx, ey, rx, hy2, skin, armW);
+  ctx.fillStyle = skin;
+  ctx.strokeStyle = "rgba(0,0,0,0.45)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(lx, hy2, H * 0.055, 0, Math.PI * 2);
+  ctx.arc(rx, hy2, H * 0.055, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+}
+function drawThrowArmsOnTop(cast) {
+  if (!cast) return;
+  for (const p of cast) {
+    if (!p || p.sentOff || !isThrowing(p)) continue;
+    const foot = w2s(p.x, p.y, 0);
+    const H = 34 * ZMUL * foot.s;
+    if (H < 7) continue;
+    drawThrowArms(foot, H, p);
+  }
+}
+
 function drawPlayer(p) {
   if (!p || p.sentOff) return;
   const T = TEAMS[p.team];
@@ -2565,10 +2628,13 @@ function drawPlayer(p) {
   ctx.fillStyle = "rgba(255,255,255,0.18)";
   ctx.fillRect(-H * 0.175, -H * 0.62, H * 0.35, H * 0.035);
 
-  // Arms.
+  // Arms. A throw-in draws both arms in screen space so they hold the ball.
+  const throwing = isThrowing(p);
   const as = -run * H * 0.16;
   const armW = H * 0.055;
-  if (pose === "plane" || (p.role === "GK" && p.state === "dive")) {
+  if (throwing) {
+    // arms are drawn after the body, reaching up to the ball
+  } else if (pose === "plane" || (p.role === "GK" && p.state === "dive")) {
     limb(-H * 0.16, -H * 0.7, -H * 0.46, -H * 0.64 + Math.sin(viewTime * 8) * H * 0.03, undefined, undefined, skin, armW);
     limb(H * 0.16, -H * 0.7, H * 0.46, -H * 0.64 - Math.sin(viewTime * 8) * H * 0.03, undefined, undefined, skin, armW);
   } else if (pose) {
@@ -2972,7 +3038,8 @@ function drawCommentary() {
     const sp = game.setpiece;
     if (sp && sp.taker && mine.includes(sp.taker)) {
       const names = { kickoff: "Kick off", throw: "Throw-in", corner: "Corner", goalkick: "Goal kick", free: sp.indirect ? "Indirect free kick (pass first!)" : "Free kick" };
-      hintBox(names[sp.type] + ": " + keysHint("setpiece"), VIEW_H * 0.72);
+      const hint = sp.type === "throw" ? keysHint("throw") : keysHint("setpiece");
+      hintBox(names[sp.type] + ": " + hint, VIEW_H * 0.72);
     }
   }
 }
@@ -3263,6 +3330,8 @@ function draw() {
   drawBoards(true);
   drawNearStands();
   for (const o of crew) if (o.side === "near") drawOfficial(o);
+  // Both arms are drawn last, so the hands stay on the ball above the head.
+  if (!replayOn) drawThrowArmsOnTop(cast);
   drawTower(PITCH.left + 48, PITCH.bottom + 14, false);
   drawTower(PITCH.right - 48, PITCH.bottom + 14, false);
   drawPenaltyAids();
@@ -3590,7 +3659,7 @@ window.mpDebug = {
     return {
       myId, room: room && { code: room.code, state: room.state, mode: room.mode, hostId: room.hostId, members: room.members },
       phase: game.phase, score: { ...game.score }, winner: game.winner,
-      ball: last ? { x: last.b[0], y: last.b[1] } : null, drawnBall: { x: ball.x, y: ball.y },
+      ball: last ? { x: last.b[0], y: last.b[1], z: last.b[2] } : null, drawnBall: { x: ball.x, y: ball.y, z: ball.z },
       me: a ? { index: players.indexOf(a), x: a.x, y: a.y, vx: a.vx, vy: a.vy } : null,
       myRaw: a && last ? (() => { const r = last.p[players.indexOf(a)]; return { x: r[0], y: r[1], vx: r[2], vy: r[3] }; })() : null,
       controllers: controllers.map((c) => ({ id: c.id, active: players.indexOf(c.active), cpu: c.cpu })),
@@ -3599,6 +3668,8 @@ window.mpDebug = {
       snapshots: snaps.length, winVisible: !$("winScreen").classList.contains("hidden"),
       teams: { blue: TEAMS.blue.short, red: TEAMS.red.short, blueShirt: TEAMS.blue.kit.shirt, redShirt: TEAMS.red.kit.shirt },
       setpiece: game.setpiece && game.setpiece.type, indirect: !!(game.setpiece && game.setpiece.indirect),
+      throwT: (game.setpiece && game.setpiece.throwT) || 0,
+      takerThrow: game.setpiece && game.setpiece.taker ? game.setpiece.taker.throwT || 0 : 0,
       penalty: game.penalty ? { team: game.penalty.team, aimY: game.penalty.aimY, gkChoice: game.penalty.gkChoice, iAmTaker: game.penalty.taker === a, iAmKeeper: game.penalty.keeper === a } : null,
       shootout: game.shootout, celebration: game.celebration ? game.celebration.type : null,
       cardPopup: game.cardPopup ? game.cardPopup.kind : null, flag: !!game.flag,

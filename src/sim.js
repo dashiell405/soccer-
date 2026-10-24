@@ -45,6 +45,10 @@ const CIRCLE_R = 115;              // center circle radius
 const POST_R = 4;
 
 const MATCH_LENGTH = 600;         // every real match is 10:00 of game time. No goal limit.
+// Overhead throw-in: wind the ball up behind the head, then swing it forward.
+const THROW_WIND = 0.42;          // seconds with the ball going up and back
+const THROW_RELEASE = 0.70;       // when the ball leaves the hands
+const THROW_DONE = 1.00;          // arms finish their follow-through
 const GOAL_CELEBRATION_TIME = 5.5; // seconds of celebrating after a goal (tap / any key skips)
 
 // Players
@@ -382,7 +386,11 @@ function createSim(opts = {}) {
 // Can this player kick the ball right now?
 function canKick(p) {
   if (p.state !== "run") return false;
-  if (game.phase === "setpiece") return game.setpiece.taker === p;
+  if (game.phase === "setpiece") {
+    // Once the overhead throw has started, the ball stays in the hands.
+    if (game.setpiece.type === "throw" && game.setpiece.throwT > 0) return false;
+    return game.setpiece.taker === p;
+  }
   if (game.phase !== "play") return false;
   if (ball.owner === p) return true;
   return !ball.owner && p.controlCD <= 0 && ball.z < CONTROL_HEIGHT && dist(p, ball) < KICK_RANGE;
@@ -564,11 +572,14 @@ function humanLoftedPass(p, charge) {
 }
 
 function humanThrow(p, action, charge) {
-  const mate = action === "pass" ? findPassTarget(p, 70) : null;
-  if (mate) throwBall(p, { x: mate.x, y: mate.y }, mate);
+  const sp = game.setpiece;
+  if (!sp || sp.type !== "throw" || sp.throwT > 0) return;
+  const mate = action === "pass" ? findPassTarget(p, 75) : null;
+  if (mate) startThrow(p, { x: mate.x, y: mate.y }, mate);
   else {
-    const d = 140 + 200 * charge;
-    throwBall(p, { x: ball.x + p.fx * d, y: ball.y + p.fy * d }, null);
+    const dir = throwDirection(p, null);
+    const d = 150 + 210 * charge;
+    startThrow(p, { x: p.x + dir.x * d, y: p.y + dir.y * d }, null);
   }
 }
 
@@ -658,6 +669,7 @@ function makePlayer(team, def, index) {
     thinkTimer: 0, holdTimer: 0,
     fouls: 0, yellow: 0, sentOff: false,   // discipline
     skill: null, skillT: 0, skillCD: 0, skillDir: null, burst: 0,  // tricks
+    throwT: 0,                     // overhead throw-in animation (0 = not throwing)
     fooled: 0, fooledDir: null,            // fooled by a step-over
     penSpot: null,                         // where to wait during a penalty
   };
@@ -682,7 +694,7 @@ function resetToHome() {
     p.x = p.homeX; p.y = p.homeY; p.vx = p.vy = 0;
     p.fx = TEAMS[p.team].dir; p.fy = 0;
     p.state = "run"; p.controlCD = 0; p.sprinting = false;
-    p.skill = null; p.skillT = 0; p.burst = 0; p.fooled = 0; p.penSpot = null;
+    p.skill = null; p.skillT = 0; p.burst = 0; p.fooled = 0; p.penSpot = null; p.throwT = 0; p.plantX = null; p.plantY = null;
   }
 }
 
@@ -771,11 +783,119 @@ function loftedPass(p, target, mate, heightMult = 1) {
   kickBall(p, { x: target.x - ball.x, y: target.y - ball.y }, vh, vz, "pass", mate);
 }
 
-// Throw-ins are short, gentle lobs
-function throwBall(p, target, mate) {
-  const d = Math.min(dist(ball, target), 320);
-  const dir = normalize(target.x - ball.x, target.y - ball.y);
-  loftedPass(p, { x: ball.x + dir.x * d, y: ball.y + dir.y * d }, mate, 0.7);
+// Which way is "back onto the pitch" from this touchline? +1 means +y.
+function throwInward(p) { return p.y < PITCH.cy ? 1 : -1; }
+
+// Aim the throw where the player is looking, but keep it coming back into play.
+function throwDirection(p, target) {
+  let dx = target ? target.x - p.x : p.fx;
+  let dy = target ? target.y - p.y : p.fy;
+  const into = throwInward(p);
+  const len = Math.hypot(dx, dy) || 1;
+  if (dy * into < 0.28 * len) dy = into * Math.max(Math.abs(dx) * 0.45, 50);
+  return normalize(dx, dy);
+}
+
+// Begin the overhead throw. The ball stays in the hands until THROW_RELEASE.
+function startThrow(p, target, mate) {
+  const sp = game.setpiece;
+  if (!sp || sp.type !== "throw" || sp.throwT > 0) return;
+  const dir = throwDirection(p, target);
+  sp.throwT = 0.001;
+  sp.throwDir = dir;
+  sp.throwTarget = target;
+  sp.throwMate = mate || null;
+  p.fx = dir.x; p.fy = dir.y;
+  p.throwT = 0.001;
+}
+
+// Ball in the hands: up and back behind the head, then swinging forward.
+function holdThrowBall(p, t) {
+  const into = throwInward(p);
+  const aimX = (game.setpiece && game.setpiece.throwDir && game.setpiece.throwDir.x) || p.fx || 0;
+  let along, z;
+  if (t <= 0) { along = -8; z = 50; }                         // held above the head
+  else if (t < THROW_WIND) {
+    const u = t / THROW_WIND;
+    along = lerp(-8, -30, u);                                 // back behind the head
+    z = lerp(50, 60, u);
+  } else {
+    const u = clamp((t - THROW_WIND) / (THROW_RELEASE - THROW_WIND), 0, 1);
+    const s = u * u * (3 - 2 * u);                            // smooth swing
+    along = lerp(-30, 24, s);                                 // forward, into play
+    z = lerp(60, 36, s);
+  }
+  ball.x = p.x + aimX * Math.max(0, along) * 0.45;
+  ball.y = p.y + into * along;
+  ball.z = z;
+  ball.vx = 0; ball.vy = 0; ball.vz = 0;
+  ball.owner = p;
+}
+
+// Let go. The ball starts above the head, lifts a little, then lands in play.
+function releaseThrow(p) {
+  const sp = game.setpiece;
+  const dir = (sp && sp.throwDir) || throwDirection(p, null);
+  const target = (sp && sp.throwTarget) || { x: p.x + dir.x * 180, y: p.y + dir.y * 180 };
+  const into = throwInward(p);
+  const x = clamp(p.x + dir.x * 18, PITCH.left + 12, PITCH.right - 12);
+  let y = p.y + into * 22;
+  y = into > 0 ? Math.max(y, PITCH.top + 16) : Math.min(y, PITCH.bottom - 16);
+  ball.x = x; ball.y = y; ball.z = 35;
+  ball.owner = null;
+  const d = clamp(Math.hypot(target.x - x, target.y - y), 90, 320);
+  const T = clamp(0.58 + d / 900, 0.72, 1.15);
+  const vz = Math.max(80, GRAVITY * T / 2 - ball.z / T);
+  const k = -Math.log(AIR_DRAG);
+  const vh = d / ((1 - Math.pow(AIR_DRAG, T)) / k);
+  p.throwT = sp ? sp.throwT : THROW_RELEASE;
+  kickBall(p, dir, Math.min(vh, 540), vz, "pass", sp && sp.throwMate);
+}
+
+function faceThrowIdle(p) {
+  if (controllerOf(p)) return;                                // a human aims with the stick
+  const best = bestPass(p, 340);
+  const into = throwInward(p);
+  const T = TEAMS[p.team];
+  const tgt = best ? best.target : { x: p.x + T.dir * 160, y: p.y + into * 100 };
+  const dir = throwDirection(p, tgt);
+  p.fx = dir.x; p.fy = dir.y;
+}
+
+function plantThrower(p) {
+  if (!p || p.plantX == null) return;
+  p.x = p.plantX; p.y = p.plantY; p.vx = 0; p.vy = 0;
+}
+
+// Feet stay on the touchline for the whole throw-in.
+function glueThrower() {
+  const sp = game.phase === "setpiece" ? game.setpiece : null;
+  if (!sp || sp.type !== "throw" || !sp.taker) return;
+  const p = sp.taker;
+  p.plantX = sp.spotX; p.plantY = sp.spotY;
+  p.x = sp.spotX; p.y = sp.spotY; p.vx = 0; p.vy = 0; p.state = "run";
+  if (sp.throwT > 0 && sp.throwDir) { p.fx = sp.throwDir.x; p.fy = sp.throwDir.y; p.throwT = sp.throwT; }
+  else { p.throwT = 0; faceThrowIdle(p); holdThrowBall(p, 0); }
+}
+
+function advanceThrow(dt) {
+  const sp = game.phase === "setpiece" ? game.setpiece : null;
+  let winding = null;
+  if (sp && sp.type === "throw" && sp.throwT > 0 && sp.taker) {
+    sp.throwT += dt;
+    const p = sp.taker;
+    p.throwT = sp.throwT;
+    if (sp.throwDir) { p.fx = sp.throwDir.x; p.fy = sp.throwDir.y; }
+    p.x = sp.spotX; p.y = sp.spotY; p.vx = 0; p.vy = 0;
+    if (sp.throwT >= THROW_RELEASE) releaseThrow(p);
+    else { holdThrowBall(p, sp.throwT); winding = p; }
+  }
+  for (const p of roster) {
+    if (p === winding || !(p.throwT > 0)) continue;
+    p.throwT += dt;
+    if (p.throwT >= THROW_DONE) { p.throwT = 0; p.plantX = null; p.plantY = null; }
+    else plantThrower(p);
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -1183,6 +1303,10 @@ function aiDecide(p, dt) {
     }
     return { ...formationSpot(p, sp.team === p.team), sprint: false };
   }
+  if (game.phase === "dead" && game.pending && game.pending.type === "throw" && p === game.pending.taker) {
+    const spot = game.pending;
+    return { x: spot.x, y: spot.y, sprint: Math.hypot(p.x - spot.x, p.y - spot.y) > 80 };
+  }
   if (game.phase === "dead" || game.phase === "goal") {
     const ce = game.celebration;
     if (game.phase === "goal" && ce && ce.scorer) {
@@ -1454,8 +1578,11 @@ function aiTakeSetpiece(p, type) {
     loftedPass(p, { x: target.x, y: target.y }, inBox.length ? target : null, 1.1);
   } else if (type === "throw") {
     const best = bestPass(p, 330);
-    if (best) throwBall(p, best.target, best.mate);
-    else throwBall(p, { x: ball.x + T.dir * 200, y: ball.y < PITCH.cy ? ball.y + 60 : ball.y - 60 }, null);
+    if (best) startThrow(p, best.target, best.mate);
+    else {
+      const into = ball.y < PITCH.cy ? 1 : -1;
+      startThrow(p, { x: ball.x + T.dir * 180, y: ball.y + into * 80 }, null);
+    }
   } else if (type === "penalty") {
     aiPenalty(p);
   } else if (type === "free") {
@@ -1561,6 +1688,8 @@ function updatePlayers(dt) {
         if (human && (want.x || want.y)) { const n = normalize(want.x, want.y); p.fx = n.x; p.fy = n.y; }
         want = { x: 0, y: 0 };
       }
+      // Overhead throw: both feet stay on the touchline until the arms finish.
+      if ((p.throwT || 0) > 0) { want = { x: 0, y: 0 }; sprint = false; }
       // ROULETTE: spin away sideways with the ball
       if (p.skill === "spin" && ball.owner === p && p.skillDir) { want = { x: p.skillDir.x, y: p.skillDir.y }; speedMult *= 1.1; }
 
@@ -1606,6 +1735,8 @@ function updatePlayers(dt) {
   }
   separatePlayers();
   if (sp() && sp().type !== "kickoff") keepAwayFromSetpiece();
+  glueThrower();
+  advanceThrow(dt);
 }
 
 // Bodies can't overlap. Also: a slide that hits the PLAYER before the
@@ -1664,7 +1795,8 @@ function checkOutOfPlay() {
   // Over a touchline (top or bottom): THROW-IN to the other team
   if (ball.y < PITCH.top - r || ball.y > PITCH.bottom + r) {
     const team = other(ball.lastTeam || "red");
-    goDead("throw", team, { x: clamp(ball.x, PITCH.left + 8, PITCH.right - 8), y: ball.y < PITCH.cy ? PITCH.top : PITCH.bottom });
+    const spot = { x: clamp(ball.x, PITCH.left + 18, PITCH.right - 18), y: ball.y < PITCH.cy ? PITCH.top : PITCH.bottom };
+    goDead("throw", team, spot, nearestOutfield(team, spot));
     return;
   }
 
@@ -1764,31 +1896,53 @@ function beginSetpiece(type, team, x, y, taker = null, indirect = false) {
   }
   taker.state = "run";
   let f;
-  if (type === "corner") f = normalize(PITCH.cx - x, PITCH.cy - y);
-  else if (type === "throw") f = normalize(T.dir * 0.6, y < PITCH.cy ? 1 : -1);
-  else if (type === "free") f = normalize(T.targetGoalX - x, PITCH.cy - y);
-  else f = { x: T.dir, y: 0 };
+  if (type === "throw") {
+    // Both feet on the touchline, body facing back into the pitch.
+    const into = y < PITCH.cy ? 1 : -1;
+    f = normalize(T.dir * 0.45, into);
+    taker.x = x; taker.y = y;
+  } else {
+    if (type === "corner") f = normalize(PITCH.cx - x, PITCH.cy - y);
+    else if (type === "free") f = normalize(T.targetGoalX - x, PITCH.cy - y);
+    else f = { x: T.dir, y: 0 };
+    const back = type === "penalty" ? 26 : 0;  // a little run-up for penalties
+    taker.x = x - f.x * (PLAYER_R + BALL_R + 1 + back);
+    taker.y = y - f.y * (PLAYER_R + BALL_R + 1 + back);
+  }
   taker.fx = f.x; taker.fy = f.y;
-  const back = type === "penalty" ? 26 : 0;  // a little run-up for penalties
-  taker.x = x - f.x * (PLAYER_R + BALL_R + 1 + back);
-  taker.y = y - f.y * (PLAYER_R + BALL_R + 1 + back);
   taker.vx = taker.vy = 0;
+  taker.throwT = 0;
 
   ball.owner = type === "penalty" ? null : taker;
   ball.lastTouch = taker; ball.lastTeam = team;
   const humanTakes = isHumanTeam(team) && taker.role !== "GK";
   const humanPen = type === "penalty" && (isHumanTeam(team) || isHumanTeam(other(team)));
   game.setpiece = { type, team, taker, indirect: !!indirect,
-                    timer: type === "penalty" ? (humanPen ? 12 : rand(1.4, 2)) : humanTakes ? 7 : rand(0.9, 1.5) };
+                    timer: type === "penalty" ? (humanPen ? 12 : rand(1.4, 2)) : humanTakes ? 7 : rand(0.9, 1.5),
+                    spotX: taker.x, spotY: taker.y, throwT: 0, throwDir: null, throwTarget: null, throwMate: null };
   game.phase = "setpiece";
   cancelCharging();
   game.stats[type]++;
   if (type === "penalty") setupPenalty(team, taker);
   else {
     game.penalty = null;
+    if (type === "throw") holdThrowBall(taker, 0);   // ball is already over the head, not at the feet
     if (type !== "kickoff") keepAwayFromSetpiece();
     else { say("Kick off!", "#fff", 1.5); emit("whistle"); }
   }
+}
+
+// Nearest teammate who can take a throw-in (not the goalkeeper).
+function nearestOutfield(team, spot) {
+  let best = null, bd = Infinity, fallback = null, fd = Infinity;
+  for (const p of teamPlayers(team)) {
+    if (p.role === "GK" || p.sentOff) continue;
+    const d = Math.hypot(p.x - spot.x, p.y - spot.y);
+    if (d < fd) { fd = d; fallback = p; }
+    if (p.state !== "run") continue;
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best || fallback;
 }
 
 // ---------------------------------------------------------------------
@@ -2466,10 +2620,10 @@ function update(dt) {
       sc: [game.score.blue, game.score.red],
       cl: r1(game.clock), tm: r2(game.timer),
       cm: c.timer > 0 ? [c.text, c.color, r2(c.timer)] : null,
-      sp: game.setpiece ? [game.setpiece.type, game.setpiece.team, idx(game.setpiece.taker), game.setpiece.indirect ? 1 : 0] : null,
+      sp: game.setpiece ? [game.setpiece.type, game.setpiece.team, idx(game.setpiece.taker), game.setpiece.indirect ? 1 : 0, r2(game.setpiece.throwT || 0)] : null,
       ls: game.lastScorer, w: game.winner,
       p: roster.map((p) => [r1(p.x), r1(p.y), r1(p.vx), r1(p.vy), r2(p.fx), r2(p.fy), STATE_CODES[p.state] || 0, p.fallDir, r2(p.stamina), p.sprinting ? 1 : 0,
-                            p.yellow, p.sentOff ? 1 : 0, SKILL_LIST.indexOf(p.skill), r2(Math.max(0, p.skillT))]),
+                            p.yellow, p.sentOff ? 1 : 0, SKILL_LIST.indexOf(p.skill), r2(Math.max(0, p.skillT)), r2(Math.max(0, p.throwT || 0))]),
       // penalty: [team, taker, keeper, aimY, goalie choice, dive]
       pe: game.penalty ? [game.penalty.team, idx(game.penalty.taker), idx(game.penalty.keeper), r1(game.penalty.aimY), game.penalty.gkChoice, game.penalty.dive] : null,
       so: game.shootout ? [game.shootout.first, game.shootout.kicks.blue.join(""), game.shootout.kicks.red.join(""), game.shootout.sudden ? 1 : 0, game.shootout.done ? 1 : 0, game.shootout.winner] : null,

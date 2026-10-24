@@ -194,6 +194,7 @@ function keysHint(kind) {
   const t = touchActive();
   const two = settings.mode === "2p";
   if (kind === "skip") return t ? "Tap to skip" : "Press any key to skip";
+  if (kind === "throw") return t ? "aim with the joystick, tap PASS to throw" : two ? "aim, then pass to throw" : "aim, then E to throw";
   if (kind === "setpiece") return t ? "aim with the joystick, tap PASS or SHOOT" : two ? "aim, then pass or shoot" : "aim, then E = pass (hold to lob), Space = shoot";
   if (kind === "penTaker") return t ? "joystick up/down = aim, hold SHOOT = power" : two ? "up/down = aim, hold shoot = power" : "W/S or \u2191/\u2193 = aim, hold Space = power (too much = over the bar!)";
   if (kind === "penKeeper") return t ? "push the joystick up or down to pick a side" : "press up or down to pick your dive (left/right = stay)";
@@ -651,6 +652,11 @@ window.soccerDebug = {
       score: { ...game.score }, winner: game.winner, clock: Math.round(game.clock),
       timeLimit: game.timeLimit, knockout: !!game.knockout,
       setpiece: game.setpiece ? game.setpiece.type : null, indirect: !!(game.setpiece && game.setpiece.indirect),
+      throwT: game.setpiece && game.setpiece.type === "throw" ? game.setpiece.throwT || 0 : 0,
+      hint: game.setpiece && game.setpiece.type === "throw" ? keysHint("throw") : "",
+      zoom: game.camera ? Math.round(game.camera.zoom * 100) / 100 : 1,
+      ballZ: ball ? Math.round(ball.z || 0) : 0,
+      linesman: game.officials ? game.officials.map((o) => o.sig) : [],
       ball: { x: Math.round(ball.x), y: Math.round(ball.y), z: Math.round(ball.z) },
       stats: game.stats ? JSON.parse(JSON.stringify(game.stats)) : null,
       players: players.length, onPitch: { blue: players.filter((p) => p.team === "blue").length, red: players.filter((p) => p.team === "red").length },
@@ -674,6 +680,14 @@ window.soccerDebug = {
   offside(team = "blue") { return sim.debugOffside(team); },
   skill(team = "blue", type = "stepover") { return sim.debugSkill(team, type); },
   press(id, action) { sim.press(id, action); },
+  setInput(id, inp) { sim.setInput(id, inp); },
+  // Put the ball over a touchline so the next step is a throw-in.
+  ballOut(side = "near") {
+    game.phase = "play"; game.setpiece = null;
+    ball.owner = null; ball.lastTeam = "red"; ball.shot = null;
+    ball.x = 860; ball.y = side === "far" ? 80 : 1040; ball.z = 0; ball.vx = 0; ball.vy = 0; ball.vz = 0;
+    return this.state();
+  },
   // Give the ball to the player a human controls (to test buttons)
   giveBall(id = "p1") {
     const c = sim.controllers.find((k) => k.id === id);

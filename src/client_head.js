@@ -74,6 +74,7 @@ function hudSubtitle() {
 function keysHint(kind) {
   const t = touchActive();
   if (kind === "skip") return t ? "Tap to skip" : "Press any key to skip";
+  if (kind === "throw") return t ? "aim with the joystick, tap PASS to throw" : "aim, then E to throw";
   if (kind === "setpiece") return t ? "aim with the joystick, tap PASS or SHOOT" : "aim, then E = pass (hold to lob), Space = shoot";
   if (kind === "penTaker") return t ? "joystick up/down = aim, hold SHOOT = power" : "W/S or \u2191/\u2193 = aim, hold Space = power (too much = over the bar!)";
   if (kind === "penKeeper") return t ? "push the joystick up or down to pick a side" : "press up or down to pick your dive (left/right = stay)";
