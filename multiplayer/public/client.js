@@ -995,8 +995,9 @@ let viewTime = 0;
 let lastDt = 0.016;
 
 function depthT(y) {
-  const y0 = PITCH.top - 220;
-  const y1 = PITCH.bottom + 180;
+  const grow = typeof FIELD === "number" ? FIELD : 1;
+  const y0 = PITCH.top - 220 * grow;
+  const y1 = PITCH.bottom + 180 * grow;
   return clamp((y - y0) / (y1 - y0), 0, 1);
 }
 function smooth01(t) { return t * t * (3 - 2 * t); }
@@ -1160,10 +1161,11 @@ function updateCamera(dt, snap = false) {
   const by = sample ? sample.ball.y : ball.y;
   const bvx = sample ? sample.ball.vx || 0 : ball.vx || 0;
 
-  let tx = bx + clamp(bvx, -420, 420) * 0.3;
+  const grow = typeof FIELD === "number" ? FIELD : 1;
+  let tx = bx + clamp(bvx, -420 * grow, 420 * grow) * 0.3;
   let ty = by;
   const phone = phonePlay();
-  let zoom = phone ? 1.0 : 1.04;
+  let zoom = (phone ? 1.0 : 1.04) / grow;
 
   if (game.phase === "menu" || game.phase === "lobby") {
     tx = PITCH.cx + Math.sin(viewTime * 0.18) * 90;
@@ -1171,7 +1173,7 @@ function updateCamera(dt, snap = false) {
     zoom = 0.94;
   }
   if (game.phase === "goal") {
-    zoom = replayOn ? (phone ? 1.16 : 1.42) : (phone ? 1.08 : 1.24);
+    zoom = (replayOn ? (phone ? 1.16 : 1.42) : (phone ? 1.08 : 1.24)) / grow;
     if (!replayOn && game.celebration && game.celebration.scorer) {
       tx = game.celebration.scorer.x;
       ty = game.celebration.scorer.y;
@@ -1182,11 +1184,18 @@ function updateCamera(dt, snap = false) {
     const A = TEAMS[pen.team];
     tx = A.targetGoalX - A.dir * 110;
     ty = PITCH.cy;
-    zoom = phone ? 1.18 : 1.46;
+    zoom = (phone ? 1.18 : 1.46) / grow;
   } else if (game.phase === "setpiece" && game.setpiece) {
-    zoom = game.setpiece.type === "kickoff" ? 1.0 : game.setpiece.type === "throw" ? (phone ? 1.14 : 1.42) : (phone ? 1.1 : 1.28);
+    if (game.setpiece.type === "kickoff") {
+      const base = scaleAtT(depthT(PITCH.cy), 1);
+      zoom = clamp((VIEW_W * 0.94) / Math.max(1, PITCH.w) / base, 0.48, 1.08);
+      tx = PITCH.cx;
+      ty = PITCH.cy;
+    } else {
+      zoom = (game.setpiece.type === "throw" ? (phone ? 1.14 : 1.42) : (phone ? 1.1 : 1.28)) / grow;
+    }
   }
-  if (game.phase === "win") { zoom = 0.98; tx = PITCH.cx; }
+  if (game.phase === "win") { zoom = 0.98 / grow; tx = PITCH.cx; }
 
   const midS = scaleAtT(depthT(PITCH.cy), zoom);
   const half = (VIEW_W * 0.5) / Math.max(0.25, midS);
@@ -1476,11 +1485,11 @@ function drawStandFace(x0, x1, y, z0, z1, row) {
 
 function drawFarStands() {
   const rows = quality === "low"
-    ? [{ y: PITCH.top - 48, z0: 16, z1: 48 }]
+    ? [{ y: PITCH.top - 48 * FIELD, z0: 16, z1: 48 }]
     : [
-        { y: PITCH.top - 86, z0: 52, z1: 86 },
-        { y: PITCH.top - 64, z0: 30, z1: 60 },
-        { y: PITCH.top - 44, z0: 12, z1: 40 },
+        { y: PITCH.top - 86 * FIELD, z0: 52, z1: 86 },
+        { y: PITCH.top - 64 * FIELD, z0: 30, z1: 60 },
+        { y: PITCH.top - 44 * FIELD, z0: 12, z1: 40 },
       ];
   rows.forEach((r, i) => drawStandFace(30, WORLD_W - 30, r.y, r.z0, r.z1, i));
   drawStandBanners();
@@ -1490,8 +1499,8 @@ function drawFarStands() {
 function drawStandBanners() {
   if (!TEAMS.blue || !TEAMS.blue.kit) return;
   const spots = [
-    { team: "blue", x: PITCH.cx - 340 },
-    { team: "red", x: PITCH.cx + 220 },
+    { team: "blue", x: PITCH.cx - 340 * FIELD },
+    { team: "red", x: PITCH.cx + 220 * FIELD },
   ];
   for (const s of spots) {
     const base = w2s(s.x, PITCH.top - 8, 34);
@@ -1523,10 +1532,10 @@ function drawNearStands() {
   // A short lip of fans along the bottom. Tall tiers here would climb
   // over the near touchline when the camera zooms in.
   const rows = quality === "low"
-    ? [{ y: PITCH.bottom + 36, z0: 0, z1: 9 }]
+    ? [{ y: PITCH.bottom + 36 * FIELD, z0: 0, z1: 9 }]
     : [
-        { y: PITCH.bottom + 30, z0: 0, z1: 8 },
-        { y: PITCH.bottom + 48, z0: 3, z1: 12 },
+        { y: PITCH.bottom + 30 * FIELD, z0: 0, z1: 8 },
+        { y: PITCH.bottom + 48 * FIELD, z0: 3, z1: 12 },
       ];
   rows.forEach((r, i) => drawStandFace(30, WORLD_W - 30, r.y, r.z0, r.z1, i + 1));
 }

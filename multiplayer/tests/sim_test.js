@@ -92,21 +92,22 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
 // 11. referee and linesmen
 { const sim = S.createSim({}); sim.start(); sim.setAutoplay(true); run(sim, 5);
   const ref = sim.game.officials[0], near = sim.game.officials[1], far = sim.game.officials[2];
-  assert(ref.x > 140 && ref.x < 1500 && ref.y > 140 && ref.y < 960, 'referee stays on the pitch');
-  assert(Math.abs(near.y - 1000) < 0.5 && Math.abs(far.y - 100) < 0.5, 'linesmen stay on the touchlines');
+  assert(ref.x > S.PITCH.left + 10 && ref.x < S.PITCH.right - 10 && ref.y > S.PITCH.top + 10 && ref.y < S.PITCH.bottom - 10, 'referee stays on the pitch');
+  assert(Math.abs(near.y - (S.PITCH.bottom + 20)) < 0.5 && Math.abs(far.y - (S.PITCH.top - 20)) < 0.5, 'linesmen stay on the touchlines');
   const snap = sim.snapshot();
   assert(snap.of && snap.of.length === 3 && snap.of[1].length === 8 && snap.p[0].length === 15, 'snapshot carries officials without changing players');
 }
 { const sim = S.createSim({ difficulty: 'normal' }); sim.start(); sim.setAutoplay(true);
-  const M = 1400 / 105;
+  const M = S.PITCH.w / 105;
+  const nearLine = S.PITCH.bottom + 20, farLine = S.PITCH.top - 20;
   let n = 0, sum = 0, min = 1e9, maxLine = 0, inside = 0;
   let t = 0;
   while (sim.game.phase !== 'win' && t < 2000) {
     for (let i = 0; i < 120; i++) {
       sim.update(1/120);
       const near = sim.game.officials[1], far = sim.game.officials[2];
-      maxLine = Math.max(maxLine, Math.abs(near.y - 1000), Math.abs(far.y - 100));
-      if (near.y <= 980 || far.y >= 120) inside++;
+      maxLine = Math.max(maxLine, Math.abs(near.y - nearLine), Math.abs(far.y - farLine));
+      if (near.y <= S.PITCH.bottom || far.y >= S.PITCH.top) inside++;
       if (sim.game.phase === 'play' && !sim.game.cardPopup && !sim.game.flag) {
         const ref = sim.game.officials[0];
         const d = Math.hypot(ref.x - sim.ball.x, ref.y - sim.ball.y);
@@ -140,10 +141,10 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
 }
 // 12. overhead throw-in
 {
-  const P = { top: 120, bottom: 980 };
+  const P = S.PITCH;
   const putOut = (sim, side, lastTeam) => {
     sim.game.phase = 'play'; sim.game.setpiece = null;
-    Object.assign(sim.ball, { owner: null, lastTeam, shot: null, x: 860, y: side === 'far' ? 80 : 1040, z: 0, vx: 0, vy: 0, vz: 0 });
+    Object.assign(sim.ball, { owner: null, lastTeam, shot: null, x: P.cx, y: side === 'far' ? P.top - 40 : P.bottom + 40, z: 0, vx: 0, vy: 0, vz: 0 });
   };
   const sim = S.createSim({}); sim.start(); run(sim, 0.4);
   putOut(sim, 'near', 'red');
@@ -216,7 +217,7 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   assert(corner.game.pending && corner.game.pending.type === 'corner', 'a goal-line out is still a corner');
   run(corner, 1.3);
   const ct = corner.game.setpiece && corner.game.setpiece.taker;
-  assert(corner.game.setpiece && corner.game.setpiece.type === 'corner' && ct && ct.throwT === 0 && corner.ball.z < 1 && corner.ball.y < 130, 'corners still put the ball on the ground at the flag');
+  assert(corner.game.setpiece && corner.game.setpiece.type === 'corner' && ct && ct.throwT === 0 && corner.ball.z < 1 && corner.ball.y < S.PITCH.top + 20, 'corners still put the ball on the ground at the flag');
 }
 // 12. full squads, traits, and goal scorers
 { const sim = S.createSim({ teams: S.buildTeamKits(S.findTeam('bra'), S.findTeam('ita')) });
@@ -359,4 +360,45 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   assert(db.hold > boost(onBlue('dribbler')).hold && db.hold <= 2.15, 'keeps the ball better than the best dribbler, with a cap');
   assert(db.steal > boost(onBlue('rock')).steal && db.steal <= 1.82, 'tackles better than the best rock, with a cap');
   assert(db.stamDrain < boost(onBlue('engine')).stamDrain && db.stamDrain >= 0.34, 'tires slower than the best engine, with a floor');
+}
+// Kick-off: each squad stays in its own half. Only the kicker is in the centre circle.
+function kickoffOk(sim, label) {
+  const P = S.PITCH;
+  const sp = sim.game.setpiece;
+  assert(sp && sp.type === 'kickoff', label + ' is a kick-off');
+  const taker = sp.taker;
+  const gap = Math.round(115 * S.FIELD) + 11 + 8;
+  let bad = '';
+  for (const p of sim.players) {
+    const dir = p.team === 'blue' ? 1 : -1;
+    const own = dir > 0 ? p.x < P.cx - 8 : p.x > P.cx + 8;
+    const inCircle = Math.hypot(p.x - P.cx, p.y - P.cy) < gap - 4;
+    if (p === taker) {
+      if (!own) bad = 'kicker is in the other half';
+      if (Math.hypot(p.x - P.cx, p.y - P.cy) > gap + 20) bad = 'kicker is outside the centre circle';
+    } else if (!own) bad = p.team + ' ' + p.role + ' #' + p.num + ' is in the other half';
+    else if (inCircle) bad = p.team + ' ' + p.role + ' #' + p.num + ' is inside the centre circle';
+  }
+  const defs = sim.players.filter((p) => p.role === 'DEF');
+  const spread = Math.max(...defs.map((p) => p.y)) - Math.min(...defs.map((p) => p.y));
+  assert(!bad && spread > P.h * 0.35, label + (bad ? ': ' + bad : ' keeps both teams at home, defenders spread ' + Math.round(spread)));
+}
+{
+  for (const sides of [
+    [['bra', 'usa'], 1],
+    [['eng', 'fra'], 2],
+    [['ita', 'ger'], 0],
+  ]) {
+    const sim = S.createSim({ teams: S.buildTeamKits(S.findTeam(sides[0][0]), S.findTeam(sides[0][1])) });
+    if (sides[1] >= 1) { sim.addController('p1', 'A', 'blue'); sim.addController('p2', 'B', 'red'); }
+    if (sides[1] === 2) { sim.addController('p3', 'C', 'blue'); sim.addController('p4', 'D', 'red'); }
+    sim.start();
+    sim.update(1 / 120);
+    kickoffOk(sim, sides[0].join(' v ') + (sides[1] === 2 ? ' 2v2' : sides[1] === 1 ? ' 1v1' : ' full'));
+    sim.forceGoal('blue');
+    let t = 0;
+    while (!(sim.game.setpiece && sim.game.setpiece.type === 'kickoff') && t < 800) { sim.update(1 / 120); t++; }
+    sim.update(1 / 120);
+    kickoffOk(sim, sides[0].join(' v ') + ' after a goal');
+  }
 }

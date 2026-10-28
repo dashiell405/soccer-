@@ -752,7 +752,7 @@ window.soccerDebug = {
   ballOut(side = "near") {
     game.phase = "play"; game.setpiece = null;
     ball.owner = null; ball.lastTeam = "red"; ball.shot = null;
-    ball.x = 860; ball.y = side === "far" ? 80 : 1040; ball.z = 0; ball.vx = 0; ball.vy = 0; ball.vz = 0;
+    ball.x = PITCH.cx; ball.y = side === "far" ? PITCH.top - 40 : PITCH.bottom + 40; ball.z = 0; ball.vx = 0; ball.vy = 0; ball.vz = 0;
     return this.state();
   },
   // Give the ball to the player a human controls (to test buttons)
@@ -767,7 +767,7 @@ window.soccerDebug = {
   roster() { return sim.roster.map((p, i) => ({ i, team: p.team, role: p.role, num: p.num, sentOff: p.sentOff })); },
   // Where the referee and linesmen are, for checks and screenshots.
   crew() {
-    const M = 1400 / 105;
+    const M = PITCH.w / 105;
     const ref = game.officials[0], near = game.officials[1], far = game.officials[2];
     return {
       phase: game.phase,

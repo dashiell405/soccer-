@@ -24,25 +24,28 @@
 
 // The whole stadium ("world") is bigger than the screen. A camera shows
 // part of it. All positions below are in world pixels.
-const WORLD_W = 1640, WORLD_H = 1100;
-const STANDS = 70;                 // thickness of the crowd stands
-const PITCH = { left: 120, top: 120, right: 1520, bottom: 980 };
+// FIELD makes the pitch about 18% longer and wider. Lines, goals, and
+// running speeds use the same scale so a bigger field still feels right.
+const FIELD = 1.18;
+const WORLD_W = Math.round(1640 * FIELD), WORLD_H = Math.round(1100 * FIELD);
+const STANDS = Math.round(70 * FIELD);                 // thickness of the crowd stands
+const PITCH = { left: Math.round(120 * FIELD), top: Math.round(120 * FIELD), right: Math.round(1520 * FIELD), bottom: Math.round(980 * FIELD) };
 PITCH.w = PITCH.right - PITCH.left;
 PITCH.h = PITCH.bottom - PITCH.top;
 PITCH.cx = (PITCH.left + PITCH.right) / 2;
 PITCH.cy = (PITCH.top + PITCH.bottom) / 2;
 
 // Pitch markings (roughly real proportions, goals a bit bigger for fun)
-const GOAL_W = 160;                // goal mouth width
-const GOAL_DEPTH = 36;             // how deep the net is
-const CROSSBAR = 40;               // crossbar height (ball z)
+const GOAL_W = Math.round(160 * FIELD);                // goal mouth width
+const GOAL_DEPTH = Math.round(36 * FIELD);             // how deep the net is
+const CROSSBAR = Math.round(40 * FIELD);               // crossbar height (ball z)
 const GOAL_TOP = PITCH.cy - GOAL_W / 2;
 const GOAL_BOTTOM = PITCH.cy + GOAL_W / 2;
-const BOX = { depth: 210, width: 520 };     // penalty box
-const SIX = { depth: 70, width: 250 };      // 6-yard box
-const PEN_SPOT = 140;              // penalty spot distance from goal line
-const CIRCLE_R = 115;              // center circle radius
-const POST_R = 4;
+const BOX = { depth: Math.round(210 * FIELD), width: Math.round(520 * FIELD) };     // penalty box
+const SIX = { depth: Math.round(70 * FIELD), width: Math.round(250 * FIELD) };      // 6-yard box
+const PEN_SPOT = Math.round(140 * FIELD);              // penalty spot distance from goal line
+const CIRCLE_R = Math.round(115 * FIELD);              // center circle radius
+const POST_R = Math.max(4, Math.round(4 * FIELD));
 
 const MATCH_LENGTH = 300;         // every real match is 5:00 of game time. No goal limit.
 // Overhead throw-in: wind the ball up behind the head, then swing it forward.
@@ -53,28 +56,28 @@ const GOAL_CELEBRATION_TIME = 5.5; // seconds of celebrating after a goal (tap /
 
 // Players
 const PLAYER_R = 11;               // collision radius (at the feet)
-const RUN_SPEED = 190;             // normal running speed (px/s)
+const RUN_SPEED = 190 * FIELD;     // normal running speed (px/s)
 const SPRINT_MULT = 1.4;           // sprinting is 40% faster...
 const DRIBBLE_MULT = 0.92;         // ...and you are a bit slower with the ball
-const ACCEL = 540;                 // how quickly players speed up (px/s^2). A bit of weight, still quick to respond.
+const ACCEL = 540 * FIELD;         // how quickly players speed up (px/s^2). A bit of weight, still quick to respond.
 const STAMINA_DRAIN = 0.22;        // stamina used per second of sprinting
 const STAMINA_REGEN = 0.10;        // stamina regained per second
-const SLIDE_SPEED = 400;
+const SLIDE_SPEED = 400 * FIELD;
 const SLIDE_TIME = 0.45;
 
 // Ball
 const BALL_R = 6;
-const GRAVITY = 650;               // pulls the ball back down (px/s^2)
+const GRAVITY = 650 * FIELD;       // pulls the ball back down (px/s^2)
 const GROUND_FRICTION = 0.58;      // fraction of speed left after 1 s rolling
 const AIR_DRAG = 0.85;             // fraction of speed left after 1 s flying
 const BOUNCE = 0.58;               // how bouncy the ball is on the ground
 const CONTROL_HEIGHT = 18;         // ball lower than this can be controlled
 const HEADER_HEIGHT = 36;          // ball lower than this can be headed
 const GK_HAND_HEIGHT = 56;         // goalies can catch up to this height
-const CONTROL_SPEED = 640;         // faster balls bounce off instead of sticking
+const CONTROL_SPEED = 640 * FIELD; // faster balls bounce off instead of sticking
 
 // Kicking
-const SHOT_MIN = 520, SHOT_MAX = 1200; // shot speed range (charge 0 -> 1)
+const SHOT_MIN = 520 * FIELD, SHOT_MAX = 1200 * FIELD; // shot speed range (charge 0 -> 1)
 const CHARGE_TIME = 0.9;           // seconds to fully charge a kick
 const TAP_TIME = 0.22;             // a press shorter than this is a "tap"
 const KICK_RANGE = PLAYER_R + BALL_R + 10;
@@ -82,9 +85,9 @@ const SETPIECE_DIST = 75;          // opponents must stand this far away
 const HUMAN_STEAL = 3.2;           // how good YOU are at poking the ball away
 
 // Penalties
-const PEN_POWER_MIN = 560, PEN_POWER_MAX = 1150; // penalty shot speed (power bar 0 -> 1)
+const PEN_POWER_MIN = 560 * FIELD, PEN_POWER_MAX = 1150 * FIELD; // penalty shot speed (power bar 0 -> 1)
 const PEN_RISKY = 0.88;            // power bar above this = the ball can fly over the bar!
-const PEN_AIM_SPEED = 170;         // how fast the aim marker moves (px/s)
+const PEN_AIM_SPEED = 170 * FIELD; // how fast the aim marker moves (px/s)
 const SHOOTOUT_KICKS = 5;          // kicks each in a shootout (then sudden death)
 
 // Skill moves (R / F keys, SKILL button)
@@ -104,12 +107,12 @@ const AI_SKILL_CHANCE = { easy: 0, normal: 0.18, hard: 0.45 };
 //   gkDive / gkReact / gkCatch - goalie dive speed, reaction time, safe hands
 //   passErr    - how sloppy passes are
 const DIFFICULTY = {
-  easy:   { speed: 0.82, think: 0.45, aimErr: 0.60, shootRange: 300, steal: 1.0, slide: 0.0, gkDive: 330, gkReact: 0.30, gkCatch: 0.45, passErr: 0.25 },
-  normal: { speed: 0.92, think: 0.25, aimErr: 0.40, shootRange: 360, steal: 1.8, slide: 0.35, gkDive: 390, gkReact: 0.40, gkCatch: 0.60, passErr: 0.12 },
-  hard:   { speed: 1.00, think: 0.12, aimErr: 0.25, shootRange: 420, steal: 2.8, slide: 0.7, gkDive: 450, gkReact: 0.50, gkCatch: 0.72, passErr: 0.05 },
+  easy:   { speed: 0.82, think: 0.45, aimErr: 0.60, shootRange: 300 * FIELD, steal: 1.0, slide: 0.0, gkDive: 330 * FIELD, gkReact: 0.30, gkCatch: 0.45, passErr: 0.25 },
+  normal: { speed: 0.92, think: 0.25, aimErr: 0.40, shootRange: 360 * FIELD, steal: 1.8, slide: 0.35, gkDive: 390 * FIELD, gkReact: 0.40, gkCatch: 0.60, passErr: 0.12 },
+  hard:   { speed: 1.00, think: 0.12, aimErr: 0.25, shootRange: 420 * FIELD, steal: 2.8, slide: 0.7, gkDive: 450 * FIELD, gkReact: 0.50, gkCatch: 0.72, passErr: 0.05 },
 };
 // Computer-controlled teammates of a human use these
-const TEAMMATE_AI = { speed: 0.95, think: 0.22, aimErr: 0.35, shootRange: 360, steal: 1.8, slide: 0.0, gkDive: 400, gkReact: 0.42, gkCatch: 0.62, passErr: 0.1 };
+const TEAMMATE_AI = { speed: 0.95, think: 0.22, aimErr: 0.35, shootRange: 360 * FIELD, steal: 1.8, slide: 0.0, gkDive: 400 * FIELD, gkReact: 0.42, gkCatch: 0.62, passErr: 0.1 };
 
 // =====================================================================
 // 2. TEAMS & KITS
@@ -838,6 +841,21 @@ function resetToHome() {
   }
 }
 
+// Before the kick-off is touched, every player except the kicker stays in
+// their own half and outside the centre circle. The kicker stands in that
+// circle, just on their own side of the ball.
+function parkForKickoff(taker) {
+  const gap = CIRCLE_R + PLAYER_R + 8;
+  for (const p of players) {
+    if (p.sentOff || p === taker) continue;
+    const T = TEAMS[p.team];
+    const line = PITCH.cx - T.dir * 16;
+    if ((p.x - PITCH.cx) * T.dir > -16) p.x = line;
+    if (Math.hypot(p.x - PITCH.cx, p.y - PITCH.cy) < gap) p.x = PITCH.cx - T.dir * gap;
+    p.vx = 0; p.vy = 0;
+  }
+}
+
 
   function startGame() {
     game.score.blue = 0; game.score.red = 0;
@@ -908,7 +926,7 @@ function clampToPitch(pt, margin) {
 // Ground pass: speed chosen so the ball arrives with a little pace left
 function groundPass(p, target, mate) {
   const d = dist(ball, target);
-  const speed = clamp(d * 0.92 + 130, 250, 1000);
+  const speed = clamp(d * 0.92 + 130 * FIELD, 250 * FIELD, 1000 * FIELD);
   kickBall(p, { x: target.x - ball.x, y: target.y - ball.y }, speed, 0, "pass", mate);
 }
 
@@ -1354,9 +1372,14 @@ function computePlans() {
     if (owner) plan.mode = owner.team === team ? "attack" : "defend";
 
     if (!owner) {
-      // Who gets to the ball first?
+      // Who gets to the ball first? Defenders only chase it in their own half,
+      // so the back line does not all run up the pitch.
+      const T = TEAMS[team];
+      const ballDepth = (ball.x - T.ownGoalX) * T.dir / PITCH.w;
+      const pool = ballDepth > 0.46 ? mates.filter((p) => p.role !== "DEF") : mates;
+      const choices = pool.length ? pool : mates;
       let best = null, bestT = Infinity;
-      for (const p of mates) {
+      for (const p of choices) {
         const t = interceptFor(p, RUN_SPEED * aiSettings(team).speed).t;
         if (t < bestT) { bestT = t; best = p; }
       }
@@ -1374,10 +1397,15 @@ function computePlans() {
         if (gi.t < oppT + 0.15) { plan.gkRush = true; if (plan.chaser && interceptFor(plan.chaser, RUN_SPEED).t > gi.t) plan.chaser = null; }
       }
     } else if (plan.mode === "defend") {
-      // Nearest player presses the ball carrier
-      let best = null, bestD = Infinity;
-      for (const p of mates) { const d = dist(p, owner); if (d < bestD) { bestD = d; best = p; } }
-      if (active && dist(active, owner) < bestD - 30) best = null;
+      // One player presses. A defender only steps out if nobody else is close,
+      // so the other defenders stay in their line.
+      const sorted = mates.slice().sort((a, b) => dist(a, owner) - dist(b, owner));
+      let best = sorted[0] || null;
+      if (best && best.role === "DEF") {
+        const otherPress = sorted.find((p) => p.role !== "DEF");
+        if (otherPress && dist(otherPress, owner) < dist(best, owner) + 110) best = otherPress;
+      }
+      if (active && best && dist(active, owner) < dist(best, owner) - 30) best = null;
       plan.presser = best;
       // Everyone else marks the most dangerous free opponent
       const free = teamPlayers(other(team)).filter((q) => q !== owner && q.role !== "GK");
@@ -1402,16 +1430,19 @@ function computePlans() {
 // The whole formation slides up/down and side-to-side with the ball.
 function formationSpot(p, hasBall) {
   const T = TEAMS[p.team];
-  if (p.role === "GK") return { x: T.ownGoalX + T.dir * 18, y: PITCH.cy };
+  if (p.role === "GK") return { x: T.ownGoalX + T.dir * 18 * FIELD, y: PITCH.cy };
   const style = (game.teams[p.team] && game.teams[p.team].style) || "control";
-  const push = style === "attack" ? 0.06 : style === "defend" ? -0.05 : 0;
+  const push = style === "attack" ? 0.04 : style === "defend" ? -0.04 : 0;
   const bd = clamp((ball.x - T.ownGoalX) * T.dir / PITCH.w, 0, 1);  // ball depth for this team
   const bl = clamp((ball.y - PITCH.cy) / (PITCH.h / 2), -1, 1);
   const shift = bd - 0.5;
   let d, l;
-  if (p.role === "DEF") { d = clamp(0.18 + shift * 0.5 + (hasBall ? 0.06 : -0.05) + push, 0.06, 0.55); l = p.baseL * 0.82 + bl * 0.48; }
-  else if (p.role === "MID") { d = clamp(0.40 + shift * 0.58 + (hasBall ? 0.08 : -0.02) + push, 0.18, 0.78); l = p.baseL * 0.95 + bl * 0.5; }
-  else { d = clamp(0.62 + shift * 0.42 + (hasBall ? 0.12 : 0.02) + push, 0.38, 0.92); l = p.baseL * 0.9 + bl * 0.42; }
+  // Defenders stay in their own half. Midfielders and forwards only cross
+  // the halfway line when the ball is already up there, and they keep their
+  // width instead of all running to the same spot.
+  if (p.role === "DEF") { d = clamp(0.16 + shift * 0.28 + (hasBall ? 0.03 : -0.04) + push, 0.08, 0.42); l = p.baseL * 0.92 + bl * 0.18; }
+  else if (p.role === "MID") { d = clamp(0.34 + shift * 0.34 + (hasBall ? 0.04 : -0.03) + push, 0.20, 0.62); l = p.baseL * 0.88 + bl * 0.24; }
+  else { d = clamp(0.46 + shift * 0.38 + (hasBall ? 0.05 : 0) + push, 0.32, 0.80); l = p.baseL * 0.86 + bl * 0.26; }
   l = clamp(l, -0.88, 0.88);
   return { x: T.ownGoalX + T.dir * d * PITCH.w, y: PITCH.cy + l * PITCH.h / 2 };
 }
@@ -1444,7 +1475,7 @@ function aiDecide(p, dt) {
       const spots = { DEF: [PEN_SPOT + 70, 0], MID: [PEN_SPOT - 10, -nearTop * 36], FWD: [64, nearTop * 18] };
       const [d0, off0] = spots[p.role] || spots.MID;
       const spread = (slot - (same.length - 1) / 2) * 34;
-      const extra = p.role === "DEF" && slot === same.length - 1 ? 210 : 0;
+      const extra = p.role === "DEF" && slot === same.length - 1 ? 210 * FIELD : 0;
       return { x: G.ownGoalX + G.dir * (d0 + extra), y: clamp(PITCH.cy + off0 + spread, PITCH.top + 36, PITCH.bottom - 36), sprint: false };
     }
     return { ...formationSpot(p, sp.team === p.team), sprint: false };
@@ -1887,7 +1918,8 @@ function updatePlayers(dt) {
     p.anim += Math.hypot(p.vx, p.vy) * dt * 0.09;
   }
   separatePlayers();
-  if (sp() && sp().type !== "kickoff") keepAwayFromSetpiece();
+  if (sp() && sp().type === "kickoff") parkForKickoff(sp().taker);
+  else if (sp()) keepAwayFromSetpiece();
   glueThrower();
   advanceThrow(dt);
 }
@@ -2087,7 +2119,7 @@ function beginSetpiece(type, team, x, y, taker = null, indirect = false) {
     game.penalty = null;
     if (type === "throw") holdThrowBall(taker, 0);   // ball is already over the head, not at the feet
     if (type !== "kickoff") keepAwayFromSetpiece();
-    else { say("Kick off!", "#fff", 1.5); emit("whistle"); }
+    else { parkForKickoff(taker); say("Kick off!", "#fff", 1.5); emit("whistle"); }
   }
 }
 
@@ -2891,6 +2923,6 @@ function update(dt) {
 
 // Node.js (the server) loads this file with require()
 if (typeof module === "object" && module.exports) {
-  module.exports = { createSim, MATCH_LENGTH, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
+  module.exports = { createSim, MATCH_LENGTH, FIELD, PITCH, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
                      TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES, setPlayAsMeSides };
 }
