@@ -19,7 +19,7 @@
      * yellow + red cards (sent-off players leave: play a man down)
      * OFFSIDE with the assistant referee's flag (can be switched off)
      * 16 teams + your own custom team, home / away kits
-     * every match is 5 minutes of game time (no goal limit)
+     * match length is chosen before kick-off (default 5 minutes, two even halves, no goal limit)
      * CUP mode (8-team knockout with a bracket and a trophy)
      * PENALTY SHOOTOUT mode (1 player or 2 players)
      * skill moves (step-over, roulette, rainbow flick, burst)
@@ -256,7 +256,23 @@
   .away { font-size: 11px; background: #fff; color: #123; border-radius: 6px; padding: 0 4px; }
   .rules label { margin: 0 10px; font-size: 15px; cursor: pointer; }
   .rules input { transform: scale(1.3); margin-right: 5px; vertical-align: middle; }
-  #formatLine { font-size: 13px; color: #ffd33d; margin: 4px 0; }
+  #formatLine, .lengthLine { font-size: 13px; color: #ffd33d; margin: 4px 0; }
+  .lengthRow { margin: 4px 0 2px; }
+  .lenChips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+  .lenChips button { min-width: 44px; min-height: 44px; padding: 8px 10px; margin: 0; }
+  .lenStep { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px; }
+  .lenStep button { min-width: 44px; min-height: 44px; padding: 8px 14px; margin: 0; font-size: 22px; line-height: 1; }
+  .lenStep input[type=number] {
+    width: 72px; font: inherit; font-size: 18px; font-weight: 700; text-align: center;
+    min-height: 44px; border-radius: 10px; border: 2px solid rgba(255,255,255,.45);
+    background: #0d2a17; color: #fff; touch-action: manipulation;
+    user-select: text; -webkit-user-select: text;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  .lenStep input[type=number]::-webkit-outer-spin-button,
+  .lenStep input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .lenUnit { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; opacity: .85; }
+  button.selected:disabled, .lenStep input:disabled { opacity: 1; }
   #teamGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(124px, 100%), 1fr)); gap: 6px; margin: 8px 0; }
   .teamTile {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
@@ -367,7 +383,9 @@
     h1 { font-size: 22px; }
     button, a.btnlink { font-size: 14px; padding: 6px 10px; margin: 2px; min-height: 36px; }
     button.big, a.btnlink.big { font-size: 18px; padding: 8px 18px; }
-    #formatLine { margin: 1px 0; font-size: 12px; }
+    #formatLine, .lengthLine { margin: 1px 0; font-size: 12px; }
+    .lenChips button, .lenStep button, .lenStep input[type=number] { min-height: 36px; padding: 4px 8px; }
+    .lenStep { gap: 6px; margin-top: 2px; }
     .rules label { font-size: 13px; }
     .controls { display: none; }
     #teamGrid { max-height: 132px; overflow: auto; touch-action: pan-y; }
@@ -420,6 +438,26 @@
     <div class="row rules" id="rulesRow">
       <label><input type="checkbox" id="ruleOffside" checked>Offside</label>
       <label><input type="checkbox" id="ruleCards" checked>Fouls &amp; cards</label>
+    </div>
+    <div class="row lengthRow" id="lengthRow">
+      <div class="label">Match length</div>
+      <div class="lenChips">
+        <button type="button" data-mins="1">1</button>
+        <button type="button" data-mins="2">2</button>
+        <button type="button" data-mins="3">3</button>
+        <button type="button" data-mins="5" class="selected">5</button>
+        <button type="button" data-mins="10">10</button>
+        <button type="button" data-mins="15">15</button>
+        <button type="button" data-mins="20">20</button>
+        <button type="button" data-mins="custom" id="lenCustom">Custom</button>
+      </div>
+      <div class="lenStep hidden" id="lenStep">
+        <button type="button" id="minsDown" aria-label="One minute shorter">−</button>
+        <input id="minsInput" type="number" min="1" max="90" step="1" inputmode="numeric" value="5" aria-label="Minutes">
+        <button type="button" id="minsUp" aria-label="One minute longer">+</button>
+        <span class="lenUnit">min</span>
+      </div>
+      <div id="lengthLine" class="lengthLine">5 minute game • two halves of 2:30</div>
     </div>
     <div class="row"><button id="startBtn" class="big">KICK OFF</button></div>
     <div class="row"><button type="button" class="js-squad-open">Squads</button></div>

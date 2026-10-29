@@ -19,7 +19,7 @@
      * yellow + red cards (sent-off players leave: play a man down)
      * OFFSIDE with the assistant referee's flag (can be switched off)
      * 16 teams + your own custom team, home / away kits
-     * every match is 5 minutes of game time (no goal limit)
+     * match length is chosen before kick-off (default 5 minutes, two even halves, no goal limit)
      * CUP mode (8-team knockout with a bracket and a trophy)
      * PENALTY SHOOTOUT mode (1 player or 2 players)
      * skill moves (step-over, roulette, rainbow flick, burst)
@@ -256,7 +256,23 @@
   .away { font-size: 11px; background: #fff; color: #123; border-radius: 6px; padding: 0 4px; }
   .rules label { margin: 0 10px; font-size: 15px; cursor: pointer; }
   .rules input { transform: scale(1.3); margin-right: 5px; vertical-align: middle; }
-  #formatLine { font-size: 13px; color: #ffd33d; margin: 4px 0; }
+  #formatLine, .lengthLine { font-size: 13px; color: #ffd33d; margin: 4px 0; }
+  .lengthRow { margin: 4px 0 2px; }
+  .lenChips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+  .lenChips button { min-width: 44px; min-height: 44px; padding: 8px 10px; margin: 0; }
+  .lenStep { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px; }
+  .lenStep button { min-width: 44px; min-height: 44px; padding: 8px 14px; margin: 0; font-size: 22px; line-height: 1; }
+  .lenStep input[type=number] {
+    width: 72px; font: inherit; font-size: 18px; font-weight: 700; text-align: center;
+    min-height: 44px; border-radius: 10px; border: 2px solid rgba(255,255,255,.45);
+    background: #0d2a17; color: #fff; touch-action: manipulation;
+    user-select: text; -webkit-user-select: text;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  .lenStep input[type=number]::-webkit-outer-spin-button,
+  .lenStep input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .lenUnit { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; opacity: .85; }
+  button.selected:disabled, .lenStep input:disabled { opacity: 1; }
   #teamGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(124px, 100%), 1fr)); gap: 6px; margin: 8px 0; }
   .teamTile {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
@@ -367,7 +383,9 @@
     h1 { font-size: 22px; }
     button, a.btnlink { font-size: 14px; padding: 6px 10px; margin: 2px; min-height: 36px; }
     button.big, a.btnlink.big { font-size: 18px; padding: 8px 18px; }
-    #formatLine { margin: 1px 0; font-size: 12px; }
+    #formatLine, .lengthLine { margin: 1px 0; font-size: 12px; }
+    .lenChips button, .lenStep button, .lenStep input[type=number] { min-height: 36px; padding: 4px 8px; }
+    .lenStep { gap: 6px; margin-top: 2px; }
     .rules label { font-size: 13px; }
     .controls { display: none; }
     #teamGrid { max-height: 132px; overflow: auto; touch-action: pan-y; }
@@ -420,6 +438,26 @@
     <div class="row rules" id="rulesRow">
       <label><input type="checkbox" id="ruleOffside" checked>Offside</label>
       <label><input type="checkbox" id="ruleCards" checked>Fouls &amp; cards</label>
+    </div>
+    <div class="row lengthRow" id="lengthRow">
+      <div class="label">Match length</div>
+      <div class="lenChips">
+        <button type="button" data-mins="1">1</button>
+        <button type="button" data-mins="2">2</button>
+        <button type="button" data-mins="3">3</button>
+        <button type="button" data-mins="5" class="selected">5</button>
+        <button type="button" data-mins="10">10</button>
+        <button type="button" data-mins="15">15</button>
+        <button type="button" data-mins="20">20</button>
+        <button type="button" data-mins="custom" id="lenCustom">Custom</button>
+      </div>
+      <div class="lenStep hidden" id="lenStep">
+        <button type="button" id="minsDown" aria-label="One minute shorter">−</button>
+        <input id="minsInput" type="number" min="1" max="90" step="1" inputmode="numeric" value="5" aria-label="Minutes">
+        <button type="button" id="minsUp" aria-label="One minute longer">+</button>
+        <span class="lenUnit">min</span>
+      </div>
+      <div id="lengthLine" class="lengthLine">5 minute game • two halves of 2:30</div>
     </div>
     <div class="row"><button id="startBtn" class="big">KICK OFF</button></div>
     <div class="row"><button type="button" class="js-squad-open">Squads</button></div>
@@ -1195,7 +1233,57 @@ const PEN_SPOT = Math.round(140 * FIELD);              // penalty spot distance 
 const CIRCLE_R = Math.round(115 * FIELD);              // center circle radius
 const POST_R = Math.max(4, Math.round(4 * FIELD));
 
-const MATCH_LENGTH = 300;         // every real match is 5:00 of game time. No goal limit.
+const MATCH_LENGTH = 300;         // default match is 5:00. The player can pick 1–90 minutes. No goal limit.
+const MATCH_PRESETS = [1, 2, 3, 5, 10, 15, 20];
+
+// A chosen length is a whole number of minutes from 1 to 90. Anything else
+// falls back to 5, which is what every match used before the picker existed.
+function clampMatchMinutes(n) {
+  const v = Math.round(Number(n));
+  if (!isFinite(v)) return 5;
+  if (v < 1) return 1;
+  if (v > 90) return 90;
+  return v;
+}
+function isPresetMinute(n) { return MATCH_PRESETS.indexOf(n) >= 0; }
+function describeMatchLength(minutes) {
+  const m = clampMatchMinutes(minutes);
+  const halfSec = m * 30;
+  const halfText = halfSec % 60 === 0 ? (halfSec / 60) + " min" : formatClock(halfSec).replace(/^0/, "");
+  const game = m + " minute game";
+  const halves = "two halves of " + halfText;
+  return { minutes: m, game: game, halves: halves, halfText: halfText, sentence: game + " \u2022 " + halves };
+}
+// Remembered on this device. Online guests do not write it: only the person
+// who picks the length does, so a guest's next hosted game keeps their own choice.
+function loadSavedMinutes() {
+  const fallback = { minutes: 5, custom: false };
+  try {
+    if (typeof localStorage === "undefined") return fallback;
+    const raw = localStorage.getItem("soccerMatchMinutes");
+    if (raw == null || raw === "") return fallback;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return { minutes: clampMatchMinutes(parsed.minutes), custom: !!parsed.custom };
+    return { minutes: clampMatchMinutes(parsed), custom: false };
+  } catch (e) { return fallback; }
+}
+function saveSavedMinutes(minutes, custom) {
+  const choice = { minutes: clampMatchMinutes(minutes), custom: !!custom };
+  try {
+    if (typeof localStorage === "undefined") return choice;
+    localStorage.setItem("soccerMatchMinutes", JSON.stringify(choice));
+  } catch (e) { /* private mode */ }
+  return choice;
+}
+// Full match length in seconds. A shootout has no clock. An old timeLimit of
+// a few seconds (from before every match was 5:00) is ignored.
+function resolveMatchSeconds(opts) {
+  if (opts && opts.matchType === "shootout") return 0;
+  if (opts && opts.minutes != null && opts.minutes !== "") return clampMatchMinutes(opts.minutes) * 60;
+  const t = opts && Number(opts.timeLimit);
+  if (isFinite(t) && t >= 60 && t <= 90 * 60) return Math.round(t);
+  return MATCH_LENGTH;
+}
 // Overhead throw-in: wind the ball up behind the head, then swing it forward.
 const THROW_WIND = 0.42;          // seconds with the ball going up and back
 const THROW_RELEASE = 0.70;       // when the ball leaves the hands
@@ -1441,9 +1529,9 @@ function createSim(opts = {}) {
     difficulty: DIFFICULTY[opts.difficulty] ? opts.difficulty : "normal",
     teams: opts.teams || buildTeamKits(TEAM_LIST[0], TEAM_LIST[1]),   // names, kits, ratings
     rules: { ...DEFAULT_RULES, ...(opts.rules || {}) },               // offside / cards on or off
-    // A normal match is always 5:00. A penalty-shootout mode has no clock.
-    // Old goal-limit and match-length options are ignored.
-    timeLimit: opts.matchType === "shootout" ? 0 : MATCH_LENGTH,
+    // The player picks the full match length (default 5:00). Each half is half
+    // of that. A penalty-shootout mode has no clock. A tiny old timeLimit is ignored.
+    timeLimit: resolveMatchSeconds(opts),
     knockout: opts.matchType === "shootout" ? false : !!opts.knockout, // a draw goes to penalties
     matchType: opts.matchType === "shootout" ? "shootout" : "match",   // or just a penalty shootout
     penalty: null,          // the penalty kick being taken (aim, goalie choice...)
@@ -3218,7 +3306,7 @@ function scoreGoal(team, side) {
   cancelCharging();
 }
 
-// The 5:00 clock ran out. Most goals wins. A draw is a draw, unless this
+// The clock ran out. Most goals wins. A draw is a draw, unless this
 // is a cup match, which goes to a penalty shootout.
 function fullTime() {
   emit("whistleLong");
@@ -4181,8 +4269,9 @@ function update(dt) {
 
 // Node.js (the server) loads this file with require()
 if (typeof module === "object" && module.exports) {
-  module.exports = { createSim, MATCH_LENGTH, FIELD, PITCH, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
-                     TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES, setPlayAsMeSides };
+  module.exports = { createSim, MATCH_LENGTH, MATCH_PRESETS, FIELD, PITCH, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
+                     TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES, setPlayAsMeSides,
+                     clampMatchMinutes, describeMatchLength, resolveMatchSeconds, loadSavedMinutes, saveSavedMinutes };
 }
 
 // =====================================================================
@@ -6860,14 +6949,28 @@ const settings = {
   difficulty: "normal",
   blue: "blue", red: "red",     // team ids (or "custom")
   rules: { offside: true, cards: true },
+  minutes: 5,                   // full match. Each half is half of this.
+  lengthCustom: false,          // true when the last pick was the Custom stepper
   custom: { name: "My Team", shirt: "#8e44ad", shorts: "#ffffff", socks: "#8e44ad" },
   muted: false,
 };
 function loadSettings() {
   try { Object.assign(settings, JSON.parse(localStorage.getItem("soccerSettings") || "{}")); } catch (e) { /* ignore */ }
   settings.rules = { ...DEFAULT_RULES, ...(settings.rules || {}) };
+  const len = loadSavedMinutes();
+  settings.minutes = len.minutes;
+  settings.lengthCustom = len.custom;
 }
-function saveSettings() { try { localStorage.setItem("soccerSettings", JSON.stringify(settings)); } catch (e) { /* ignore */ } }
+function saveSettings() {
+  try { localStorage.setItem("soccerSettings", JSON.stringify(settings)); } catch (e) { /* ignore */ }
+  saveSavedMinutes(settings.minutes, settings.lengthCustom);
+}
+function chooseMatchLength(minutes, custom) {
+  settings.minutes = clampMatchMinutes(minutes);
+  settings.lengthCustom = !!custom;
+  saveSettings();
+  renderMenu();
+}
 // A team id -> full team (the custom team is built from your colours)
 const teamDef = (id) => (id === "custom" ? customTeam(settings.custom) : findTeam(id) || TEAM_LIST[0]);
 
@@ -7053,9 +7156,11 @@ const rosterList = () => (sim ? sim.roster : []);
 function hudSubtitle() {
   const kindText = matchKind === "cup" ? "CUP " + CUP_ROUND_NAMES[cup ? cup.round : 0] + ": " : "";
   if (game.matchType === "shootout") return "Penalty shootout \u2022 5 kicks each, then sudden death";
-  const fmt = game.knockout ? "5 minute game \u2022 a draw goes to penalties" : "5 minute game";
+  const info = describeMatchLength((game.timeLimit || MATCH_LENGTH) / 60);
+  const half = game.timeLimit && game.clock >= game.timeLimit / 2 ? "2nd half" : "1st half";
   const who = settings.mode === "1p" ? "1P vs CPU (" + game.difficulty + ")" : "2 Players";
-  return kindText + fmt + "  \u2022  " + who;
+  const draw = game.knockout ? " \u2022 draw = penalties" : "";
+  return info.minutes + " min \u2022 " + half + draw + "  \u2022  " + kindText + who;
 }
 function keysHint(kind) {
   const t = touchActive();
@@ -7072,7 +7177,8 @@ function keysHint(kind) {
 // D. STARTING MATCHES
 // =====================================================================
 // Build a new match. opts: {kind, blue, red (team defs), knockout, matchType}
-// Every match is 5 minutes. A cup match sends a draw to penalties.
+// The menu's match length is the full game. Each half is half of that.
+// A cup match sends a draw to penalties.
 // Your player is on every team you control. If both sides are the same
 // squad in a 2-player game, only the left team gets him.
 function applyPlayAsMeSides(blue, red) {
@@ -7091,6 +7197,7 @@ function newMatch(opts) {
   sim = createSim({
     mode: settings.mode === "2p" ? "2 players" : "1 player", difficulty: settings.difficulty, teams: kits,
     rules: settings.rules, knockout: opts.knockout, matchType: opts.matchType,
+    minutes: settings.minutes,
   });
   game = sim.game; ball = sim.ball; controllers = sim.controllers; players = sim.players;
   sim.addController("p1", "P1", "blue");
@@ -7182,6 +7289,17 @@ function renderMenu() {
   $("ruleOffside").checked = !!settings.rules.offside;
   $("ruleCards").checked = !!settings.rules.cards;
   $("rulesRow").style.display = settings.kind === "shootout" ? "none" : "";
+  const len = describeMatchLength(settings.minutes);
+  const custom = !!settings.lengthCustom;
+  $("lengthRow").classList.toggle("hidden", settings.kind === "shootout");
+  document.querySelectorAll("[data-mins]").forEach((b) => {
+    const v = b.dataset.mins;
+    const on = v === "custom" ? custom : (!custom && Number(v) === len.minutes);
+    b.classList.toggle("selected", on);
+  });
+  $("lenStep").classList.toggle("hidden", !custom || settings.kind === "shootout");
+  if (document.activeElement !== $("minsInput")) $("minsInput").value = String(len.minutes);
+  $("lengthLine").textContent = len.sentence;
   // team cards + the kits they will actually wear (away kit on a clash)
   const B = teamDef(settings.blue), R = teamDef(settings.red);
   const kits = buildTeamKits(B, R);
@@ -7189,8 +7307,9 @@ function renderMenu() {
   $("blueTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P1" : "YOU") + "</span>" + card("blue", B, kits.blue);
   $("redTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P2" : settings.kind === "cup" ? "CUP" : "CPU") + "</span>" + (settings.kind === "cup" ? "<b>7 random teams</b><br><span class='stars'>knockout</span>" : card("red", R, kits.red));
   $("redTeamBtn").disabled = settings.kind === "cup";
-  const fmt = { quick: "Quick match \u2022 11-a-side \u2022 5 minute game \u2022 most goals wins",
-                cup: "Cup \u2022 8 teams, knockout \u2022 every match is 5 minutes \u2022 a draw goes to penalties",
+  const minsWord = len.minutes + (len.minutes === 1 ? " minute" : " minutes");
+  const fmt = { quick: "Quick match \u2022 11-a-side \u2022 " + len.game + " \u2022 " + len.halves + " \u2022 most goals wins",
+                cup: "Cup \u2022 8 teams, knockout \u2022 every match is " + minsWord + " \u2022 " + len.halves + " \u2022 a draw goes to penalties",
                 shootout: "Penalty shootout \u2022 5 kicks each, then sudden death" }[settings.kind];
   $("formatLine").textContent = fmt;
   $("startBtn").textContent = settings.kind === "cup" ? "START NEW CUP" : settings.kind === "shootout" ? "TAKE PENALTIES" : "KICK OFF";
@@ -7242,6 +7361,26 @@ document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("clic
 document.querySelectorAll("[data-diff]").forEach((b) => b.addEventListener("click", () => { settings.difficulty = b.dataset.diff; renderMenu(); }));
 $("ruleOffside").addEventListener("change", (e) => { settings.rules.offside = e.target.checked; saveSettings(); });
 $("ruleCards").addEventListener("change", (e) => { settings.rules.cards = e.target.checked; saveSettings(); });
+document.querySelectorAll("[data-mins]").forEach((b) => b.addEventListener("click", () => {
+  if (b.dataset.mins === "custom") chooseMatchLength($("minsInput").value || settings.minutes, true);
+  else chooseMatchLength(Number(b.dataset.mins), false);
+}));
+function stepMinutes(delta) {
+  chooseMatchLength(clampMatchMinutes(Number($("minsInput").value) + delta), true);
+}
+$("minsDown").addEventListener("click", () => stepMinutes(-1));
+$("minsUp").addEventListener("click", () => stepMinutes(1));
+$("minsInput").addEventListener("input", () => {
+  const raw = $("minsInput").value;
+  if (raw === "" || raw === "-") return;
+  const n = Number(raw);
+  if (!isFinite(n)) return;
+  settings.minutes = clampMatchMinutes(n);
+  settings.lengthCustom = true;
+  saveSettings();
+  renderMenu();
+});
+$("minsInput").addEventListener("change", () => chooseMatchLength($("minsInput").value, true));
 
 // ---- Team picker ----
 let pickingFor = "blue";
@@ -7370,7 +7509,9 @@ function showCup() {
     html += "<div class='col'><div class='label'>" + CUP_ROUND_NAMES[r] + "</div>" + list.map(matchLine).join("") + "</div>";
   }
   $("bracket").innerHTML = html;
-  $("cupFormat").textContent = "Each match is 5 minutes \u2022 most goals wins \u2022 a draw goes to a penalty shootout";
+  const cupLen = describeMatchLength(settings.minutes);
+  const cupWord = cupLen.minutes + (cupLen.minutes === 1 ? " minute" : " minutes");
+  $("cupFormat").textContent = "Each match is " + cupWord + " \u2022 " + cupLen.halves + " \u2022 most goals wins \u2022 a draw goes to a penalty shootout";
   const m = cup.over ? null : myCupMatch();
   let status;
   if (cup.over) status = cup.champion === 0 ? "\ud83c\udfc6 You won the cup!" : esc(cup.teams[cup.champion].name) + " won the cup." + (cup.out ? " You were knocked out - try again!" : "");
@@ -7519,6 +7660,10 @@ window.soccerDebug = {
     if (opts.blue) settings.blue = opts.blue;
     if (opts.red) settings.red = opts.red;
     if (opts.rules) settings.rules = { ...settings.rules, ...opts.rules };
+    if (opts.minutes != null) {
+      settings.minutes = clampMatchMinutes(opts.minutes);
+      settings.lengthCustom = opts.lengthCustom != null ? !!opts.lengthCustom : !isPresetMinute(settings.minutes);
+    }
     startFromMenu();
     return this.state();
   },

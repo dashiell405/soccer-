@@ -45,6 +45,7 @@ let netRole = null;          // "host" | "guest" | null
 let activePeer = null;
 let hostConn = null;         // guest's link to the host
 let hosted = null;           // the room, only on the host's device
+let pendingLength = { minutes: 5, custom: false };
 let localMember = null;
 let generation = 0;          // ignores events from an old Peer after a retry
 let leaving = false;
@@ -240,6 +241,7 @@ function roomInfo(room) {
   return {
     t: "room", code: room.code, mode: room.mode, difficulty: room.difficulty,
     blueTeam: room.blueTeam, redTeam: room.redTeam, rules: room.rules, matchType: room.matchType,
+    minutes: clampMatchMinutes(room.minutes), lengthCustom: !!room.lengthCustom,
     hostId: room.hostId, state: room.state, perTeam: perTeam(room), debug: !!room.debug,
     members: [...room.members.values()].map((m) => ({ id: m.id, name: m.name, team: m.team, connected: m.connected, ping: m.ping })),
   };
@@ -292,6 +294,7 @@ function sendJoined(room, m) {
 function startMatch(room) {
   room.sim = createSim({
     mode: room.mode, difficulty: room.difficulty, rules: room.rules, matchType: room.matchType,
+    minutes: room.minutes,
     teams: buildTeamKits(findTeam(room.blueTeam), findTeam(room.redTeam)),
   });
   for (const m of room.members.values()) {
@@ -393,6 +396,10 @@ function handleFrom(member, msg) {
       if (findTeam(msg.blueTeam)) room.blueTeam = msg.blueTeam;
       if (findTeam(msg.redTeam)) room.redTeam = msg.redTeam;
       if (msg.matchType === "match" || msg.matchType === "shootout") room.matchType = msg.matchType;
+      if (msg.minutes != null && msg.minutes !== "") {
+        room.minutes = clampMatchMinutes(msg.minutes);
+        if (typeof msg.lengthCustom === "boolean") room.lengthCustom = msg.lengthCustom;
+      }
       if (msg.rules && typeof msg.rules === "object") {
         for (const k of ["offside", "cards"]) if (typeof msg.rules[k] === "boolean") room.rules[k] = msg.rules[k];
       }
@@ -520,6 +527,8 @@ function hostReady(peer, code, name, mode, difficulty) {
     blueTeam: "blue", redTeam: "red",
     rules: { ...DEFAULT_RULES },
     matchType: "match",
+    minutes: clampMatchMinutes(pendingLength.minutes),
+    lengthCustom: !!pendingLength.custom,
     hostId: null,
     members: new Map(),
     state: "lobby",
@@ -590,6 +599,9 @@ function openHost(name, mode, difficulty, attempt) {
 function startHost(msg) {
   if (netRole) return;
   const name = cleanName(msg.name);
+  pendingLength = msg && msg.minutes != null
+    ? { minutes: clampMatchMinutes(msg.minutes), custom: !!msg.lengthCustom }
+    : loadSavedMinutes();
   netRole = "host";
   leaving = false;
   setBusy(true);

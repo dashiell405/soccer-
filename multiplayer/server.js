@@ -103,7 +103,7 @@ const newId = () => crypto.randomBytes(6).toString("hex");
 const cleanName = (n) => String(n || "").replace(/[^\p{L}\p{N} _.\-!?]/gu, "").trim().slice(0, 14) || "Player";
 const perTeam = (room) => (room.mode === "2v2" ? 2 : 1);
 
-function createRoom(mode, difficulty) {
+function createRoom(mode, difficulty, minutes, lengthCustom) {
   const room = {
     code: newCode(),
     mode: mode === "2v2" ? "2v2" : "1v1",
@@ -111,6 +111,8 @@ function createRoom(mode, difficulty) {
     blueTeam: "blue", redTeam: "red",          // team ids from Soccer.TEAM_LIST
     rules: { ...Soccer.DEFAULT_RULES },        // offside / cards on or off
     matchType: "match",                        // "match" or "shootout"
+    minutes: Soccer.clampMatchMinutes(minutes == null ? 5 : minutes),
+    lengthCustom: !!lengthCustom,
     hostId: null,
     members: new Map(),   // id -> member
     state: "lobby",       // "lobby" | "playing" | "win"
@@ -136,6 +138,7 @@ function roomInfo(room) {
   return {
     t: "room", code: room.code, mode: room.mode, difficulty: room.difficulty,
     blueTeam: room.blueTeam, redTeam: room.redTeam, rules: room.rules, matchType: room.matchType,
+    minutes: Soccer.clampMatchMinutes(room.minutes), lengthCustom: !!room.lengthCustom,
     hostId: room.hostId, state: room.state, perTeam: perTeam(room), debug: DEBUG,
     members: [...room.members.values()].map((m) => ({ id: m.id, name: m.name, team: m.team, connected: m.connected, ping: m.ping })),
   };
@@ -164,6 +167,7 @@ function fixHost(room) {
 function startMatch(room) {
   room.sim = Soccer.createSim({
     mode: room.mode, difficulty: room.difficulty, rules: room.rules, matchType: room.matchType,
+    minutes: room.minutes,
     teams: Soccer.buildTeamKits(Soccer.findTeam(room.blueTeam), Soccer.findTeam(room.redTeam)),
   });
   for (const m of room.members.values()) {
@@ -253,7 +257,7 @@ wss.on("connection", (ws) => {
     switch (msg.t) {
       case "create": {
         if (room) return;
-        enter(createRoom(msg.mode, msg.difficulty), cleanName(msg.name), null);
+        enter(createRoom(msg.mode, msg.difficulty, msg.minutes, msg.lengthCustom), cleanName(msg.name), null);
         break;
       }
       case "join": {
@@ -299,6 +303,10 @@ wss.on("connection", (ws) => {
         if (Soccer.findTeam(msg.blueTeam)) room.blueTeam = msg.blueTeam;
         if (Soccer.findTeam(msg.redTeam)) room.redTeam = msg.redTeam;
         if (msg.matchType === "match" || msg.matchType === "shootout") room.matchType = msg.matchType;
+        if (msg.minutes != null && msg.minutes !== "") {
+          room.minutes = Soccer.clampMatchMinutes(msg.minutes);
+          if (typeof msg.lengthCustom === "boolean") room.lengthCustom = msg.lengthCustom;
+        }
         if (msg.rules && typeof msg.rules === "object") {
           for (const k of ["offside", "cards"]) if (typeof msg.rules[k] === "boolean") room.rules[k] = msg.rules[k];
         }
