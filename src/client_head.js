@@ -68,7 +68,9 @@ const showHud = () => !!(room && room.state !== "lobby" && players.length);
 const localActives = () => { const a = myActive(); return a ? [a] : []; };
 const rosterList = () => players;
 function hudSubtitle() {
-  const fmt = game.matchType === "shootout" ? "Penalty shootout" : "5 minute game";
+  const info = describeMatchLength((game.timeLimit || MATCH_LENGTH) / 60);
+  const half = game.timeLimit && game.clock >= game.timeLimit / 2 ? "2nd half" : "1st half";
+  const fmt = game.matchType === "shootout" ? "Penalty shootout" : info.minutes + " min \u2022 " + half;
   return fmt + "  \u2022  Room " + (room ? room.code : "") + "  \u2022  " + game.mode + " (CPU: " + game.difficulty + ")";
 }
 function keysHint(kind) {

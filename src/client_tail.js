@@ -48,6 +48,32 @@ function renderLobby() {
   const rules = room.rules || DEFAULT_RULES;
   $("lobbyOffside").checked = !!rules.offside; $("lobbyOffside").disabled = !host;
   $("lobbyCards").checked = !!rules.cards; $("lobbyCards").disabled = !host;
+  const shootout = (room.matchType || "match") === "shootout";
+  const len = describeMatchLength(room.minutes);
+  const custom = !!room.lengthCustom;
+  const lengthRow = $("lobbyLength");
+  if (lengthRow) lengthRow.classList.toggle("hidden", shootout);
+  document.querySelectorAll("[data-lmins]").forEach((b) => {
+    const v = b.dataset.lmins;
+    const on = v === "custom" ? custom : (!custom && Number(v) === len.minutes);
+    b.classList.toggle("selected", on);
+    b.disabled = !host;
+  });
+  const step = $("lobbyLenStep");
+  if (step) step.classList.toggle("hidden", shootout || !custom);
+  const minsInput = $("lobbyMins");
+  if (minsInput) {
+    if (document.activeElement !== minsInput) minsInput.value = String(len.minutes);
+    minsInput.disabled = !host;
+  }
+  const down = $("lobbyMinsDown"), up = $("lobbyMinsUp");
+  if (down) down.disabled = !host;
+  if (up) up.disabled = !host;
+  const line = $("lobbyLengthLine");
+  if (line) {
+    line.textContent = shootout ? "No clock in a penalty shootout."
+      : len.sentence + (host ? "" : "  \u2022  set by the host");
+  }
   // team pickers (the host chooses; kits swap to away if they clash)
   const kits = buildTeamKits(findTeam(room.blueTeam) || TEAM_LIST[0], findTeam(room.redTeam) || TEAM_LIST[1]);
   for (const side of ["blue", "red"]) {
@@ -157,7 +183,8 @@ function myName() {
 $("createBtn").addEventListener("click", () => {
   const name = myName(); if (!name) return;
   Sound.init(); $("homeMsg").textContent = "";
-  sendOrQueue({ t: "create", name, mode: createMode, difficulty: createDiff });
+  const saved = loadSavedMinutes();
+  sendOrQueue({ t: "create", name, mode: createMode, difficulty: createDiff, minutes: saved.minutes, lengthCustom: saved.custom });
 });
 function joinByCode() {
   const name = myName(); if (!name) return;
@@ -171,6 +198,28 @@ $("codeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") joinB
 document.querySelectorAll("[data-lmode]").forEach((b) => b.addEventListener("click", () => sendMsg({ t: "settings", mode: b.dataset.lmode })));
 document.querySelectorAll("[data-ldiff]").forEach((b) => b.addEventListener("click", () => sendMsg({ t: "settings", difficulty: b.dataset.ldiff })));
 document.querySelectorAll("[data-lmatch]").forEach((b) => b.addEventListener("click", () => sendMsg({ t: "settings", matchType: b.dataset.lmatch })));
+function sendLength(minutes, custom) {
+  if (!room || room.hostId !== myId) return;
+  const choice = saveSavedMinutes(minutes, custom);
+  sendMsg({ t: "settings", minutes: choice.minutes, lengthCustom: choice.custom });
+}
+document.querySelectorAll("[data-lmins]").forEach((b) => b.addEventListener("click", () => {
+  if (b.dataset.lmins === "custom") sendLength($("lobbyMins").value || (room && room.minutes), true);
+  else sendLength(Number(b.dataset.lmins), false);
+}));
+function stepLobbyMinutes(delta) {
+  sendLength(clampMatchMinutes(Number($("lobbyMins").value) + delta), true);
+}
+$("lobbyMinsDown").addEventListener("click", () => stepLobbyMinutes(-1));
+$("lobbyMinsUp").addEventListener("click", () => stepLobbyMinutes(1));
+$("lobbyMins").addEventListener("input", () => {
+  const raw = $("lobbyMins").value;
+  if (raw === "" || raw === "-") return;
+  const n = Number(raw);
+  if (!isFinite(n)) return;
+  sendLength(n, true);
+});
+$("lobbyMins").addEventListener("change", () => sendLength($("lobbyMins").value, true));
 $("blueTeamSel").addEventListener("change", (e) => sendMsg({ t: "settings", blueTeam: e.target.value }));
 $("redTeamSel").addEventListener("change", (e) => sendMsg({ t: "settings", redTeam: e.target.value }));
 $("lobbyOffside").addEventListener("change", (e) => sendMsg({ t: "settings", rules: { offside: e.target.checked } }));
@@ -236,8 +285,8 @@ window.mpDebug = {
     const last = snaps.length ? snaps[snaps.length - 1].s : null;
     const a = myActive();
     return {
-      myId, room: room && { code: room.code, state: room.state, mode: room.mode, hostId: room.hostId, members: room.members },
-      phase: game.phase, score: { ...game.score }, winner: game.winner,
+      myId, room: room && { code: room.code, state: room.state, mode: room.mode, hostId: room.hostId, members: room.members, minutes: room.minutes, lengthCustom: !!room.lengthCustom, matchType: room.matchType },
+      phase: game.phase, score: { ...game.score }, winner: game.winner, clock: game.clock, timeLimit: game.timeLimit,
       ball: last ? { x: last.b[0], y: last.b[1], z: last.b[2] } : null, drawnBall: { x: ball.x, y: ball.y, z: ball.z },
       me: a ? { index: players.indexOf(a), x: a.x, y: a.y, vx: a.vx, vy: a.vy } : null,
       myRaw: a && last ? (() => { const r = last.p[players.indexOf(a)]; return { x: r[0], y: r[1], vx: r[2], vy: r[3] }; })() : null,

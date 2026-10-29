@@ -210,7 +210,32 @@
   .team h3 .teamName, #winScore span { min-width: 0; overflow-wrap: anywhere; }
   .rules label { margin: 0 8px; font-size: 15px; cursor: pointer; }
   .rules input { transform: scale(1.25); margin-right: 4px; vertical-align: middle; }
-  @media (max-height: 500px) { #lobby .help { font-size: 12px; } #roomCode { font-size: 36px; } .team { padding: 4px 8px; } }
+  .lengthRow { margin: 6px 0 2px; }
+  .lenChips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+  .lenChips button { min-width: 44px; min-height: 44px; padding: 8px 10px; margin: 0; }
+  .lenStep { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px; }
+  .lenStep button { min-width: 44px; min-height: 44px; padding: 8px 14px; margin: 0; font-size: 22px; line-height: 1; }
+  .lenStep input[type=number] {
+    width: 72px; font: inherit; font-size: 18px; font-weight: 700; text-align: center;
+    min-height: 44px; border-radius: 10px; border: 2px solid rgba(255,255,255,.45);
+    background: #0d2a17; color: #fff; touch-action: manipulation;
+    user-select: text; -webkit-user-select: text;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  .lenStep input[type=number]::-webkit-outer-spin-button,
+  .lenStep input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .lenUnit { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; opacity: .85; }
+  button.selected:disabled, .lenStep input:disabled { opacity: 1; color: #1a1404; }
+  .lenStep input:disabled { color: #fff; }
+  #lobbyLengthLine { margin-top: 4px; }
+  @media (max-width: 520px) {
+    .lenChips button { min-width: 40px; padding: 8px 6px; }
+  }
+  @media (max-height: 500px) {
+    #lobby .help { font-size: 12px; } #roomCode { font-size: 36px; } .team { padding: 4px 8px; }
+    .lenChips button, .lenStep button, .lenStep input[type=number] { min-height: 36px; padding: 4px 8px; }
+    .lenStep { margin-top: 2px; }
+  }
   #menuBtn {
     position: fixed; top: 8px; right: 8px; z-index: 15; height: 40px; padding: 0 12px; font-size: 15px;
     background: rgba(0,0,0,.45);
@@ -294,7 +319,7 @@
   <div class="panel homepanel">
     <p class="eyebrow">Play a friend</p>
     <h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>
-    <p class="sub">11-a-side &bull; play the computer, or 1v1 / 2v2 with friends on other devices &bull; every game is 5 minutes</p>
+    <p class="sub">11-a-side &bull; play the computer, or 1v1 / 2v2 with friends on other devices &bull; the host picks the match length</p>
     <div class="homegrid">
       <div class="box offlinebox">
         <div class="label">On this device</div>
@@ -333,9 +358,29 @@
       <button data-ldiff="easy">Easy</button><button data-ldiff="normal">Normal</button><button data-ldiff="hard">Hard</button>
     </div>
     <div class="row rules">
-      <button data-lmatch="match">5 minute game</button><button data-lmatch="shootout">Penalty shootout</button>
+      <button data-lmatch="match">Timed game</button><button data-lmatch="shootout">Penalty shootout</button>
       <label><input type="checkbox" id="lobbyOffside">Offside</label>
       <label><input type="checkbox" id="lobbyCards">Fouls &amp; cards</label>
+    </div>
+    <div class="row lengthRow" id="lobbyLength">
+      <div class="label">Match length</div>
+      <div class="lenChips" id="lobbyLenChips">
+        <button type="button" data-lmins="1">1</button>
+        <button type="button" data-lmins="2">2</button>
+        <button type="button" data-lmins="3">3</button>
+        <button type="button" data-lmins="5">5</button>
+        <button type="button" data-lmins="10">10</button>
+        <button type="button" data-lmins="15">15</button>
+        <button type="button" data-lmins="20">20</button>
+        <button type="button" data-lmins="custom" id="lobbyLenCustom">Custom</button>
+      </div>
+      <div class="lenStep hidden" id="lobbyLenStep">
+        <button type="button" id="lobbyMinsDown" aria-label="One minute shorter">−</button>
+        <input id="lobbyMins" type="number" min="1" max="90" step="1" inputmode="numeric" value="5" aria-label="Minutes">
+        <button type="button" id="lobbyMinsUp" aria-label="One minute longer">+</button>
+        <span class="lenUnit">min</span>
+      </div>
+      <div id="lobbyLengthLine" class="help"></div>
     </div>
     <div class="teams">
       <div class="team blue"><h3 id="blueTitle">Blue</h3><select id="blueTeamSel"></select><div id="blueSlots"></div><button id="blueJoin">Join</button></div>

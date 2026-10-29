@@ -18,6 +18,33 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   const info = sim.matchInfo();
   assert(info.timeLimit === 300 && info.winScore === undefined, 'host tells the guest the match is 5:00');
 }
+// 1b. A chosen length replaces 5:00. Each half is half of it. Admin clock uses that length.
+{ const sim = S.createSim({ minutes: 10 }); sim.start();
+  assert(sim.game.timeLimit === 600, '10 minute match is 600s, two halves of 300');
+  assert(S.createSim({ minutes: 1 }).game.timeLimit === 60, '1 minute');
+  assert(S.createSim({ minutes: 90 }).game.timeLimit === 5400, '90 minutes');
+  assert(S.createSim({ minutes: 0 }).game.timeLimit === 60, 'below 1 clamps to 1 minute');
+  assert(S.createSim({ minutes: 200 }).game.timeLimit === 5400, 'above 90 clamps to 90');
+  assert(S.createSim({ minutes: 7 }).game.timeLimit === 420, 'custom 7 minutes');
+  assert(S.createSim({ matchType: 'shootout', minutes: 20 }).game.timeLimit === 0, 'a shootout still has no clock');
+  assert(S.describeMatchLength(10).halves === 'two halves of 5 min', 'even length splits into whole minutes');
+  assert(S.describeMatchLength(5).halfText === '2:30', '5 minutes is two halves of 2:30');
+  assert(S.describeMatchLength(1).halfText === '0:30', '1 minute is two halves of 0:30');
+  sim.game.phase = 'play'; sim.game.setpiece = null; sim.game.clock = 0;
+  sim.admin('time', 30);
+  assert(sim.game.clock === 30, 'less time moves the clock forward 30s');
+  sim.admin('half');
+  assert(sim.game.clock === 300 && sim.game.phase !== 'win', 'end this half lands on halfway of a 10:00');
+  sim.admin('time', -30);
+  assert(sim.game.clock === 270, 'more time gives 30s back and stays inside the match');
+  sim.admin('clock', true);
+  sim.update(1);
+  assert(sim.game.clock === 270, 'pause clock holds a custom-length match');
+  sim.admin('clock', false);
+  sim.game.clock = 300;
+  sim.admin('half');
+  assert(sim.game.phase === 'win', 'end this half in the second half ends the match');
+}
 { const sim = S.createSim({}); sim.start();
   sim.game.phase = 'play'; sim.game.score.blue = 4; sim.game.score.red = 4; sim.game.clock = 299.9;
   run(sim, 0.25);

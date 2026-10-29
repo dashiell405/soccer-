@@ -31,14 +31,28 @@ const settings = {
   difficulty: "normal",
   blue: "blue", red: "red",     // team ids (or "custom")
   rules: { offside: true, cards: true },
+  minutes: 5,                   // full match. Each half is half of this.
+  lengthCustom: false,          // true when the last pick was the Custom stepper
   custom: { name: "My Team", shirt: "#8e44ad", shorts: "#ffffff", socks: "#8e44ad" },
   muted: false,
 };
 function loadSettings() {
   try { Object.assign(settings, JSON.parse(localStorage.getItem("soccerSettings") || "{}")); } catch (e) { /* ignore */ }
   settings.rules = { ...DEFAULT_RULES, ...(settings.rules || {}) };
+  const len = loadSavedMinutes();
+  settings.minutes = len.minutes;
+  settings.lengthCustom = len.custom;
 }
-function saveSettings() { try { localStorage.setItem("soccerSettings", JSON.stringify(settings)); } catch (e) { /* ignore */ } }
+function saveSettings() {
+  try { localStorage.setItem("soccerSettings", JSON.stringify(settings)); } catch (e) { /* ignore */ }
+  saveSavedMinutes(settings.minutes, settings.lengthCustom);
+}
+function chooseMatchLength(minutes, custom) {
+  settings.minutes = clampMatchMinutes(minutes);
+  settings.lengthCustom = !!custom;
+  saveSettings();
+  renderMenu();
+}
 // A team id -> full team (the custom team is built from your colours)
 const teamDef = (id) => (id === "custom" ? customTeam(settings.custom) : findTeam(id) || TEAM_LIST[0]);
 
@@ -224,9 +238,11 @@ const rosterList = () => (sim ? sim.roster : []);
 function hudSubtitle() {
   const kindText = matchKind === "cup" ? "CUP " + CUP_ROUND_NAMES[cup ? cup.round : 0] + ": " : "";
   if (game.matchType === "shootout") return "Penalty shootout \u2022 5 kicks each, then sudden death";
-  const fmt = game.knockout ? "5 minute game \u2022 a draw goes to penalties" : "5 minute game";
+  const info = describeMatchLength((game.timeLimit || MATCH_LENGTH) / 60);
+  const half = game.timeLimit && game.clock >= game.timeLimit / 2 ? "2nd half" : "1st half";
   const who = settings.mode === "1p" ? "1P vs CPU (" + game.difficulty + ")" : "2 Players";
-  return kindText + fmt + "  \u2022  " + who;
+  const draw = game.knockout ? " \u2022 draw = penalties" : "";
+  return info.minutes + " min \u2022 " + half + draw + "  \u2022  " + kindText + who;
 }
 function keysHint(kind) {
   const t = touchActive();
@@ -243,7 +259,8 @@ function keysHint(kind) {
 // D. STARTING MATCHES
 // =====================================================================
 // Build a new match. opts: {kind, blue, red (team defs), knockout, matchType}
-// Every match is 5 minutes. A cup match sends a draw to penalties.
+// The menu's match length is the full game. Each half is half of that.
+// A cup match sends a draw to penalties.
 // Your player is on every team you control. If both sides are the same
 // squad in a 2-player game, only the left team gets him.
 function applyPlayAsMeSides(blue, red) {
@@ -262,6 +279,7 @@ function newMatch(opts) {
   sim = createSim({
     mode: settings.mode === "2p" ? "2 players" : "1 player", difficulty: settings.difficulty, teams: kits,
     rules: settings.rules, knockout: opts.knockout, matchType: opts.matchType,
+    minutes: settings.minutes,
   });
   game = sim.game; ball = sim.ball; controllers = sim.controllers; players = sim.players;
   sim.addController("p1", "P1", "blue");
@@ -353,6 +371,17 @@ function renderMenu() {
   $("ruleOffside").checked = !!settings.rules.offside;
   $("ruleCards").checked = !!settings.rules.cards;
   $("rulesRow").style.display = settings.kind === "shootout" ? "none" : "";
+  const len = describeMatchLength(settings.minutes);
+  const custom = !!settings.lengthCustom;
+  $("lengthRow").classList.toggle("hidden", settings.kind === "shootout");
+  document.querySelectorAll("[data-mins]").forEach((b) => {
+    const v = b.dataset.mins;
+    const on = v === "custom" ? custom : (!custom && Number(v) === len.minutes);
+    b.classList.toggle("selected", on);
+  });
+  $("lenStep").classList.toggle("hidden", !custom || settings.kind === "shootout");
+  if (document.activeElement !== $("minsInput")) $("minsInput").value = String(len.minutes);
+  $("lengthLine").textContent = len.sentence;
   // team cards + the kits they will actually wear (away kit on a clash)
   const B = teamDef(settings.blue), R = teamDef(settings.red);
   const kits = buildTeamKits(B, R);
@@ -360,8 +389,9 @@ function renderMenu() {
   $("blueTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P1" : "YOU") + "</span>" + card("blue", B, kits.blue);
   $("redTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P2" : settings.kind === "cup" ? "CUP" : "CPU") + "</span>" + (settings.kind === "cup" ? "<b>7 random teams</b><br><span class='stars'>knockout</span>" : card("red", R, kits.red));
   $("redTeamBtn").disabled = settings.kind === "cup";
-  const fmt = { quick: "Quick match \u2022 11-a-side \u2022 5 minute game \u2022 most goals wins",
-                cup: "Cup \u2022 8 teams, knockout \u2022 every match is 5 minutes \u2022 a draw goes to penalties",
+  const minsWord = len.minutes + (len.minutes === 1 ? " minute" : " minutes");
+  const fmt = { quick: "Quick match \u2022 11-a-side \u2022 " + len.game + " \u2022 " + len.halves + " \u2022 most goals wins",
+                cup: "Cup \u2022 8 teams, knockout \u2022 every match is " + minsWord + " \u2022 " + len.halves + " \u2022 a draw goes to penalties",
                 shootout: "Penalty shootout \u2022 5 kicks each, then sudden death" }[settings.kind];
   $("formatLine").textContent = fmt;
   $("startBtn").textContent = settings.kind === "cup" ? "START NEW CUP" : settings.kind === "shootout" ? "TAKE PENALTIES" : "KICK OFF";
@@ -413,6 +443,26 @@ document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("clic
 document.querySelectorAll("[data-diff]").forEach((b) => b.addEventListener("click", () => { settings.difficulty = b.dataset.diff; renderMenu(); }));
 $("ruleOffside").addEventListener("change", (e) => { settings.rules.offside = e.target.checked; saveSettings(); });
 $("ruleCards").addEventListener("change", (e) => { settings.rules.cards = e.target.checked; saveSettings(); });
+document.querySelectorAll("[data-mins]").forEach((b) => b.addEventListener("click", () => {
+  if (b.dataset.mins === "custom") chooseMatchLength($("minsInput").value || settings.minutes, true);
+  else chooseMatchLength(Number(b.dataset.mins), false);
+}));
+function stepMinutes(delta) {
+  chooseMatchLength(clampMatchMinutes(Number($("minsInput").value) + delta), true);
+}
+$("minsDown").addEventListener("click", () => stepMinutes(-1));
+$("minsUp").addEventListener("click", () => stepMinutes(1));
+$("minsInput").addEventListener("input", () => {
+  const raw = $("minsInput").value;
+  if (raw === "" || raw === "-") return;
+  const n = Number(raw);
+  if (!isFinite(n)) return;
+  settings.minutes = clampMatchMinutes(n);
+  settings.lengthCustom = true;
+  saveSettings();
+  renderMenu();
+});
+$("minsInput").addEventListener("change", () => chooseMatchLength($("minsInput").value, true));
 
 // ---- Team picker ----
 let pickingFor = "blue";
@@ -541,7 +591,9 @@ function showCup() {
     html += "<div class='col'><div class='label'>" + CUP_ROUND_NAMES[r] + "</div>" + list.map(matchLine).join("") + "</div>";
   }
   $("bracket").innerHTML = html;
-  $("cupFormat").textContent = "Each match is 5 minutes \u2022 most goals wins \u2022 a draw goes to a penalty shootout";
+  const cupLen = describeMatchLength(settings.minutes);
+  const cupWord = cupLen.minutes + (cupLen.minutes === 1 ? " minute" : " minutes");
+  $("cupFormat").textContent = "Each match is " + cupWord + " \u2022 " + cupLen.halves + " \u2022 most goals wins \u2022 a draw goes to a penalty shootout";
   const m = cup.over ? null : myCupMatch();
   let status;
   if (cup.over) status = cup.champion === 0 ? "\ud83c\udfc6 You won the cup!" : esc(cup.teams[cup.champion].name) + " won the cup." + (cup.out ? " You were knocked out - try again!" : "");
@@ -690,6 +742,10 @@ window.soccerDebug = {
     if (opts.blue) settings.blue = opts.blue;
     if (opts.red) settings.red = opts.red;
     if (opts.rules) settings.rules = { ...settings.rules, ...opts.rules };
+    if (opts.minutes != null) {
+      settings.minutes = clampMatchMinutes(opts.minutes);
+      settings.lengthCustom = opts.lengthCustom != null ? !!opts.lengthCustom : !isPresetMinute(settings.minutes);
+    }
     startFromMenu();
     return this.state();
   },

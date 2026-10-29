@@ -47,7 +47,57 @@ const PEN_SPOT = Math.round(140 * FIELD);              // penalty spot distance 
 const CIRCLE_R = Math.round(115 * FIELD);              // center circle radius
 const POST_R = Math.max(4, Math.round(4 * FIELD));
 
-const MATCH_LENGTH = 300;         // every real match is 5:00 of game time. No goal limit.
+const MATCH_LENGTH = 300;         // default match is 5:00. The player can pick 1–90 minutes. No goal limit.
+const MATCH_PRESETS = [1, 2, 3, 5, 10, 15, 20];
+
+// A chosen length is a whole number of minutes from 1 to 90. Anything else
+// falls back to 5, which is what every match used before the picker existed.
+function clampMatchMinutes(n) {
+  const v = Math.round(Number(n));
+  if (!isFinite(v)) return 5;
+  if (v < 1) return 1;
+  if (v > 90) return 90;
+  return v;
+}
+function isPresetMinute(n) { return MATCH_PRESETS.indexOf(n) >= 0; }
+function describeMatchLength(minutes) {
+  const m = clampMatchMinutes(minutes);
+  const halfSec = m * 30;
+  const halfText = halfSec % 60 === 0 ? (halfSec / 60) + " min" : formatClock(halfSec).replace(/^0/, "");
+  const game = m + " minute game";
+  const halves = "two halves of " + halfText;
+  return { minutes: m, game: game, halves: halves, halfText: halfText, sentence: game + " \u2022 " + halves };
+}
+// Remembered on this device. Online guests do not write it: only the person
+// who picks the length does, so a guest's next hosted game keeps their own choice.
+function loadSavedMinutes() {
+  const fallback = { minutes: 5, custom: false };
+  try {
+    if (typeof localStorage === "undefined") return fallback;
+    const raw = localStorage.getItem("soccerMatchMinutes");
+    if (raw == null || raw === "") return fallback;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return { minutes: clampMatchMinutes(parsed.minutes), custom: !!parsed.custom };
+    return { minutes: clampMatchMinutes(parsed), custom: false };
+  } catch (e) { return fallback; }
+}
+function saveSavedMinutes(minutes, custom) {
+  const choice = { minutes: clampMatchMinutes(minutes), custom: !!custom };
+  try {
+    if (typeof localStorage === "undefined") return choice;
+    localStorage.setItem("soccerMatchMinutes", JSON.stringify(choice));
+  } catch (e) { /* private mode */ }
+  return choice;
+}
+// Full match length in seconds. A shootout has no clock. An old timeLimit of
+// a few seconds (from before every match was 5:00) is ignored.
+function resolveMatchSeconds(opts) {
+  if (opts && opts.matchType === "shootout") return 0;
+  if (opts && opts.minutes != null && opts.minutes !== "") return clampMatchMinutes(opts.minutes) * 60;
+  const t = opts && Number(opts.timeLimit);
+  if (isFinite(t) && t >= 60 && t <= 90 * 60) return Math.round(t);
+  return MATCH_LENGTH;
+}
 // Overhead throw-in: wind the ball up behind the head, then swing it forward.
 const THROW_WIND = 0.42;          // seconds with the ball going up and back
 const THROW_RELEASE = 0.70;       // when the ball leaves the hands
@@ -293,9 +343,9 @@ function createSim(opts = {}) {
     difficulty: DIFFICULTY[opts.difficulty] ? opts.difficulty : "normal",
     teams: opts.teams || buildTeamKits(TEAM_LIST[0], TEAM_LIST[1]),   // names, kits, ratings
     rules: { ...DEFAULT_RULES, ...(opts.rules || {}) },               // offside / cards on or off
-    // A normal match is always 5:00. A penalty-shootout mode has no clock.
-    // Old goal-limit and match-length options are ignored.
-    timeLimit: opts.matchType === "shootout" ? 0 : MATCH_LENGTH,
+    // The player picks the full match length (default 5:00). Each half is half
+    // of that. A penalty-shootout mode has no clock. A tiny old timeLimit is ignored.
+    timeLimit: resolveMatchSeconds(opts),
     knockout: opts.matchType === "shootout" ? false : !!opts.knockout, // a draw goes to penalties
     matchType: opts.matchType === "shootout" ? "shootout" : "match",   // or just a penalty shootout
     penalty: null,          // the penalty kick being taken (aim, goalie choice...)
@@ -2070,7 +2120,7 @@ function scoreGoal(team, side) {
   cancelCharging();
 }
 
-// The 5:00 clock ran out. Most goals wins. A draw is a draw, unless this
+// The clock ran out. Most goals wins. A draw is a draw, unless this
 // is a cup match, which goes to a penalty shootout.
 function fullTime() {
   emit("whistleLong");
@@ -3033,6 +3083,7 @@ function update(dt) {
 
 // Node.js (the server) loads this file with require()
 if (typeof module === "object" && module.exports) {
-  module.exports = { createSim, MATCH_LENGTH, FIELD, PITCH, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
-                     TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES, setPlayAsMeSides };
+  module.exports = { createSim, MATCH_LENGTH, MATCH_PRESETS, FIELD, PITCH, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
+                     TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES, setPlayAsMeSides,
+                     clampMatchMinutes, describeMatchLength, resolveMatchSeconds, loadSavedMinutes, saveSavedMinutes };
 }
