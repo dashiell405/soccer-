@@ -45,7 +45,8 @@ scripts = ('"use strict";\n' + banner("SQUADS (original players, same list as ga
            + banner("GAME LOGIC (same code as the online server: multiplayer/public/game.js)")
            + read("sim.js") + banner("SOUND") + read("sound.js") + banner("FLAGS") + read("flags.js")
            + banner("DRAWING") + read("render.js")
-           + banner("OFFLINE SHELL") + read("offline_shell.js"))
+           + banner("OFFLINE SHELL") + read("offline_shell.js")
+           + banner("HIDDEN ADMIN") + read("admin.js"))
 html = read("offline_template.html").replace("/*__SCRIPTS__*/", scripts)
 write(os.path.join(HERE, "soccer.html"), html)
 
@@ -58,7 +59,7 @@ def bundle(*names):
 game = read("squads.js") + "\n" + read("sim.js")
 write(os.path.join(MP, "public", "game.js"), game)
 write(os.path.join(HERE, "game.js"), game)
-parts = ("client_head.js", "sound.js", "client_net.js", "flags.js", "render.js", "client_tail.js")
+parts = ("client_head.js", "sound.js", "client_net.js", "flags.js", "render.js", "client_tail.js", "admin.js")
 write(os.path.join(MP, "public", "client.js"), bundle("client_head.js", "sound.js", "client_ws.js", *parts[2:]))
 write(os.path.join(HERE, "online.js"), bundle("client_head.js", "sound.js", "p2p_net.js", *parts[2:]))
 

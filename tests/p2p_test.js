@@ -148,7 +148,7 @@ function startPeerBroker() {
       return { status: window.pwaStatus.sw, keys, cached, cdn, peer: typeof Peer !== "undefined", from: window.soccerPeerFrom || null };
     });
     console.log("service worker:", JSON.stringify(swInfo));
-    if (!swInfo.keys.some((k) => k.indexOf("stadium-soccer-pages-v22") >= 0)) throw new Error("service worker cache was not bumped: " + swInfo.keys.join(","));
+    if (!swInfo.keys.some((k) => k.indexOf("stadium-soccer-pages-v23") >= 0)) throw new Error("service worker cache was not bumped: " + swInfo.keys.join(","));
     if (swInfo.cached.indexOf("online.html") < 0 || swInfo.cached.indexOf("online.js") < 0) throw new Error("online files were not cached: " + swInfo.cached.join(","));
     if (String(swInfo.cdn).indexOf("200") !== 0) throw new Error("CDN fetch failed with the service worker running: " + swInfo.cdn);
     if (!swInfo.peer) throw new Error("PeerJS did not load (" + swInfo.from + ")");

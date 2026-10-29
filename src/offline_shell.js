@@ -661,7 +661,7 @@ function frame(now) {
   if (dt > 0.1) dt = 0.1;
   if (inMatch() && !paused) {
     feedInput();
-    accumulator += dt;
+    accumulator += dt * (game && game.admin && game.admin.slow ? 0.35 : 1);
     while (accumulator >= STEP) { sim.update(STEP); accumulator -= STEP; }
     players = sim.players;
     for (const ev of game.events.splice(0)) playEvent(ev);

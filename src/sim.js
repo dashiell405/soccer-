@@ -108,8 +108,8 @@ const AI_SKILL_CHANCE = { easy: 0, normal: 0.18, hard: 0.45 };
 //   passErr    - how sloppy passes are
 const DIFFICULTY = {
   easy:   { speed: 0.82, think: 0.45, aimErr: 0.60, shootRange: 300 * FIELD, steal: 1.0, slide: 0.0, gkDive: 330 * FIELD, gkReact: 0.30, gkCatch: 0.45, passErr: 0.25 },
-  normal: { speed: 0.92, think: 0.25, aimErr: 0.40, shootRange: 360 * FIELD, steal: 1.8, slide: 0.55, gkDive: 390 * FIELD, gkReact: 0.40, gkCatch: 0.60, passErr: 0.12 },
-  hard:   { speed: 1.00, think: 0.12, aimErr: 0.25, shootRange: 420 * FIELD, steal: 2.8, slide: 0.95, gkDive: 450 * FIELD, gkReact: 0.50, gkCatch: 0.72, passErr: 0.05 },
+  normal: { speed: 0.92, think: 0.25, aimErr: 0.40, shootRange: 360 * FIELD, steal: 1.8, slide: 0.42, gkDive: 390 * FIELD, gkReact: 0.40, gkCatch: 0.60, passErr: 0.12 },
+  hard:   { speed: 1.00, think: 0.12, aimErr: 0.25, shootRange: 420 * FIELD, steal: 2.8, slide: 0.8, gkDive: 450 * FIELD, gkReact: 0.50, gkCatch: 0.72, passErr: 0.05 },
 };
 // Computer-controlled teammates of a human use these
 const TEAMMATE_AI = { speed: 0.95, think: 0.22, aimErr: 0.35, shootRange: 360 * FIELD, steal: 1.8, slide: 0.0, gkDive: 400 * FIELD, gkReact: 0.42, gkCatch: 0.62, passErr: 0.1 };
@@ -607,7 +607,17 @@ function boosts(p) {
     steal = clamp(Math.max(steal, 1.76), 0, 1.82);
     stamDrain = clamp(Math.min(stamDrain, 0.38), 0.34, 2);
   }
+  if (game.admin && adminMine(p)) {
+    if (game.admin.superSpeed) { run = Math.max(run, 1.85); sprint = Math.max(sprint, 1.9); }
+    if (game.admin.superShot) { shot = Math.max(shot, 1.95); aim = Math.min(aim, 0.12); }
+    if (game.admin.perfect) { passErr = 0.04; hold = 3; }
+  }
   return { run, sprint, shot, aim, passErr, hold, steal, stamDrain, gkCatch, gkDive, gkReact };
+}
+function adminMine(p) {
+  if (!game.admin || !p) return false;
+  for (const c of controllers) if (!c.cpu && c.active === p) return true;
+  return false;
 }
 function aimPoint(p, target) {
   const spread = Math.max(0, boosts(p).passErr - 0.35) * dist(ball, target) * 0.045;
@@ -1241,6 +1251,7 @@ function ballContacts(dt) {
       p.controlCD = 0.4;
       return;
     }
+    if (game.admin && game.admin.perfect && adminMine(p) && p.state === "run") { takePossession(p); return; }
     const rel = Math.hypot(ball.vx - p.vx, ball.vy - p.vy);
     const limit = CONTROL_SPEED + (isHumanControlled(p) ? 120 : 0);
     if (rel < limit && p.state === "run") {
@@ -1583,7 +1594,7 @@ function maybeSlide(p, dt) {
   if (dist(p, ball) > dist(p, ball.owner) - 4) return; // only when the ball is nearer than the player (fewer fouls)
   let rate = ai.slide;
   if (inOwnBox(p.team, ball)) rate *= 0.25;                  // careful in your own box (penalty!)
-  if (ball.owner.fx * p.fx + ball.owner.fy * p.fy > 0.5) rate *= 0.75;   // from behind: still a challenge, often a foul
+  if (ball.owner.fx * p.fx + ball.owner.fy * p.fy > 0.5) rate *= 0.55;   // from behind: still a challenge, and it is often a foul
   if (game.rules.cards && p.yellow) rate *= 0.3;            // already on a yellow card
   if (Math.random() < rate * dt) startSlide(p);
 }
@@ -1882,6 +1893,7 @@ function updatePlayers(dt) {
       p.sprinting = sprint && moving && p.stamina > 0.02;
       if (p.sprinting) p.stamina = Math.max(0, p.stamina - STAMINA_DRAIN * body.stamDrain * dt);
       else p.stamina = Math.min(1, p.stamina + STAMINA_REGEN * dt);
+      if (game.admin && game.admin.infiniteStamina && adminMine(p)) p.stamina = 1;
 
       let maxSpeed = RUN_SPEED * speedMult * body.run;
       if (p.sprinting) maxSpeed *= SPRINT_MULT * body.sprint;
@@ -2174,12 +2186,13 @@ function contactFouls(dt) {
       const closing = offender.vx * rel.x + offender.vy * rel.y;
       const fromBehind = offender.fx * victim.fx + offender.fy * victim.fy > 0.35;
       const late = !carrier && dist(offender, ball) > dist(offender, victim) + 12;
-      const push = closing > 50 && d < PLAYER_R * 2 + 1;
+      const push = closing > 90 && d < PLAYER_R * 2;
       if (!fromBehind && !late && !push) continue;
-      let rate = push ? 0.7 : 0.35;
-      if (fromBehind) rate = 1.15;
-      if (late) rate = 1.35;
-      if (inOwnBox(offender.team, victim)) rate *= 1.25;
+      let rate = 0.2;
+      if (push) rate = 0.35;
+      if (fromBehind) rate = 0.5;
+      if (late) rate = 0.65;
+      if (inOwnBox(offender.team, victim)) rate *= 1.2;
       if (Math.random() < rate * dt) { foul(offender, victim); return; }
     }
   }
@@ -2764,7 +2777,7 @@ function update(dt) {
       if (sp.timer <= 0) aiTakeSetpiece(sp.taker, sp.type);
     }
   } else if (game.phase === "play") {
-    game.clock += dt;
+    if (!(game.admin && game.admin.clockPaused)) game.clock += dt;
     assignActive("blue", dt); assignActive("red", dt);
     computePlans();
     updatePlayers(dt);
@@ -2772,7 +2785,7 @@ function update(dt) {
     ballContacts(dt);
     if (game.phase === "play") {
       game.live = (game.live || 0) + dt;
-      if (game.live > 0.7) contactFouls(dt);
+      if (game.live > 5) contactFouls(dt);
     } else game.live = 0;
     checkOutOfPlay();
     if (game.phase === "play" && game.timeLimit && game.clock >= game.timeLimit) fullTime();
@@ -2962,6 +2975,52 @@ function update(dt) {
     startShootout() { startShootout(); },
     giveCard(i, kind) { if (roster[i] && !roster[i].sentOff) giveCard(roster[i], kind); },
     setAutoplay(on) { game.autoplay = !!on; },
+    admin(action, arg) {
+      if (!game.admin) game.admin = { clockPaused: false, slow: false, superSpeed: false, superShot: false, infiniteStamina: false, perfect: false, debug: false, saved: {} };
+      const a = game.admin;
+      const live = ["setpiece", "play", "dead", "goal", "shootout", "pkflight", "win"].includes(game.phase);
+      if (action === "get") return a;
+      if (action === "goal" && live) {
+        const team = arg && arg.team === "red" ? "red" : "blue";
+        game.score[team] = Math.max(0, (game.score[team] | 0) + ((arg && arg.n) || 1));
+      } else if (action === "score" && live) {
+        game.score.blue = Math.max(0, arg.blue | 0);
+        game.score.red = Math.max(0, arg.red | 0);
+      } else if (action === "time" && live && game.timeLimit) {
+        game.clock = clamp(game.clock + (Number(arg) || 0), 0, game.timeLimit);
+      } else if (action === "clock") {
+        a.clockPaused = !!arg;
+      } else if (action === "half" && live && game.timeLimit) {
+        if (game.clock < game.timeLimit / 2) game.clock = game.timeLimit / 2;
+        else fullTime();
+      } else if (action === "end" && live) fullTime();
+      else if (action === "flag") a[arg.name] = !!arg.on;
+      else if (action === "kickoff" && live) {
+        const team = (game.setpiece && game.setpiece.team) || (Math.random() < 0.5 ? "blue" : "red");
+        beginSetpiece("kickoff", team, PITCH.cx, PITCH.cy);
+      } else if (action === "switch") {
+        const c = controllers.find((k) => !k.cpu && k.team);
+        if (!c) return a;
+        const list = roster.filter((p) => p.team === c.team && !p.sentOff && p.role !== "GK");
+        if (!list.length) return a;
+        const i = Math.max(0, list.indexOf(c.active));
+        setActive(c, list[(i + 1) % list.length]);
+        c.switchLock = 8;
+      } else if (action === "rate") {
+        const p = roster[arg | 0];
+        if (!p) return a;
+        if (!a.saved[arg]) a.saved[arg] = { pace: p.pace, shoot: p.shoot, pass: p.pass, dribble: p.dribble, defend: p.defend, stam: p.stam };
+        p.pace = p.shoot = p.pass = p.dribble = p.defend = p.stam = 100;
+      } else if (action === "reset") {
+        for (const k of Object.keys(a.saved || {})) {
+          const p = roster[k];
+          if (p) Object.assign(p, a.saved[k]);
+        }
+        game.admin = { clockPaused: false, slow: false, superSpeed: false, superShot: false, infiniteStamina: false, perfect: false, debug: false, saved: {} };
+        return game.admin;
+      }
+      return a;
+    },
     forceGoal(team) {
       if (game.phase === "setpiece" || game.phase === "play") {
         const sc = teamPlayers(team).find((p) => p.star && p.role !== "GK") || teamPlayers(team).find((p) => p.role === "FWD");

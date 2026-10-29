@@ -313,7 +313,8 @@ function simTick() {
   const dt = Math.min(0.1, (now - (hosted.lastTickAt || now)) / 1000);
   hosted.lastTickAt = now;
   if (hosted.state === "playing") {
-    hosted.acc += dt * (hosted.speed || 1);
+    const slow = hosted.sim.game.admin && hosted.sim.game.admin.slow ? 0.35 : 1;
+    hosted.acc += dt * (hosted.speed || 1) * slow;
     let steps = 0;
     while (hosted.acc >= SIM_STEP && steps < 2000) { hosted.sim.update(SIM_STEP); hosted.acc -= SIM_STEP; steps++; }
     if (hosted.sim.game.phase === "win") { hosted.state = "win"; broadcastRoom(hosted); }
