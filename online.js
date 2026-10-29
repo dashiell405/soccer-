@@ -2856,11 +2856,18 @@ function drawPlayer(p) {
     limb(H * 0.16, -H * 0.68, H * 0.26 - as, -H * 0.4, undefined, undefined, skin, armW);
   }
   if (p.captain && !throwing) {
+    const ax = -H * 0.24 + as * 0.35;
+    const ay = -H * 0.58;
     ctx.fillStyle = "#ffd33d";
-    ctx.fillRect(H * 0.1, -H * 0.74, H * 0.09, H * 0.05);
+    ctx.fillRect(ax - H * 0.045, ay - H * 0.028, H * 0.09, H * 0.056);
     ctx.strokeStyle = "#111";
     ctx.lineWidth = 1;
-    ctx.strokeRect(H * 0.1, -H * 0.74, H * 0.09, H * 0.05);
+    ctx.strokeRect(ax - H * 0.045, ay - H * 0.028, H * 0.09, H * 0.056);
+    ctx.fillStyle = "#1a1404";
+    ctx.font = "bold " + Math.max(7, Math.round(H * 0.055)) + "px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("C", ax, ay);
   }
   if (p.role === "GK" && !pose) {
     ctx.fillStyle = "#f7f7f7";
@@ -2934,8 +2941,9 @@ function drawPlayerHud(p, c) {
   if (foot.behind) return;
   const H = 34 * ZMUL * foot.s * (p.tall || 1);
   const mine = isLocal(c);
-  const nm = typeof shownName === "function" ? shownName(p) : (p.name || "");
-  const label = (labelFor(c) || "") + "  #" + p.num;
+  const nm0 = typeof shownName === "function" ? shownName(p) : (p.name || "");
+  const nm = nm0 ? nm0 + (p.captain ? " C" : "") : "";
+  const label = (labelFor(c) || "") + "  #" + p.num + (p.captain ? " C" : "");
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = "bold " + Math.max(11, Math.round(12 + foot.s * 2)) + "px Arial";
@@ -3324,6 +3332,8 @@ function drawMatchBugs(replayOn) {
     if (bugId !== "ko") { bugId = "ko"; bugUntil = viewTime + 1.6; }
     if (viewTime < bugUntil) centerTitle("KICK OFF");
   } else if (bugId === "ko") bugId = "";
+  const call = game.comment && game.comment.timer > 0.25 ? game.comment.text : "";
+  if (call === "FOUL" || call === "FREE KICK" || call === "PENALTY!") centerTitle(call);
   if (game.phase === "win") centerTitle("FULL TIME");
   else if (game.phase === "shootout" && game.shootout && game.shootout.kicks.blue.length + game.shootout.kicks.red.length === 0 && game.timer > 0.6) centerTitle("PENALTIES");
   else if (game.timeLimit && game.phase === "play" && game.clock >= game.timeLimit / 2 && game.clock < game.timeLimit / 2 + 2.1) centerTitle("SECOND HALF");

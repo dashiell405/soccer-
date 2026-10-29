@@ -361,6 +361,42 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   assert(db.steal > boost(onBlue('rock')).steal && db.steal <= 1.82, 'tackles better than the best rock, with a cap');
   assert(db.stamDrain < boost(onBlue('engine')).stamDrain && db.stamDrain >= 0.34, 'tires slower than the best engine, with a floor');
 }
+// Captains, free kicks, and penalties.
+{
+  const sim = S.createSim({ teams: S.buildTeamKits(S.findTeam('usa'), S.findTeam('bra')) });
+  sim.start();
+  const dash = sim.roster.find((p) => p.name === 'Dashiell G.');
+  const hugo = sim.roster.find((p) => p.name === 'Hugo Santarem');
+  assert(dash && dash.captain && dash.num === 10, 'Dashiell G. is USA captain');
+  assert(hugo && hugo.captain, 'Brazil captain is Hugo Santarem');
+  assert(sim.roster.filter((p) => p.captain).length === 2, 'one captain on each side');
+  assert(sim.game.setpiece && sim.game.setpiece.taker && sim.game.setpiece.taker.captain, 'the captain takes the kick-off');
+  assert(/Coin toss/.test(sim.game.comment.text) && sim.game.comment.text.indexOf(sim.game.setpiece.taker.name) >= 0, 'coin toss names the captain: ' + sim.game.comment.text);
+  const free = S.createSim({}); free.start();
+  free.debugFoul('blue', false, true);
+  assert(free.game.pending && free.game.pending.type === 'free' && free.game.comment.text === 'FOUL', 'a foul outside the box is a free kick: ' + free.game.comment.text);
+  let t = 0; while (free.game.phase !== 'setpiece' && t < 400) { free.update(1/120); t++; }
+  assert(free.game.setpiece && free.game.setpiece.type === 'free' && free.game.comment.text === 'FREE KICK', 'free kick is set up');
+  const pen = S.createSim({ teams: S.buildTeamKits(S.findTeam('usa'), S.findTeam('bra')) });
+  pen.addController('a', 'A', 'blue'); pen.addController('b', 'B', 'red');
+  pen.start();
+  pen.debugFoul('blue', true, false);
+  assert(pen.game.pending && pen.game.pending.type === 'penalty' && pen.game.comment.text === 'PENALTY!', 'a foul in the box is a penalty');
+  t = 0; while (pen.game.phase !== 'setpiece' && t < 500) { pen.update(1/120); t++; }
+  const pk = pen.game.penalty;
+  const cap = pen.roster.find((p) => p.team === 'blue' && p.captain);
+  assert(pk && pk.taker === cap && pk.keeper && pk.keeper.role === 'GK', 'the captain takes the penalty and the keeper is in goal');
+  const goalX = pk.keeper.x;
+  const dir = Math.sign(S.PITCH.cx - goalX) || 1;
+  const boxDepth = Math.round(210 * S.FIELD);
+  const boxHalf = Math.round(520 * S.FIELD) / 2;
+  const crowded = pen.players.some((p) => {
+    if (p === pk.taker || p === pk.keeper) return false;
+    const depth = (p.x - goalX) * dir;
+    return depth > -8 && depth < boxDepth - 6 && Math.abs(p.y - S.PITCH.cy) < boxHalf - 6;
+  });
+  assert(!crowded, 'the other players wait outside the penalty area');
+}
 // Kick-off: each squad stays in its own half. Only the kicker is in the centre circle.
 function kickoffOk(sim, label) {
   const P = S.PITCH;

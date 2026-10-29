@@ -108,8 +108,8 @@ const AI_SKILL_CHANCE = { easy: 0, normal: 0.18, hard: 0.45 };
 //   passErr    - how sloppy passes are
 const DIFFICULTY = {
   easy:   { speed: 0.82, think: 0.45, aimErr: 0.60, shootRange: 300 * FIELD, steal: 1.0, slide: 0.0, gkDive: 330 * FIELD, gkReact: 0.30, gkCatch: 0.45, passErr: 0.25 },
-  normal: { speed: 0.92, think: 0.25, aimErr: 0.40, shootRange: 360 * FIELD, steal: 1.8, slide: 0.35, gkDive: 390 * FIELD, gkReact: 0.40, gkCatch: 0.60, passErr: 0.12 },
-  hard:   { speed: 1.00, think: 0.12, aimErr: 0.25, shootRange: 420 * FIELD, steal: 2.8, slide: 0.7, gkDive: 450 * FIELD, gkReact: 0.50, gkCatch: 0.72, passErr: 0.05 },
+  normal: { speed: 0.92, think: 0.25, aimErr: 0.40, shootRange: 360 * FIELD, steal: 1.8, slide: 0.55, gkDive: 390 * FIELD, gkReact: 0.40, gkCatch: 0.60, passErr: 0.12 },
+  hard:   { speed: 1.00, think: 0.12, aimErr: 0.25, shootRange: 420 * FIELD, steal: 2.8, slide: 0.95, gkDive: 450 * FIELD, gkReact: 0.50, gkCatch: 0.72, passErr: 0.05 },
 };
 // Computer-controlled teammates of a human use these
 const TEAMMATE_AI = { speed: 0.95, think: 0.22, aimErr: 0.35, shootRange: 360 * FIELD, steal: 1.8, slide: 0.0, gkDive: 400 * FIELD, gkReact: 0.42, gkCatch: 0.62, passErr: 0.1 };
@@ -1583,7 +1583,7 @@ function maybeSlide(p, dt) {
   if (dist(p, ball) > dist(p, ball.owner) - 4) return; // only when the ball is nearer than the player (fewer fouls)
   let rate = ai.slide;
   if (inOwnBox(p.team, ball)) rate *= 0.25;                  // careful in your own box (penalty!)
-  if (ball.owner.fx * p.fx + ball.owner.fy * p.fy > 0.5) rate *= 0.4;   // and from behind (card!)
+  if (ball.owner.fx * p.fx + ball.owner.fy * p.fy > 0.5) rate *= 0.75;   // from behind: still a challenge, often a foul
   if (game.rules.cards && p.yellow) rate *= 0.3;            // already on a yellow card
   if (Math.random() < rate * dt) startSlide(p);
 }
@@ -2019,8 +2019,8 @@ function goDead(type, team, spot, taker = null, extra = {}) {
   ball.owner = null; ball.intended = null; ball.offside = null; ball.indirect = null;
   cancelCharging();
   emit("whistle");
-  const names = { throw: "Throw-in", corner: "Corner kick!", goalkick: "Goal kick", free: "Foul! Free kick", penalty: "PENALTY!" };
-  say((extra.label || names[type]) + " \u2013 " + teamName(team), teamUi(team), type === "penalty" ? 2.4 : 1.8);
+  const names = { throw: "Throw-in", corner: "Corner kick!", goalkick: "Goal kick", free: "FOUL", penalty: "PENALTY!" };
+  say(extra.label || names[type], type === "penalty" ? "#ff4d4d" : "#ffd33d", type === "penalty" ? 2.6 : 1.8);
 }
 
 function scoreGoal(team, side) {
@@ -2074,9 +2074,13 @@ function beginSetpiece(type, team, x, y, taker = null, indirect = false) {
   Object.assign(ball, { x, y, z: 0, vx: 0, vy: 0, vz: 0, curl: 0, inNet: null, shot: null, intended: null, offside: null, indirect: null });
 
   if (!taker || taker.state !== "run" || taker.sentOff || (type === "penalty" && taker.role === "GK" && !game.shootout)) {
-    if (type === "kickoff" || type === "penalty") {
-      const meP = type === "kickoff" ? players.find((p) => p.team === team && p.me && !p.sentOff && p.role !== "GK") : null;
-      taker = meP || players.find((p) => p.team === team && p.role === "FWD") || teamPlayers(team).find((p) => p.role !== "GK");
+    if (type === "kickoff" || (type === "penalty" && !game.shootout)) {
+      const cap = players.find((p) => p.team === team && p.captain && !p.sentOff && p.role !== "GK");
+      const meP = players.find((p) => p.team === team && p.me && !p.sentOff && p.role !== "GK");
+      // The captain takes the penalty. At kick-off you take it if you are on the ball, otherwise the captain does.
+      taker = (type === "penalty" ? cap || meP : meP || cap)
+        || players.find((p) => p.team === team && p.role === "FWD")
+        || teamPlayers(team).find((p) => p.role !== "GK");
     }
     else if (type === "goalkick") taker = goalieOf(team);
     else {
@@ -2114,12 +2118,19 @@ function beginSetpiece(type, team, x, y, taker = null, indirect = false) {
   game.phase = "setpiece";
   cancelCharging();
   game.stats[type]++;
-  if (type === "penalty") setupPenalty(team, taker);
+  if (type === "penalty") { setupPenalty(team, taker); say("PENALTY!", "#ff4d4d", 2.6); }
   else {
     game.penalty = null;
     if (type === "throw") holdThrowBall(taker, 0);   // ball is already over the head, not at the feet
-    if (type !== "kickoff") keepAwayFromSetpiece();
-    else { parkForKickoff(taker); say("Kick off!", "#fff", 1.5); emit("whistle"); }
+    if (type === "kickoff") {
+      parkForKickoff(taker);
+      const who = taker && taker.captain ? shownName(taker) : "";
+      say(who ? "Coin toss: " + who + " wins it" : "Kick off!", "#ffd33d", 2.2);
+      emit("whistle");
+    } else {
+      keepAwayFromSetpiece();
+      if (type === "free") say("FREE KICK", "#fff", 2.2);
+    }
   }
 }
 
@@ -2139,6 +2150,41 @@ function nearestOutfield(team, spot) {
 // ---------------------------------------------------------------------
 // 15. FOULS, CARDS + PENALTIES
 // ---------------------------------------------------------------------
+// A push, a shirt-pull, or a late tackle while the two of them are tangled.
+// Not every bump: it has to be from behind, late, or a real shove.
+function contactFouls(dt) {
+  if (game.phase !== "play" || ball.z > 28) return;
+  for (let i = 0; i < players.length; i++) {
+    const a = players[i];
+    if (a.sentOff || a.state === "down" || a.state === "slide") continue;
+    for (let j = i + 1; j < players.length; j++) {
+      const b = players[j];
+      if (b.team === a.team || b.sentOff || b.state === "down") continue;
+      const d = dist(a, b);
+      if (d > PLAYER_R * 2 + 5) continue;
+      const carrier = ball.owner;
+      let offender = null, victim = null;
+      if (carrier === b) { offender = a; victim = b; }
+      else if (carrier === a) { offender = b; victim = a; }
+      else if (ball.lastTouch === b && dist(ball, b) < 80) { offender = a; victim = b; }
+      else if (ball.lastTouch === a && dist(ball, a) < 80) { offender = b; victim = a; }
+      else continue;
+      if (offender.role === "GK" && inOwnBox(offender.team, offender)) continue;
+      const rel = normalize(victim.x - offender.x, victim.y - offender.y);
+      const closing = offender.vx * rel.x + offender.vy * rel.y;
+      const fromBehind = offender.fx * victim.fx + offender.fy * victim.fy > 0.35;
+      const late = !carrier && dist(offender, ball) > dist(offender, victim) + 12;
+      const push = closing > 50 && d < PLAYER_R * 2 + 1;
+      if (!fromBehind && !late && !push) continue;
+      let rate = push ? 0.7 : 0.35;
+      if (fromBehind) rate = 1.15;
+      if (late) rate = 1.35;
+      if (inOwnBox(offender.team, victim)) rate *= 1.25;
+      if (Math.random() < rate * dt) { foul(offender, victim); return; }
+    }
+  }
+}
+
 // A foul (a slide that hits the player instead of the ball).
 //   Yellow card: a slide from behind, or a 3rd foul by the same player
 //   Red card: a second yellow, or a very bad foul (stopping a clear run
@@ -2161,8 +2207,8 @@ function foul(offender, victim) {
     else if (fromBehind || offender.fouls >= 3 || (inBox && Math.random() < 0.35)) card = "yellow";
   }
   if (card) giveCard(offender, card);
-  if (inBox) goDead("penalty", victim.team, penaltySpot(victim.team), victim, { long: !!card });
-  else goDead("free", victim.team, clampToPitch(victim, 15), victim, { long: !!card });
+  if (inBox) goDead("penalty", victim.team, penaltySpot(victim.team), null, { long: !!card });
+  else goDead("free", victim.team, clampToPitch(victim, 15), null, { long: !!card });
 }
 
 // Show a card. A red card (or 2nd yellow) sends the player off: his team
@@ -2216,7 +2262,7 @@ function setupPenalty(team, taker) {
     } else {
       // outside the box, near the "D"
       const lane = k * 2 + (p.team === team ? 0 : 1);
-      spot = { x: A.targetGoalX - A.dir * (BOX.depth + 28 + (lane % 2) * 26), y: PITCH.cy + (lane - 3.5) * 50 };
+      spot = { x: A.targetGoalX - A.dir * (BOX.depth + Math.round(52 * FIELD) + (lane % 2) * 24), y: PITCH.cy + (lane - 3.5) * 52 };
     }
     p.penSpot = spot;
     p.x = spot.x; p.y = spot.y; p.vx = p.vy = 0; p.state = "run";
@@ -2707,6 +2753,7 @@ function update(dt) {
   if (game.flag && (game.flag.timer -= dt) <= 0) game.flag = null;
 
   if (game.phase === "setpiece") {
+    game.live = 0;
     assignActive("blue", dt); assignActive("red", dt);
     computePlans();
     updatePlayers(dt);
@@ -2723,6 +2770,10 @@ function update(dt) {
     updatePlayers(dt);
     updateBall(dt);
     ballContacts(dt);
+    if (game.phase === "play") {
+      game.live = (game.live || 0) + dt;
+      if (game.live > 0.7) contactFouls(dt);
+    } else game.live = 0;
     checkOutOfPlay();
     if (game.phase === "play" && game.timeLimit && game.clock >= game.timeLimit) fullTime();
   } else if (game.phase === "dead") {
