@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Soccer Showdown 2 - Stadium Edition</title>
+<title>Floodlight Kickoff</title>
 <!--
   =====================================================================
-   SOCCER SHOWDOWN 2  -  "Stadium Edition"
+   FLOODLIGHT KICKOFF
   ---------------------------------------------------------------------
    A single-file HTML5 soccer game. Everything (HTML, CSS, JavaScript,
    graphics and sounds) is in this one file, so it works offline:
@@ -69,10 +69,10 @@
   #menu .panel { padding: 0 18px 12px; }
   #menu .coverBanner {
     display: block; width: calc(100% + 36px); height: clamp(64px, 18vh, 148px);
-    margin: 0 -18px 6px; object-fit: cover; object-position: center 34%;
+    margin: 0 -18px 6px; object-fit: cover; object-position: center 14%;
     border-radius: 17px 17px 0 0; pointer-events: none;
   }
-  /* The picture already says Stadium Soccer. Keep the heading for the build and for screen readers. */
+  /* The picture shows Floodlight Kickoff. Keep the heading for screen readers and the hidden helpers tap. */
   #menu h1, #menu .eyebrow {
     position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
@@ -411,9 +411,9 @@
 <!-- Start menu -->
 <div id="menu" class="overlay">
   <div class="panel">
-    <img class="coverBanner" src="assets/cover.png" alt="Stadium Soccer. Pick your team. Own the pitch.">
+    <img class="coverBanner" src="assets/cover.png" alt="Floodlight Kickoff. Pick your team. Own the pitch.">
     <p class="eyebrow">Night match</p>
-    <h1><span class="b">SOCCER</span> <span class="r">SHOWDOWN</span> 2</h1>
+    <h1><span class="b">FLOODLIGHT</span> <span class="r">KICKOFF</span></h1>
     <div class="row kindRow">
       <button data-kind="quick" class="selected">Quick Match</button>
       <button data-kind="cup">Cup</button>
@@ -486,7 +486,7 @@
 <!-- Cup bracket -->
 <div id="cupScreen" class="overlay hidden">
   <div class="panel">
-    <h1 style="font-size:30px">&#127942; STADIUM CUP</h1>
+    <h1 style="font-size:30px">&#127942; FLOODLIGHT CUP</h1>
     <div id="cupFormat"></div>
     <div id="bracket"></div>
     <div id="cupStatus"></div>

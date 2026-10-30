@@ -1,5 +1,5 @@
 /* =====================================================================
-   SERVICE WORKER - lets "Stadium Soccer" open with no internet.
+   SERVICE WORKER - lets "Floodlight Kickoff" open with no internet.
    The first visit saves these files on the device. After that the game
    still opens when you are offline.
 
@@ -10,7 +10,7 @@
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-pages-v30";
+const VERSION = "floodlight-kickoff-pages-v31";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -37,7 +37,12 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => {
+        if (k === VERSION) return false;
+        // Old installs saved the game as stadium-soccer-pages-v*.
+        // Drop those, and any earlier floodlight-kickoff-pages-* cache.
+        return k.indexOf("stadium-soccer-pages-") === 0 || k.indexOf("floodlight-kickoff-pages-") === 0 || k !== VERSION;
+      }).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

@@ -1,4 +1,4 @@
-// Original squads for Stadium Soccer.
+// Original squads for Floodlight Kickoff.
 // Every name is made up. Real players, clubs, and FIFA/EA names stay out
 // of the game so it can be published later. A player can rename someone
 // on their own device; that rename is never the default.
@@ -652,7 +652,7 @@ function bindSquadScreen() {
 bindSquadScreen();
 
 /* =====================================================================
-   STADIUM SOCCER  :  game.js  (the shared game simulation, "the sim")
+   FLOODLIGHT KICKOFF  :  game.js  (the shared game simulation, "the sim")
    ---------------------------------------------------------------------
    This ONE file is the game's brain. It is used by:
      * the offline game (soccer.html / offline.html) - copied in at build time

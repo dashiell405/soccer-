@@ -16,8 +16,8 @@ def head_tags(title):
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Soccer">
-<meta name="application-name" content="Stadium Soccer">
+<meta name="apple-mobile-web-app-title" content="Floodlight">
+<meta name="application-name" content="Floodlight Kickoff">
 <meta name="format-detection" content="telephone=no">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
@@ -54,12 +54,13 @@ def patch_head(s, title, menu_id):
 # ---------- offline.html ----------
 s = open(SRC, encoding="utf-8").read()
 assert "<!-- Home Screen app" not in s, "soccer.html should stay the plain standalone file"
-s = patch_head(s, "Stadium Soccer - Offline", "pauseBtn")
+s = patch_head(s, "Floodlight Kickoff", "pauseBtn")
 s = s.replace('<div class="row"><button id="startBtn" class="big">KICK OFF</button></div>',
               '<div class="row"><button id="startBtn" class="big">KICK OFF</button></div>\n'
               '    <div class="row"><a class="btnlink" href="./" id="onlineLink">&#127760; Play online with friends</a></div>', 1)
 assert 'id="onlineLink"' in s
-s = s.replace('<h1><span class="b">SOCCER</span> <span class="r">SHOWDOWN</span> 2</h1>', '<h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>', 1)
+s = s.replace('<h1><span class="b">SOCCER</span> <span class="r">SHOWDOWN</span> 2</h1>', '<h1><span class="b">FLOODLIGHT</span> <span class="r">KICKOFF</span></h1>', 1)
+s = s.replace('<h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>', '<h1><span class="b">FLOODLIGHT</span> <span class="r">KICKOFF</span></h1>', 1)
 s = s.replace("</body>", PWA_SCRIPT + "</body>", 1)
 open(os.path.join(PUB, "offline.html"), "w", encoding="utf-8").write(s)
 # The menu banner is assets/cover.png. The Pages site serves it from the
@@ -73,7 +74,7 @@ shutil.copy2(COVER, os.path.join(PUB, "assets", "cover.png"))
 p = os.path.join(PUB, "index.html")
 s = open(p, encoding="utf-8").read()
 if "<!-- Home Screen app" not in s:
-    s = patch_head(s, "Stadium Soccer", "menuBtn")
+    s = patch_head(s, "Floodlight Kickoff", "menuBtn")
     s = s.replace('#pingBox {\n    position: fixed; top: 14px; right: 84px;',
                   '#pingBox {\n    position: fixed; top: calc(14px + env(safe-area-inset-top)); right: calc(84px + env(safe-area-inset-right));', 1)
     s = s.replace('''    <div class="row"><div class="label">Your name</div>''',
@@ -84,7 +85,8 @@ if "<!-- Home Screen app" not in s:
     </div>
     <div class="row"><div class="label">Your name (for online play)</div>''', 1)
     assert 'id="offlineBtn"' in s
-    s = s.replace('<h1><span class="b">SOCCER</span> <span class="r">SHOWDOWN</span> 2</h1>', '<h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>', 1)
+    s = s.replace('<h1><span class="b">SOCCER</span> <span class="r">SHOWDOWN</span> 2</h1>', '<h1><span class="b">FLOODLIGHT</span> <span class="r">KICKOFF</span></h1>', 1)
+    s = s.replace('<h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>', '<h1><span class="b">FLOODLIGHT</span> <span class="r">KICKOFF</span></h1>', 1)
     s = s.replace('<script src="game.js"></script>', PWA_SCRIPT + '<script src="game.js"></script>', 1)
     open(p, "w", encoding="utf-8").write(s)
 print("offline.html + index.html ready")
