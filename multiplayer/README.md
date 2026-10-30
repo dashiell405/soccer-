@@ -1,4 +1,4 @@
-# Stadium Soccer ⚽ (Soccer Showdown 2 – Online)
+# Floodlight Kickoff ⚽
 
 The free website is **https://dashiell405.github.io/soccer-/**. Friends can play online from that page with a room code. No account, and nobody has to run this folder. How to turn GitHub Pages on is in the README at the top of the repository.
 
@@ -19,7 +19,7 @@ One computer runs a small **server** program. Everybody else just opens a web pa
 
 ## 📱 Make it an app on your iPhone or Mac
 
-Stadium Soccer is a **Home Screen app** (a "PWA"). Once it's hosted on an **https://** address (see "Put it online" below), you can add it like an app:
+Floodlight Kickoff is a **Home Screen app** (a "PWA"). Once it's hosted on an **https://** address (see "Put it online" below), you can add it like an app:
 
 - **iPhone / iPad:**
   1. Open the link in **Safari**.

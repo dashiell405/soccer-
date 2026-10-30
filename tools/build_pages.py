@@ -42,7 +42,7 @@ ONLINE_SRC = os.path.join(ROOT, "multiplayer", "public", "index.html")
 
 def head_tags():
     return '''<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Stadium Soccer</title>
+<title>Floodlight Kickoff</title>
 <!-- Home Screen app ("PWA"). All addresses are relative so this works
      under /soccer-/ on GitHub Pages. "Play online" opens online.html. -->
 <script>if(/[?&]room=/.test(location.search))location.replace("online.html"+location.search+location.hash);</script>
@@ -51,21 +51,21 @@ def head_tags():
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Soccer">
-<meta name="application-name" content="Stadium Soccer">
+<meta name="apple-mobile-web-app-title" content="Floodlight">
+<meta name="application-name" content="Floodlight Kickoff">
 <meta name="format-detection" content="telephone=no">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
-<meta property="og:title" content="Stadium Soccer">
-<meta property="og:description" content="Pick your team. Own the pitch.">
+<meta property="og:title" content="Floodlight Kickoff">
+<meta property="og:description" content="Floodlight Kickoff. Pick your team. Own the pitch.">
 <meta property="og:image" content="https://dashiell405.github.io/soccer-/assets/cover.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="720">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Stadium Soccer">
-<meta name="twitter:description" content="Pick your team. Own the pitch.">
+<meta name="twitter:title" content="Floodlight Kickoff">
+<meta name="twitter:description" content="Floodlight Kickoff. Pick your team. Own the pitch.">
 <meta name="twitter:image" content="https://dashiell405.github.io/soccer-/assets/cover.png">'''
 
 def extra_css():
@@ -93,7 +93,7 @@ def extra_css():
 '''
 
 SW_JS = r'''/* =====================================================================
-   SERVICE WORKER - lets "Stadium Soccer" open with no internet.
+   SERVICE WORKER - lets "Floodlight Kickoff" open with no internet.
    The first visit saves these files on the device. After that the game
    still opens when you are offline.
 
@@ -104,7 +104,7 @@ SW_JS = r'''/* =================================================================
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-pages-v30";
+const VERSION = "floodlight-kickoff-pages-v31";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -131,7 +131,12 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => {
+        if (k === VERSION) return false;
+        // Old installs saved the game as stadium-soccer-pages-v*.
+        // Drop those, and any earlier floodlight-kickoff-pages-* cache.
+        return k.indexOf("stadium-soccer-pages-") === 0 || k.indexOf("floodlight-kickoff-pages-") === 0 || k !== VERSION;
+      }).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -177,9 +182,9 @@ self.addEventListener("fetch", (event) => {
 
 MANIFEST = {
     "id": "./",
-    "name": "Stadium Soccer",
-    "short_name": "Soccer",
-    "description": "11-a-side stadium soccer. Play the computer, 2 players on one device, or friends online with a room code. Cup, penalty shootout, and team picker. Works offline.",
+    "name": "Floodlight Kickoff",
+    "short_name": "Floodlight",
+    "description": "Floodlight Kickoff. 11-a-side under the lights. Play the computer, 2 players on one device, or friends online with a room code. Cup, penalty shootout, and team picker. Works offline.",
     "start_url": "./",
     "scope": "./",
     "display": "standalone",
@@ -210,7 +215,12 @@ def build_index(src_html):
     s = s.replace("</style>", extra_css() + "</style>", 1)
     s = s.replace(
         '<h1><span class="b">SOCCER</span> <span class="r">SHOWDOWN</span> 2</h1>',
+        '<h1><span class="b">FLOODLIGHT</span> <span class="r">KICKOFF</span></h1>',
+        1,
+    )
+    s = s.replace(
         '<h1><span class="b">STADIUM</span> <span class="r">SOCCER</span></h1>',
+        '<h1><span class="b">FLOODLIGHT</span> <span class="r">KICKOFF</span></h1>',
         1,
     )
     # Kick off stays the offline match. Online play is a separate page so the
@@ -337,10 +347,10 @@ def main():
         if re.search(r'''(?:href|src|register)\s*[\(=]\s*["']/(?!/)''', text):
             raise SystemExit(rel + " has a root-absolute URL; Pages needs relative paths")
     sw = open(os.path.join(ROOT, "sw.js"), encoding="utf-8").read()
-    if "stadium-soccer-pages-v30" not in sw or "assets/cover.png" not in sw or "url.origin !== self.location.origin" not in sw:
+    if "floodlight-kickoff-pages-v31" not in sw or "stadium-soccer-pages-" not in sw or "assets/cover.png" not in sw or "url.origin !== self.location.origin" not in sw:
         raise SystemExit("service worker is missing the cache bump or the cross-origin bypass")
     online_js = open(os.path.join(ROOT, "online.js"), encoding="utf-8").read()
-    if "new WebSocket" in online_js or "SOCCER" not in online_js or "stun:stun.l.google.com:19302" not in online_js:
+    if "new WebSocket" in online_js or "peer.connect" not in online_js or "stun:stun.l.google.com:19302" not in online_js:
         raise SystemExit("online.js is not the peer-to-peer client")
     print("GitHub Pages site ready at repo root (" + str(len(index)) + " byte index.html, " + str(len(online)) + " byte online.html)")
 

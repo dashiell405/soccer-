@@ -1,6 +1,6 @@
 """Build the Home Screen icons from assets/cover.png.
 
-A square center crop would cut the STADIUM SOCCER title in half, so each
+A square center crop would cut the FLOODLIGHT KICKOFF title in half, so each
 icon is a square of the blurred stadium with the logo plate and the
 center of the pitch (ball included) scaled to fit. On the maskable
 icons that artwork sits inside the central 80% safe zone.
@@ -28,7 +28,7 @@ def square_background(src):
 
     The title is drawn again as sharp artwork, so the background is only
     the pitch band. A blurred copy of the whole banner would ghost a
-    second STADIUM SOCCER behind the real one.
+    second FLOODLIGHT KICKOFF behind the real one.
     """
     w, h = src.size
     band = src.crop((0, int(h * 0.40), w, int(h * 0.80)))

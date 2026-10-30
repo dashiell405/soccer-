@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Stadium Soccer",
-  "short_name": "Soccer",
-  "description": "5-a-side stadium soccer. Play the computer offline, or 1v1 / 2v2 online with friends on other devices.",
+  "name": "Floodlight Kickoff",
+  "short_name": "Floodlight",
+  "description": "Floodlight Kickoff. Play the computer offline, or 1v1 / 2v2 online with friends on other devices.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

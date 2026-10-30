@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Stadium Soccer",
-  "short_name": "Soccer",
-  "description": "11-a-side stadium soccer. Play the computer, 2 players on one device, or friends online with a room code. Cup, penalty shootout, and team picker. Works offline.",
+  "name": "Floodlight Kickoff",
+  "short_name": "Floodlight",
+  "description": "Floodlight Kickoff. 11-a-side under the lights. Play the computer, 2 players on one device, or friends online with a room code. Cup, penalty shootout, and team picker. Works offline.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

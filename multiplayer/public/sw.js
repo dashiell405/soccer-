@@ -1,5 +1,5 @@
 /* =====================================================================
-   SERVICE WORKER - lets "Stadium Soccer" open with no internet.
+   SERVICE WORKER - lets "Floodlight Kickoff" open with no internet.
    The first time you visit, it saves the game files on your device
    (the "app shell"). After that:
      - with internet: it always tries the server first (so you get updates)
@@ -8,7 +8,7 @@
    Online matches still need the server, of course!
    Change VERSION whenever you change the list of files below.
    ===================================================================== */
-const VERSION = "stadium-soccer-v3";
+const VERSION = "floodlight-kickoff-v4";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -35,7 +35,10 @@ self.addEventListener("activate", (event) => {
   // delete caches from older versions
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => {
+        if (k === VERSION) return false;
+        return k.indexOf("stadium-soccer") === 0 || k !== VERSION;
+      }).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

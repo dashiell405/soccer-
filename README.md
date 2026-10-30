@@ -1,4 +1,4 @@
-# Stadium Soccer
+# Floodlight Kickoff
 
 A 5-a-side soccer game you can play in the browser.
 
@@ -27,7 +27,7 @@ The host's screen has to stay open, because their device runs the match. If it c
 3. Scroll down and tap **Add to Home Screen**.
 4. Tap **Add**.
 
-A soccer-ball icon named **Soccer** shows up on your Home Screen. Tap it. The game opens full screen, like an app. Open it once while you have internet. After that it still opens when you are offline.
+An icon named **Floodlight** shows up on your Home Screen. Tap it. The game opens full screen, like an app. Open it once while you have internet. After that it still opens when you are offline.
 
 ## Turn GitHub Pages on (only if the link does not work yet)
 

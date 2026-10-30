@@ -1,5 +1,5 @@
 /* =====================================================================
-   SOCCER SHOWDOWN 2 - ONLINE  :  client.js  (runs in each browser)
+   FLOODLIGHT KICKOFF - ONLINE  :  client.js  (runs in each browser)
    ---------------------------------------------------------------------
    One device decides what happens in the match (the "host"):
      * the Node server, if a grown-up runs multiplayer/server.js, OR

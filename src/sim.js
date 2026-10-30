@@ -1,5 +1,5 @@
 /* =====================================================================
-   STADIUM SOCCER  :  game.js  (the shared game simulation, "the sim")
+   FLOODLIGHT KICKOFF  :  game.js  (the shared game simulation, "the sim")
    ---------------------------------------------------------------------
    This ONE file is the game's brain. It is used by:
      * the offline game (soccer.html / offline.html) - copied in at build time
