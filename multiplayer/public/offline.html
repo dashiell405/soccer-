@@ -4953,33 +4953,185 @@ function fpSubject() {
 // The match still hears ordinary world directions, so online stays the same.
 function cameraStick(mx, my) {
   const sub = fpSubject();
-  if (!sub) return { mx, my };
-  const fl = Math.hypot(sub.fx || 1, sub.fy || 0) || 1;
-  const fx = (sub.fx || 1) / fl, fy = (sub.fy || 0) / fl;
+  if (!sub || !fpView) return { mx, my };
+  const fx = fpView.flatX, fy = fpView.flatY;
   const rx = -fy, ry = fx;
   return { mx: rx * mx - fx * my, my: ry * mx - fy * my };
 }
-// Eyes just behind and above the player. `behind` means the point is
-// too close to (or past) the camera, so it must not be drawn.
-function w2sEyes(x, y, z, sub) {
-  const fl = Math.hypot(sub.fx || 1, sub.fy || 0) || 1;
-  const fx = (sub.fx || 1) / fl, fy = (sub.fy || 0) / fl;
-  const pitch = 0.40;
+// First-person camera. Local only: nothing here is sent online.
+// Eyes at 1.75 m, a wide natural view, with the turn lagging a little
+// behind the body so it does not snap.
+let fpShakeOn = true;
+try { fpShakeOn = localStorage.getItem("soccerFpShake") !== "off"; } catch (e) { /* ignore */ }
+const fpCam = {
+  yaw: 0, pitch: 0.12, bob: 0, amp: 0, dip: 0,
+  fovExtra: 0, shake: 0, sprint: 0,
+  inited: false, prevState: "", kickSeen: false, prevSpeed: 0,
+};
+let fpView = null;
+let fpShakeRect = null;
+function fpMetre() { return (typeof METRE === "number" && METRE) || (PITCH.w / 105); }
+function wrapAng(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
+function updateFpCamera(dt) {
+  const sub = fpSubject();
+  if (!sub) { fpView = null; fpCam.inited = false; return; }
+  dt = Math.min(0.05, dt || 0.016);
+  const m = fpMetre();
+  const bodyYaw = Math.atan2(sub.fy || 0, sub.fx || 1);
+  if (!fpCam.inited) {
+    fpCam.yaw = bodyYaw;
+    fpCam.pitch = 0.12;
+    fpCam.inited = true;
+  }
+  let targetYaw = bodyYaw;
+  let targetPitch = 0.11;
+  if (ball) {
+    const dx = ball.x - sub.x, dy = ball.y - sub.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const err = wrapAng(Math.atan2(dy, dx) - bodyYaw);
+    if (Math.abs(err) < 1.15) {
+      const w = clamp(0.42 * (1 - dist / (16 * m)), 0, 0.42);
+      targetYaw = bodyYaw + err * w;
+      const toBall = Math.atan2((ball.z || 0) - 1.75 * m, dist);
+      targetPitch = 0.11 + clamp(toBall - 0.11, -0.2, 0.22) * (Math.abs(err) < 0.85 ? 0.4 : 0.12);
+    }
+  }
+  const yawK = 1 - Math.exp(-dt * 7.2);
+  const pitchK = 1 - Math.exp(-dt * 5.5);
+  fpCam.yaw += wrapAng(targetYaw - fpCam.yaw) * yawK;
+  fpCam.pitch += (targetPitch - fpCam.pitch) * pitchK;
+
+  const speed = Math.hypot(sub.vx || 0, sub.vy || 0);
+  const top = (typeof RUN_SPEED === "number" ? RUN_SPEED : 220) * (typeof SPRINT_MULT === "number" ? SPRINT_MULT : 1.35);
+  const pace = clamp(speed / Math.max(80, top), 0, 1);
+  const sprinting = !!(sub.sprinting || pace > 0.72) && sub.state === "run";
+  fpCam.sprint += ((sprinting ? pace : 0) - fpCam.sprint) * (1 - Math.exp(-dt * 4));
+  const wantAmp = (sub.state === "run" && speed > 36) ? m * (0.025 + pace * 0.055) : 0;
+  fpCam.amp += (wantAmp - fpCam.amp) * (1 - Math.exp(-dt * 6));
+  if (wantAmp > 0.2) fpCam.bob += dt * (7.5 + pace * 6.5) * Math.PI * 2;
+  if (sub.state === "slide" || sub.state === "down" || sub.state === "dive") fpCam.dip = Math.max(fpCam.dip, 0.16 * m);
+  if (fpCam.prevSpeed > 160 && speed < fpCam.prevSpeed - 80) fpCam.dip = Math.max(fpCam.dip, 0.07 * m);
+  fpCam.dip += (0 - fpCam.dip) * (1 - Math.exp(-dt * 5));
+  const fovWant = sprinting ? pace * 8 * Math.PI / 180 : 0;
+  fpCam.fovExtra += (fovWant - fpCam.fovExtra) * (1 - Math.exp(-dt * 3.5));
+
+  const kicking = kickLeft(sub) > 0.2;
+  if (kicking && !fpCam.kickSeen) {
+    const shot = Math.hypot(ball.vx || 0, ball.vy || 0);
+    if (shot > 480) bumpFpShake(shot > 700 ? 0.85 : 0.45);
+    fpCam.dip = Math.max(fpCam.dip, shot > 480 ? 0.05 * m : 0.02 * m);
+  }
+  fpCam.kickSeen = kicking;
+  if (sub.state !== fpCam.prevState && (sub.state === "slide" || sub.state === "down")) bumpFpShake(0.7);
+  fpCam.prevState = sub.state || "";
+  fpCam.prevSpeed = speed;
+  fpCam.shake *= Math.exp(-dt * 7.5);
+
+  const fx = Math.cos(fpCam.yaw), fy = Math.sin(fpCam.yaw);
+  const pitch = fpCam.pitch;
   const cp = Math.cos(pitch), sp = Math.sin(pitch);
   const lx = fx * cp, ly = fy * cp, lz = -sp;
   const rx = -fy, ry = fx;
-  const upx = -lz * ry, upy = lz * rx, upz = lx * ry - ly * rx;
-  const camX = sub.x - fx * 78, camY = sub.y - fy * 78, camZ = 46;
-  const dx = x - camX, dy = y - camY, dz = (z || 0) - camZ;
-  const depth = dx * lx + dy * ly + dz * lz;
-  const right = dx * rx + dy * ry;
-  const up = dx * upx + dy * upy + dz * upz;
-  const focal = Math.min(VIEW_W, VIEW_H) * 0.92;
-  const d = Math.max(depth, 0.5);
-  const sx = VIEW_W * 0.5 + (right / d) * focal;
-  const sy = VIEW_H * 0.58 - (up / d) * focal;
-  const behind = depth < 18 || Math.abs(sx) > VIEW_W * 3 || Math.abs(sy) > VIEW_H * 3;
-  return { x: sx, y: sy, s: clamp(focal / d * 0.155, 0.16, 2.3), t: clamp(depth / 900, 0, 1), behind, depth };
+  const ux = -lz * fx, uy = -lz * fy, uz = cp;
+  const sway = Math.cos(fpCam.bob * 0.5) * fpCam.amp * 0.55;
+  const bob = Math.sin(fpCam.bob) * fpCam.amp;
+  const eye = 1.75 * m;
+  const jx = fpShakeOn ? (Math.sin(viewTime * 47) * fpCam.shake * 9) : 0;
+  const jy = fpShakeOn ? (Math.cos(viewTime * 53) * fpCam.shake * 6) : 0;
+  const baseFov = (VIEW_W < VIEW_H ? 76 : 84) * Math.PI / 180;
+  const hfov = clamp(baseFov + fpCam.fovExtra, 75 * Math.PI / 180, 90 * Math.PI / 180);
+  fpView = {
+    ox: sub.x + fx * 0.12 * m + rx * sway,
+    oy: sub.y + fy * 0.12 * m + ry * sway,
+    oz: eye + bob - fpCam.dip,
+    lx: lx, ly: ly, lz: lz,
+    rx: rx, ry: ry, rz: 0,
+    ux: ux, uy: uy, uz: uz,
+    flatX: fx, flatY: fy,
+    focal: (VIEW_W * 0.5) / Math.tan(hfov * 0.5),
+    near: 0.28 * m,
+    jx: jx, jy: jy,
+    hfov: hfov,
+  };
+}
+function bumpFpShake(amt) { if (fpShakeOn) fpCam.shake = Math.min(1, fpCam.shake + amt); }
+function camPoint(x, y, z) {
+  const v = fpView;
+  const dx = x - v.ox, dy = y - v.oy, dz = (z || 0) - v.oz;
+  return {
+    depth: dx * v.lx + dy * v.ly + dz * v.lz,
+    right: dx * v.rx + dy * v.ry,
+    up: dx * v.ux + dy * v.uy + dz * v.uz,
+  };
+}
+function mixCam(a, b, t) {
+  return {
+    depth: a.depth + (b.depth - a.depth) * t,
+    right: a.right + (b.right - a.right) * t,
+    up: a.up + (b.up - a.up) * t,
+  };
+}
+function projectCam(p) {
+  const v = fpView;
+  const d = Math.max(p.depth, v.near);
+  const s = v.focal / d * 0.58;
+  return {
+    x: VIEW_W * 0.5 + (p.right / d) * v.focal + v.jx,
+    y: VIEW_H * 0.5 - (p.up / d) * v.focal + v.jy,
+    s: s,
+    depth: p.depth,
+  };
+}
+// Keep the part of a polygon that is in front of the eyes.
+function clipCamPoly(pts) {
+  const v = fpView;
+  const src = pts.map((p) => camPoint(p.x, p.y, p.z || 0));
+  const out = [];
+  const n = v.near;
+  for (let i = 0; i < src.length; i++) {
+    const a = src[i], b = src[(i + 1) % src.length];
+    const ain = a.depth >= n, bin = b.depth >= n;
+    if (ain && bin) out.push(b);
+    else if (ain !== bin) {
+      const t = (n - a.depth) / ((b.depth - a.depth) || 0.0001);
+      const m = mixCam(a, b, clamp(t, 0, 1));
+      out.push(m);
+      if (bin) out.push(b);
+    }
+  }
+  return out;
+}
+function fillWorldPoly(pts, color) {
+  if (!fpView) return;
+  const poly = clipCamPoly(pts);
+  if (poly.length < 3) return;
+  ctx.beginPath();
+  const p0 = projectCam(poly[0]);
+  ctx.moveTo(p0.x, p0.y);
+  for (let i = 1; i < poly.length; i++) {
+    const p = projectCam(poly[i]);
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+function w2sEyes(x, y, z) {
+  if (!fpView) return { x: 0, y: 0, s: 1, t: 0, behind: true, depth: 0 };
+  const p = camPoint(x, y, z || 0);
+  const behind = p.depth < fpView.near;
+  const s = projectCam(p);
+  return {
+    x: s.x, y: s.y,
+    s: clamp(s.s, 0.04, 8),
+    t: clamp(p.depth / (50 * fpMetre()), 0, 1),
+    behind: behind,
+    depth: p.depth,
+  };
 }
 // A finger tap lands on a teammate if it is close to him on screen.
 function playerAtScreen(clientX, clientY, team) {
@@ -5100,6 +5252,7 @@ function updateCamera(dt, snap = false) {
   const s = scaleAtT(depthT(PITCH.cy), c.zoom);
   c.x = c.cx - VIEW_W / 2 / Math.max(0.25, s);
   c.y = PITCH.top;
+  updateFpCamera(lastDt);
 }
 
 // =====================================================================
@@ -5496,26 +5649,50 @@ function drawBoards(near) {
   drawBoard(PITCH.right + 6, GOAL_BOTTOM + 8, PITCH.right + 6, PITCH.bottom - 8, "CUP", "#0e3d28");
 }
 
-function drawPitchEyes() {
-  const sub = fpSubject();
-  if (sub) {
-    const fl = Math.hypot(sub.fx || 1, sub.fy || 0) || 1;
-    const far = w2s(sub.x + (sub.fx || 1) / fl * 5000, sub.y + (sub.fy || 0) / fl * 5000, 0);
-    const hy = far.behind ? VIEW_H * 0.42 : clamp(far.y, 0, VIEW_H);
-    ctx.fillStyle = "#145226";
-    ctx.fillRect(0, hy, VIEW_W, VIEW_H - hy + 2);
+function drawFpHorizon() {
+  if (!fpView) return;
+  const far = w2s(fpView.ox + fpView.lx * 8000, fpView.oy + fpView.ly * 8000, 0);
+  const hy = clamp(far.behind ? VIEW_H * 0.42 : far.y, VIEW_H * 0.16, VIEW_H * 0.78);
+  ctx.fillStyle = "#141b26";
+  ctx.fillRect(0, hy - VIEW_H * 0.22, VIEW_W, VIEW_H * 0.22);
+  if (crowdSheet && quality !== "low") {
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.drawImage(crowdSheet, 0, 0, 512, 72, 0, hy - VIEW_H * 0.2, VIEW_W, VIEW_H * 0.16);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = "#2a3342";
+    for (let i = 0; i < 28; i++) {
+      const x = (i + 0.5) * VIEW_W / 28;
+      ctx.fillRect(x - 4, hy - VIEW_H * 0.12, 8, VIEW_H * 0.08);
+    }
   }
-  const step = PITCH.w / 14;
-  for (let x = PITCH.left - step; x < PITCH.right + step; x += step) {
-    for (let y = PITCH.top - step; y < PITCH.bottom + step; y += step) {
-      const x2 = x + step, y2 = y + step;
-      const a = w2s(x, y, 0), b = w2s(x2, y, 0), c = w2s(x2, y2, 0), d = w2s(x, y2, 0);
-      if (a.behind || b.behind || c.behind || d.behind) continue;
+  ctx.fillStyle = "rgba(255,255,255,0.18)";
+  ctx.fillRect(0, hy - 1, VIEW_W, 2);
+  const g = ctx.createLinearGradient(0, hy, 0, VIEW_H);
+  g.addColorStop(0, "#124e22");
+  g.addColorStop(1, "#1c7634");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, hy, VIEW_W, VIEW_H - hy + 2);
+}
+function drawPitchEyes() {
+  if (!fpView) return;
+  const phone = phonePlay();
+  const step = PITCH.w / (quality === "low" ? 7 : phone ? 9 : 13);
+  const reach = (quality === "low" ? 55 : 75) * fpMetre();
+  for (let x = PITCH.left; x < PITCH.right; x += step) {
+    for (let y = PITCH.top; y < PITCH.bottom; y += step) {
       const ix = x + step * 0.5, iy = y + step * 0.5;
-      const on = ix >= PITCH.left && ix < PITCH.right && iy >= PITCH.top && iy < PITCH.bottom;
+      const dx = ix - fpView.ox, dy = iy - fpView.oy;
+      const ahead = dx * fpView.flatX + dy * fpView.flatY;
+      if (ahead < -step * 0.4) continue;
+      if (dx * dx + dy * dy > reach * reach) continue;
       const stripe = Math.floor((ix - PITCH.left) / step);
-      const col = !on ? "#145226" : (stripe % 2 ? "#17692c" : "#1e7c36");
-      quad(a, b, c, d, col);
+      const col = stripe % 2 ? "#17692c" : "#1e7c36";
+      fillWorldPoly([
+        { x: x, y: y }, { x: x + step, y: y },
+        { x: x + step, y: y + step }, { x: x, y: y + step },
+      ], col);
     }
   }
 }
@@ -5571,6 +5748,23 @@ function drawPitch() {
 
 function worldPolyline(pts, width, color) {
   if (!pts.length) return;
+  if (fpSubject() && fpView && pts.length >= 2) {
+    ctx.strokeStyle = color;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (let i = 0; i < pts.length - 1; i++) {
+      const poly = clipCamPoly([pts[i], pts[i + 1]]);
+      if (poly.length < 2) continue;
+      const a = projectCam(poly[0]), b = projectCam(poly[poly.length - 1]);
+      const depth = Math.max(fpView.near, (poly[0].depth + poly[poly.length - 1].depth) * 0.5);
+      ctx.lineWidth = clamp(fpView.focal / depth * 0.09, 1.15, 7);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+    return;
+  }
   ctx.beginPath();
   let open = false;
   for (const p of pts) {
@@ -6808,6 +7002,7 @@ function draw() {
   shownOfficials = (sample && sample.offs && sample.offs.length) ? sample.offs : (game.officials || []);
 
   drawSky();
+  if (eyes) drawFpHorizon();
   drawTower(PITCH.left + 36, PITCH.top - 4, true);
   drawTower(PITCH.right - 36, PITCH.top - 4, true);
   drawFarStands();
@@ -6833,14 +7028,24 @@ function draw() {
   if (eyes) drawCrosshair();
   if (bz > 14) drawBall();
 
-  drawBoards(true);
-  drawNearStands();
-  for (const o of crew) if (o.side === "near") drawOfficial(o);
+  if (!eyes) {
+    drawBoards(true);
+    drawNearStands();
+  }
+  for (const o of crew) if (o.side === "near" && !eyes) drawOfficial(o);
   // Both arms are drawn last, so the hands stay on the ball above the head.
   if (!replayOn) drawThrowArmsOnTop(cast);
-  drawTower(PITCH.left + 48, PITCH.bottom + 14, false);
-  drawTower(PITCH.right - 48, PITCH.bottom + 14, false);
+  if (!eyes) {
+    drawTower(PITCH.left + 48, PITCH.bottom + 14, false);
+    drawTower(PITCH.right - 48, PITCH.bottom + 14, false);
+  }
   drawPenaltyAids();
+  if (eyes && !replayOn) {
+    drawOwnBody(eyes);
+    const close = ballSrc && w2s(ballSrc.x, ballSrc.y, ballSrc.z || 0);
+    if (close && !close.behind && close.depth < 9 * fpMetre()) drawBall();
+    drawFpRush();
+  }
 
   if (!replayOn && controllers) {
     for (const c of controllers) {
@@ -6851,11 +7056,12 @@ function draw() {
   drawVignette();
   updateConfetti();
   if (showHud()) {
-    drawScoreboard();
+    if (eyes) drawFpHud(eyes);
+    else drawScoreboard();
     drawCommentary();
     drawRefPopups();
     drawMatchBugs(replayOn);
-    if (!game.shootout && game.phase !== "goal") drawMinimap();
+    if (!eyes && !game.shootout && game.phase !== "goal") drawMinimap();
   }
   drawConfetti();
   ballSrc = ball;
@@ -6863,16 +7069,155 @@ function draw() {
 }
 
 function drawCrosshair() {
-  const x = VIEW_W * 0.5, y = VIEW_H * 0.56;
-  ctx.strokeStyle = "rgba(255,211,61,0.92)";
-  ctx.lineWidth = 2;
+  const x = VIEW_W * 0.5 + (fpView ? fpView.jx : 0);
+  const y = VIEW_H * 0.5 + (fpView ? fpView.jy : 0);
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
   ctx.beginPath();
-  ctx.moveTo(x - 12, y); ctx.lineTo(x - 4, y);
-  ctx.moveTo(x + 4, y); ctx.lineTo(x + 12, y);
-  ctx.moveTo(x, y - 12); ctx.lineTo(x, y - 4);
-  ctx.moveTo(x, y + 4); ctx.lineTo(x, y + 12);
-  ctx.stroke();
+  ctx.arc(x, y, 2.1, 0, Math.PI * 2);
+  ctx.fill();
 }
+function drawOwnBody(p) {
+  if (!p || !TEAMS[p.team]) return;
+  const kit = p.role === "GK" ? TEAMS[p.team].gk : TEAMS[p.team].kit;
+  const speed = Math.hypot(p.vx || 0, p.vy || 0);
+  const moving = speed > 36 && p.state === "run";
+  const swing = moving ? Math.sin(p.anim || fpCam.bob) : 0;
+  const kick = kickLeft(p);
+  const k = kick > 0 ? Math.sin(clamp(1 - kick / 0.28, 0, 1) * Math.PI) : 0;
+  const shot = k > 0 && Math.hypot((ball && ball.vx) || 0, (ball && ball.vy) || 0) > 460;
+  const phone = phonePlay();
+  const cx = VIEW_W * 0.5;
+  const footY = VIEW_H - (phone ? 6 : 4);
+  const hipY = VIEW_H * (phone && VIEW_H > VIEW_W ? 0.62 : 0.74);
+  const spread = Math.min(64, VIEW_W * 0.055);
+  const thick = phone ? 18 : 20;
+  ctx.fillStyle = kit.shorts || "#222";
+  roundRect(ctx, cx - spread * 1.15, hipY - 18, spread * 2.3, 28, 8);
+  ctx.fill();
+  function leg(side, sw, kickAmp) {
+    const hx = cx + side * spread * 0.72;
+    const kneeX = hx + side * 4 + sw * 42;
+    const kneeY = (hipY + footY) * 0.52 - Math.abs(sw) * 18 - kickAmp * (shot ? 80 : 34);
+    const fx = hx + sw * 52 + side * 6 + kickAmp * (shot ? 110 : 48);
+    const fy = footY - 6 - kickAmp * (shot ? 48 : 16);
+    limb(hx, hipY, kneeX, kneeY, fx, fy, kit.socks || "#222", thick);
+    ctx.fillStyle = p.boots || "#111";
+    ctx.beginPath();
+    ctx.ellipse(fx + 14, fy - 1, shot ? 22 : 18, 8, side * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    ctx.fillRect(fx + 6, fy - 5, 10, 3);
+  }
+  leg(-1, swing, 0);
+  leg(1, -swing, k);
+  if (isThrowing(p)) {
+    const skin = p.skin || "#e0ac69";
+    const t = p.throwT || (game.setpiece && game.setpiece.throwT) || 0;
+    const lift = t < (typeof THROW_RELEASE === "number" ? THROW_RELEASE : 0.7) ? 0.28 : 0.42;
+    limb(cx - spread * 1.4, hipY - 10, cx - 36, VIEW_H * lift, cx - 6, VIEW_H * lift - 16, skin, 13);
+    limb(cx + spread * 1.4, hipY - 10, cx + 36, VIEW_H * lift, cx + 6, VIEW_H * lift - 16, skin, 13);
+  }
+}
+function drawFpRush() {
+  if (!fpView || fpCam.sprint < 0.4 || quality === "low") return;
+  const a = fpCam.sprint * 0.16;
+  ctx.strokeStyle = "rgba(255,255,255," + a.toFixed(3) + ")";
+  ctx.lineWidth = 2;
+  const cx = VIEW_W * 0.5, cy = VIEW_H * 0.5;
+  for (let i = 0; i < 7; i++) {
+    const ang = fpCam.bob * 0.3 + i * 0.9;
+    const r0 = Math.min(VIEW_W, VIEW_H) * 0.22;
+    const r1 = r0 + 24 + fpCam.sprint * 36;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0 * 0.55);
+    ctx.lineTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1 * 0.55);
+    ctx.stroke();
+  }
+}
+function drawFpHud(sub) {
+  const pad = screenPad();
+  const y = 8 + pad.top;
+  const bName = (TEAMS.blue && TEAMS.blue.short) || "BLU";
+  const rName = (TEAMS.red && TEAMS.red.short) || "RED";
+  const clock = game.timeLimit ? formatClock(Math.ceil(Math.max(0, game.timeLimit - game.clock))) : formatClock(game.clock || 0);
+  const label = bName + "  " + game.score.blue + " - " + game.score.red + "  " + rName + "   " + clock;
+  ctx.font = "bold 16px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const tw = ctx.measureText(label).width + 22;
+  const x = VIEW_W * 0.5 - tw / 2;
+  ctx.fillStyle = "rgba(8,12,20,0.78)";
+  roundRect(ctx, x, y, tw, 28, 8);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.fillText(label, VIEW_W * 0.5, y + 14);
+  const st = clamp(sub.stamina == null ? 1 : sub.stamina, 0, 1);
+  const bw = Math.min(180, tw);
+  const bx = VIEW_W * 0.5 - bw / 2;
+  const by = y + 34;
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  roundRect(ctx, bx, by, bw, 8, 3);
+  ctx.fill();
+  ctx.fillStyle = st > 0.55 ? "#3dde5a" : st > 0.28 ? "#ffd33d" : "#ff4d3a";
+  ctx.fillRect(bx + 1, by + 1, (bw - 2) * st, 6);
+
+  const mw = phonePlay() ? 92 : 118;
+  const mh = mw * PITCH.h / PITCH.w;
+  const mx = VIEW_W - mw - 14 - pad.right;
+  const my = y + (phonePlay() ? 56 : 40);
+  const sx = (px) => mx + (px - PITCH.left) / PITCH.w * mw;
+  const sy = (py) => my + (py - PITCH.top) / PITCH.h * mh;
+  ctx.fillStyle = "rgba(6,16,10,0.72)";
+  roundRect(ctx, mx - 4, my - 4, mw + 8, mh + 8, 6);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.75)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(mx, my, mw, mh);
+  ctx.beginPath();
+  ctx.moveTo(mx + mw / 2, my);
+  ctx.lineTo(mx + mw / 2, my + mh);
+  ctx.stroke();
+  for (const pl of onPitch()) {
+    ctx.fillStyle = pl.role === "GK" ? TEAMS[pl.team].gk.shirt : TEAMS[pl.team].kit.shirt;
+    ctx.beginPath();
+    ctx.arc(sx(pl.x), sy(pl.y), pl === sub ? 3.4 : 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    if (pl === sub) { ctx.strokeStyle = "#ffd33d"; ctx.stroke(); }
+  }
+  const src = ballSrc || ball;
+  if (src) {
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(sx(src.x), sy(src.y), 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const chip = fpShakeOn ? "Shake on" : "Shake off";
+  ctx.font = "bold 13px Arial";
+  const cw = ctx.measureText(chip).width + 16;
+  const cx = mx;
+  const cy = my + mh + 10;
+  fpShakeRect = { x: cx, y: cy, w: cw, h: 28 };
+  ctx.fillStyle = fpShakeOn ? "rgba(232,197,71,0.9)" : "rgba(8,12,20,0.78)";
+  roundRect(ctx, cx, cy, cw, 28, 8);
+  ctx.fill();
+  ctx.fillStyle = fpShakeOn ? "#1a1404" : "#fff";
+  ctx.textAlign = "center";
+  ctx.fillText(chip, cx + cw / 2, cy + 14);
+}
+function onFpHudPointer(e) {
+  if (!fpShakeRect || !fpSubject() || !canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const vx = (e.clientX - rect.left) / Math.max(0.35, viewScale);
+  const vy = (e.clientY - rect.top) / Math.max(0.35, viewScale);
+  const r = fpShakeRect;
+  if (vx < r.x || vx > r.x + r.w || vy < r.y || vy > r.y + r.h) return;
+  e.preventDefault();
+  e.stopPropagation();
+  fpShakeOn = !fpShakeOn;
+  if (!fpShakeOn) fpCam.shake = 0;
+  try { localStorage.setItem("soccerFpShake", fpShakeOn ? "on" : "off"); } catch (err) { /* ignore */ }
+}
+if (canvas) canvas.addEventListener("pointerdown", onFpHudPointer, true);
 
 function roundRect(c, x, y, w, h, r) {
   c.beginPath();
