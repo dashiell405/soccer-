@@ -325,8 +325,31 @@
   .ct.won { color: #9fffa0; font-weight: bold; } .ct.lost { opacity: .55; } .ct.me .nm { text-decoration: underline; }
   #cupStatus { font-size: 18px; margin: 6px 0; }
   #cupFormat { font-size: 13px; color: #ffd33d; }
-  #trophyCanvas { position: static; width: min(360px, 80vw); height: auto; display: block; margin: 0 auto; }
-  #trophyTeam { font-size: clamp(22px, 5vw, 36px); margin: 0; color: #ffd33d; }
+  #trophyCanvas { position: static; width: min(560px, 100%); height: auto; display: block; margin: 0 auto; background: #071018; border-radius: 12px; }
+  #trophyTeam { font-size: clamp(22px, 5vw, 36px); margin: 8px 0 0; color: #ffd33d; }
+  #trophyCountLine { margin: 4px 0 0; font-size: clamp(16px, 4vw, 22px); font-weight: 800; color: #ffe27a; }
+  #trophySplit { margin: 2px 0 8px; font-size: 14px; opacity: .9; }
+  #trophyBadge {
+    position: fixed; z-index: 45;
+    top: calc(8px + env(safe-area-inset-top));
+    right: calc(8px + env(safe-area-inset-right));
+    min-width: 64px; min-height: 44px; margin: 0; padding: 6px 14px;
+    border-radius: 999px; border: 2px solid #fff6c0;
+    background: linear-gradient(180deg, #ffe27a, #e6b325); color: #1a1404;
+    font-weight: 800; font-size: 20px; letter-spacing: 0.5px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.45);
+  }
+  #trophyBadge b { font-size: 22px; }
+  #trophyBreak {
+    position: fixed; z-index: 45;
+    top: calc(58px + env(safe-area-inset-top));
+    right: calc(8px + env(safe-area-inset-right));
+    width: min(240px, 72vw); margin: 0; padding: 8px 12px; text-align: left;
+    background: rgba(8, 16, 28, .96); color: #fff;
+    border: 1px solid #e8c547; border-radius: 12px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.45); font-size: 14px; line-height: 1.45;
+  }
+  #trophyBreak b { color: #ffe27a; }
   #keysHint {
     position: fixed; left: calc(8px + env(safe-area-inset-left)); bottom: calc(8px + env(safe-area-inset-bottom));
     z-index: 14; font-size: 12px; background: rgba(0,0,0,.55);
@@ -452,6 +475,8 @@
 
 <canvas id="game"></canvas>
 <div id="safeProbe"></div>
+<button type="button" id="trophyBadge" class="hidden" aria-label="Cup trophies won">🏆 <b id="trophyCount">0</b></button>
+<div id="trophyBreak" class="hidden"></div>
 
 <!-- Start menu -->
 <div id="menu" class="overlay">
@@ -550,9 +575,11 @@
 <div id="trophyScreen" class="overlay hidden">
   <div class="panel">
     <h1>CHAMPIONS!</h1>
-    <canvas id="trophyCanvas" width="360" height="300"></canvas>
+    <canvas id="trophyCanvas" width="520" height="380"></canvas>
     <p id="trophyTeam"></p>
-    <div class="row"><button id="trophyCupBtn">See the bracket</button> <button id="trophyMenuBtn" class="big">Main menu</button></div>
+    <p id="trophyCountLine"></p>
+    <p id="trophySplit"></p>
+    <div class="row"><button id="trophyMenuBtn" class="big">Back to home</button> <button id="trophyCupBtn">See the bracket</button></div>
   </div>
 </div>
 
@@ -8278,6 +8305,7 @@ function showScreen(id) {
 }
 function updateHud() {
   const playing = inMatch() && !paused;
+  paintTrophyBadge();
   $("pauseBtn").classList.toggle("hidden", !playing);
   $("pauseBtn").title = isTouchDevice ? "Pause" : "Pause (P / Esc)";
   const controls = $("touchControls");
@@ -8351,6 +8379,11 @@ function renderMenu() {
   $("formatLine").textContent = fmt;
   $("startBtn").textContent = settings.kind === "cup" ? "START NEW CUP" : settings.kind === "shootout" ? "TAKE PENALTIES" : "KICK OFF";
   const saved = loadCup();
+  if (!cup && saved && saved.over && saved.champion === 0) {
+    rememberCupWin(saved);
+    try { localStorage.setItem("soccerCup", JSON.stringify(saved)); } catch (e) { /* ignore */ }
+  }
+  paintTrophyBadge();
   $("continueCupBtn").classList.toggle("hidden", !(saved && !saved.over));
   if (saved && !saved.over) $("continueCupBtn").textContent = "Continue cup: " + esc(saved.teams[0].name) + " (" + CUP_ROUND_NAMES[saved.round] + ")";
   updateControlsHelp();
@@ -8475,8 +8508,60 @@ function loadCup() { try { return JSON.parse(localStorage.getItem("soccerCup") |
 function saveCup() {
   try {
     if (!cup) localStorage.removeItem("soccerCup");
-    else localStorage.setItem("soccerCup", JSON.stringify(cup));
+    else {
+      rememberCupWin(cup);
+      localStorage.setItem("soccerCup", JSON.stringify(cup));
+    }
   } catch (e) { /* ignore */ }
+  paintTrophyBadge();
+}
+const TROPHY_KEY = "soccerTrophies";
+function newCupId() {
+  return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+function loadTrophies() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TROPHY_KEY) || "null");
+    if (raw && Array.isArray(raw.wins)) return raw;
+  } catch (e) { /* ignore */ }
+  return { wins: [] };
+}
+function saveTrophies(book) {
+  try { localStorage.setItem(TROPHY_KEY, JSON.stringify(book)); } catch (e) { /* ignore */ }
+}
+function trophyTotal(book) {
+  return (book && book.wins && book.wins.length) || 0;
+}
+function trophyTeams(book) {
+  const map = {};
+  (book.wins || []).forEach((w) => {
+    if (!w) return;
+    const id = w.teamId || "team";
+    if (!map[id]) map[id] = { id: id, name: w.name || "Team", n: 0 };
+    map[id].n += 1;
+    if (w.name) map[id].name = w.name;
+  });
+  return Object.keys(map).map((id) => map[id]).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+}
+// One entry per cup whose final the player actually won. Sending a team
+// to the final does not count; winning that final does. Undo removes it.
+function rememberCupWin(c) {
+  if (!c || !c.teams || !c.teams[0]) return false;
+  if (!c.id) c.id = newCupId();
+  const book = loadTrophies();
+  const won = !!(c.over && c.champion === 0);
+  const i = book.wins.findIndex((w) => w && w.id === c.id);
+  const team = c.teams[0];
+  if (won && i < 0) {
+    book.wins.push({ id: c.id, teamId: team.id, name: team.name });
+    saveTrophies(book);
+    return true;
+  }
+  if (!won && i >= 0) {
+    book.wins.splice(i, 1);
+    saveTrophies(book);
+  }
+  return false;
 }
 const cupUndo = [];
 function rememberCup() {
@@ -8497,7 +8582,7 @@ function newCup() {
   order.splice(Math.floor(Math.random() * 4) * 2, 0, 0);   // you go somewhere in the draw
   const qf = [];
   for (let i = 0; i < 8; i += 2) qf.push({ a: order[i], b: order[i + 1], sa: null, sb: null, pens: null, winner: null });
-  cup = { teams, rounds: [qf, [], []], round: 0, over: false, champion: null, out: false, difficulty: settings.difficulty };
+  cup = { id: newCupId(), teams, rounds: [qf, [], []], round: 0, over: false, champion: null, out: false, difficulty: settings.difficulty };
   saveCup();
   showCup();
 }
@@ -8630,7 +8715,7 @@ function cupIds(extra) {
 }
 function freshCup(teams) {
   return {
-    teams: teams, rounds: [[], [], []], round: 0, over: false, champion: null, out: false,
+    id: newCupId(), teams: teams, rounds: [[], [], []], round: 0, over: false, champion: null, out: false,
     difficulty: (typeof settings !== "undefined" && settings.difficulty) || "normal",
   };
 }
@@ -8663,7 +8748,9 @@ function syncCupProgress() {
   cup.out = !playerAlive();
 }
 function cupRefresh() {
+  const won = cup ? rememberCupWin(cup) : false;
   saveCup();
+  if (won) { showTrophy(); return; }
   if (cup && typeof showCup === "function") showCup();
   else {
     if (typeof renderMenu === "function") renderMenu();
@@ -8948,47 +9035,169 @@ function cupAdmin(action, arg) {
   return state;
 }
 
-// ---- Trophy ceremony: a shining cup, confetti and the crowd going wild ----
+// ---- Trophy count (this device) and the champions scene ----
+function paintTrophyBadge() {
+  const badge = $("trophyBadge");
+  const count = $("trophyCount");
+  if (!badge || !count) return;
+  const book = loadTrophies();
+  const n = trophyTotal(book);
+  count.textContent = String(n);
+  badge.setAttribute("aria-label", n === 1 ? "1 cup trophy" : n + " cup trophies");
+  const playing = typeof inMatch === "function" && inMatch();
+  badge.classList.toggle("hidden", !!playing);
+  const box = $("trophyBreak");
+  if (playing && box) box.classList.add("hidden");
+  if (box && !box.classList.contains("hidden")) fillTrophyBreak();
+}
+function fillTrophyBreak() {
+  const box = $("trophyBreak");
+  if (!box) return;
+  const teams = trophyTeams(loadTrophies());
+  box.innerHTML = teams.length
+    ? "<div class='label'>Cups won</div>" + teams.map((t) => "<div><b>" + esc(t.name) + "</b> " + t.n + "</div>").join("")
+    : "<div>No cup trophies yet.</div>";
+}
+function paintTrophyLines() {
+  const book = loadTrophies();
+  const n = trophyTotal(book);
+  const line = $("trophyCountLine");
+  const split = $("trophySplit");
+  if (line) line.textContent = "\uD83C\uDFC6 " + n + (n === 1 ? " cup" : " cups");
+  if (split) {
+    const teams = trophyTeams(book);
+    split.textContent = teams.map((t) => t.name + " " + t.n).join(" \u00b7 ");
+  }
+}
 let trophyAnim = null;
 function showTrophy() {
+  if (cup && cup.over && cup.champion === 0) rememberCupWin(cup);
   showScreen("trophyScreen");
-  $("trophyTeam").innerHTML = cup ? flagHtml(cup.teams[0], 28, { wave: true }) + "<span>" + esc(cup.teams[0].name) + "</span>" : "";
+  paintTrophyBadge();
+  paintTrophyLines();
+  const team = cup && cup.teams && cup.teams[0];
+  $("trophyTeam").innerHTML = team ? flagHtml(team, 32, { wave: true }) + "<span>" + esc(team.name) + "</span>" : "";
   Sound.init(); Sound.fanfare();
-  const cv = $("trophyCanvas"), g = cv.getContext("2d");
-  const W = cv.width = 360, H = cv.height = 300;
-  const kit = cup ? cup.teams[0].home : ["#ffd33d", "#fff", "#fff"];
+  const cv = $("trophyCanvas");
+  const g = cv.getContext("2d");
+  const cssW = Math.max(280, Math.min(560, (cv.parentElement && cv.parentElement.clientWidth) || 360));
+  const cssH = Math.round(cssW * 0.74);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.style.width = cssW + "px";
+  cv.style.height = cssH + "px";
+  cv.width = Math.round(cssW * dpr);
+  cv.height = Math.round(cssH * dpr);
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const W = cssW, H = cssH;
+  const kit = (team && team.home) || ["#1f5fd6", "#ffffff", "#1f5fd6"];
+  const skin = ["#f1c27d", "#e0ac69", "#c68642", "#8d5524", "#ffdbac"];
   const bits = [];
-  for (let i = 0; i < 140; i++) bits.push({ x: Math.random() * W, y: -Math.random() * H, v: 40 + Math.random() * 90, r: Math.random() * 6, c: [kit[0], kit[1], "#ffd33d", "#fff"][i % 4] });
+  for (let i = 0; i < 90; i++) bits.push({ x: Math.random() * W, y: Math.random() * H, v: 28 + Math.random() * 70, r: Math.random() * 6, c: [kit[0], kit[1], "#ffd33d", "#fff", "#ff6b6b"][i % 5], s: 3 + Math.random() * 4 });
+  const sparks = [];
+  const boom = (x, y) => {
+    const cols = ["#ffe27a", "#fff", kit[0], "#7eb6ff", "#ff8a5b"];
+    for (let i = 0; i < 22; i++) {
+      const a = (Math.PI * 2 * i) / 22;
+      const sp = 28 + (i % 5) * 16;
+      sparks.push({ x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, c: cols[i % cols.length], life: 1 });
+    }
+  };
+  boom(W * 0.22, H * 0.22);
+  boom(W * 0.78, H * 0.18);
+  const squad = [
+    { x: 0.16, s: 0.72, lift: false },
+    { x: 0.32, s: 0.86, lift: false },
+    { x: 0.50, s: 1.05, lift: true },
+    { x: 0.68, s: 0.86, lift: false },
+    { x: 0.84, s: 0.72, lift: false },
+  ];
   const t0 = performance.now();
+  let nextBoom = 900;
   cancelAnimationFrame(trophyAnim);
   const loop = (now) => {
     if ($("trophyScreen").classList.contains("hidden")) return;
     const t = (now - t0) / 1000;
+    if (now - t0 > nextBoom) { boom(W * (0.2 + Math.random() * 0.6), H * (0.12 + Math.random() * 0.2)); nextBoom += 700; }
     g.clearRect(0, 0, W, H);
-    // light rays
-    g.save(); g.translate(W / 2, 150); g.rotate(t * 0.3);
-    for (let i = 0; i < 12; i++) { g.rotate(Math.PI / 6); g.fillStyle = "rgba(255,230,120,0.10)"; g.beginPath(); g.moveTo(0, 0); g.lineTo(-25, -220); g.lineTo(25, -220); g.fill(); }
+    const sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, "#10243f"); sky.addColorStop(0.55, "#16382a"); sky.addColorStop(1, "#0c1a12");
+    g.fillStyle = sky; g.fillRect(0, 0, W, H);
+    g.fillStyle = "rgba(255,230,120,0.08)";
+    g.save(); g.translate(W / 2, H * 0.42); g.rotate(t * 0.25);
+    for (let i = 0; i < 10; i++) { g.rotate(Math.PI / 5); g.beginPath(); g.moveTo(0, 0); g.lineTo(-18, -H); g.lineTo(18, -H); g.fill(); }
     g.restore();
-    // the trophy (rises up and bobs)
-    const rise = Math.min(1, t / 1.2), y = 40 + (1 - rise) * 200 + Math.sin(t * 2) * 4;
-    g.save(); g.translate(W / 2, y);
-    const gold = g.createLinearGradient(-60, 0, 60, 0);
-    const sh = (Math.sin(t * 2.5) + 1) / 2;
-    gold.addColorStop(0, "#a87a00"); gold.addColorStop(clamp(sh, 0.05, 0.95), "#fff6c0"); gold.addColorStop(1, "#c99a06");
-    g.fillStyle = gold; g.strokeStyle = "#7a5700"; g.lineWidth = 3;
-    g.beginPath(); g.moveTo(-55, 0); g.quadraticCurveTo(-60, 95, 0, 110); g.quadraticCurveTo(60, 95, 55, 0); g.closePath(); g.fill(); g.stroke();     // bowl
-    g.beginPath(); g.ellipse(-62, 35, 18, 28, 0, 0, Math.PI * 2); g.ellipse(62, 35, 18, 28, 0, 0, Math.PI * 2); g.lineWidth = 7; g.strokeStyle = gold; g.stroke(); // handles
-    g.fillStyle = gold; g.fillRect(-10, 108, 20, 40); g.fillRect(-40, 148, 80, 14); g.fillStyle = "#5b3b1a"; g.fillRect(-50, 162, 100, 30);       // stem + base
-    g.fillStyle = "#ffd33d"; g.font = "bold 12px Arial"; g.textAlign = "center"; g.fillText("CHAMPIONS", 0, 182);
-    g.restore();
+    g.fillStyle = "#0e2a18"; g.fillRect(0, H * 0.78, W, H);
+    g.fillStyle = "#1b4a2c"; g.fillRect(0, H * 0.78, W, 8);
+    g.fillStyle = "#fff"; g.font = "800 " + Math.round(W * 0.075) + "px Impact, Arial Black, sans-serif"; g.textAlign = "center";
+    g.fillText("CHAMPIONS!", W / 2, H * 0.12);
+    const ground = H * 0.80;
+    squad.forEach((p, i) => drawCelebrant(g, p.x * W, ground, p.s * (W / 520), kit, skin[i % skin.length], p.lift, t));
+    const bob = Math.sin(t * 2.2) * 4;
+    drawGoldCup(g, W / 2, ground - 168 * (W / 520) + bob, W / 520);
+    if (team && typeof drawFlagBadge === "function") drawFlagBadge(g, team.id, 16, H * 0.045, 32);
+    sparks.forEach((s) => {
+      s.x += s.vx / 60; s.y += s.vy / 60; s.vy += 18 / 60; s.life -= 0.012;
+      if (s.life <= 0) return;
+      g.globalAlpha = Math.max(0, s.life);
+      g.fillStyle = s.c; g.beginPath(); g.arc(s.x, s.y, 2.4, 0, 7); g.fill();
+      g.globalAlpha = 1;
+    });
     for (const b of bits) {
-      b.y += b.v / 60; b.r += 0.1; if (b.y > H) { b.y = -10; b.x = Math.random() * W; }
-      g.save(); g.translate(b.x, b.y); g.rotate(b.r); g.fillStyle = b.c; g.fillRect(-4, -2, 8, 4); g.restore();
+      b.y += b.v / 60; b.r += 0.08; if (b.y > H) { b.y = -8; b.x = Math.random() * W; }
+      g.save(); g.translate(b.x, b.y); g.rotate(b.r); g.fillStyle = b.c; g.fillRect(-b.s, -b.s / 2, b.s * 2, b.s); g.restore();
     }
     trophyAnim = requestAnimationFrame(loop);
   };
   trophyAnim = requestAnimationFrame(loop);
 }
+function drawCelebrant(g, x, y, s, kit, skin, lift, t) {
+  const arm = lift ? -1.15 + Math.sin(t * 2) * 0.06 : 0.35;
+  g.save();
+  g.fillStyle = "rgba(0,0,0,.35)";
+  g.beginPath(); g.ellipse(x, y + 2, 18 * s, 5 * s, 0, 0, 7); g.fill();
+  g.fillStyle = kit[2] || "#111";
+  g.fillRect(x - 9 * s, y - 32 * s, 7 * s, 32 * s);
+  g.fillRect(x + 2 * s, y - 32 * s, 7 * s, 32 * s);
+  g.fillStyle = "#111";
+  g.fillRect(x - 10 * s, y - 6 * s, 9 * s, 5 * s);
+  g.fillRect(x + 1 * s, y - 6 * s, 9 * s, 5 * s);
+  g.fillStyle = kit[1] || "#fff";
+  g.fillRect(x - 12 * s, y - 48 * s, 24 * s, 18 * s);
+  g.fillStyle = kit[0] || "#1f5fd6";
+  g.fillRect(x - 14 * s, y - 78 * s, 28 * s, 32 * s);
+  g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = 1;
+  g.strokeRect(x - 14 * s, y - 78 * s, 28 * s, 32 * s);
+  g.save();
+  g.translate(x - 14 * s, y - 70 * s); g.rotate(arm);
+  g.fillStyle = kit[0]; g.fillRect(-16 * s, -3 * s, 18 * s, 7 * s); g.restore();
+  g.save();
+  g.translate(x + 14 * s, y - 70 * s); g.rotate(-arm);
+  g.fillStyle = kit[0]; g.fillRect(-2 * s, -3 * s, 18 * s, 7 * s); g.restore();
+  g.fillStyle = skin;
+  g.beginPath(); g.arc(x, y - 90 * s, 10 * s, 0, 7); g.fill();
+  g.fillStyle = "#222";
+  g.beginPath(); g.arc(x, y - 96 * s, 8 * s, Math.PI, 0); g.fill();
+  g.restore();
+}
+function drawGoldCup(g, x, y, s) {
+  g.save(); g.translate(x, y);
+  const gold = g.createLinearGradient(-28 * s, 0, 28 * s, 0);
+  gold.addColorStop(0, "#a87a00"); gold.addColorStop(0.45, "#fff6c0"); gold.addColorStop(1, "#c99a06");
+  g.fillStyle = gold; g.strokeStyle = "#7a5700"; g.lineWidth = 2 * s;
+  g.beginPath(); g.moveTo(-26 * s, 0); g.quadraticCurveTo(-28 * s, 42 * s, 0, 50 * s); g.quadraticCurveTo(28 * s, 42 * s, 26 * s, 0); g.closePath(); g.fill(); g.stroke();
+  g.beginPath(); g.ellipse(-30 * s, 16 * s, 8 * s, 12 * s, 0, 0, 7); g.ellipse(30 * s, 16 * s, 8 * s, 12 * s, 0, 0, 7); g.stroke();
+  g.fillRect(-5 * s, 48 * s, 10 * s, 16 * s);
+  g.fillRect(-18 * s, 64 * s, 36 * s, 7 * s);
+  g.fillStyle = "#5b3b1a"; g.fillRect(-22 * s, 71 * s, 44 * s, 10 * s);
+  g.restore();
+}
+const trophyBadgeBtn = $("trophyBadge");
+if (trophyBadgeBtn) trophyBadgeBtn.addEventListener("click", () => {
+  const box = $("trophyBreak");
+  if (!box) return;
+  box.classList.toggle("hidden");
+  if (!box.classList.contains("hidden")) fillTrophyBreak();
+});
 
 // =====================================================================
 // G. WIN / PAUSE SCREENS

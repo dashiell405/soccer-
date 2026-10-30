@@ -301,8 +301,31 @@
   .ct.won { color: #9fffa0; font-weight: bold; } .ct.lost { opacity: .55; } .ct.me .nm { text-decoration: underline; }
   #cupStatus { font-size: 18px; margin: 6px 0; }
   #cupFormat { font-size: 13px; color: #ffd33d; }
-  #trophyCanvas { position: static; width: min(360px, 80vw); height: auto; display: block; margin: 0 auto; }
-  #trophyTeam { font-size: clamp(22px, 5vw, 36px); margin: 0; color: #ffd33d; }
+  #trophyCanvas { position: static; width: min(560px, 100%); height: auto; display: block; margin: 0 auto; background: #071018; border-radius: 12px; }
+  #trophyTeam { font-size: clamp(22px, 5vw, 36px); margin: 8px 0 0; color: #ffd33d; }
+  #trophyCountLine { margin: 4px 0 0; font-size: clamp(16px, 4vw, 22px); font-weight: 800; color: #ffe27a; }
+  #trophySplit { margin: 2px 0 8px; font-size: 14px; opacity: .9; }
+  #trophyBadge {
+    position: fixed; z-index: 45;
+    top: calc(8px + env(safe-area-inset-top));
+    right: calc(8px + env(safe-area-inset-right));
+    min-width: 64px; min-height: 44px; margin: 0; padding: 6px 14px;
+    border-radius: 999px; border: 2px solid #fff6c0;
+    background: linear-gradient(180deg, #ffe27a, #e6b325); color: #1a1404;
+    font-weight: 800; font-size: 20px; letter-spacing: 0.5px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.45);
+  }
+  #trophyBadge b { font-size: 22px; }
+  #trophyBreak {
+    position: fixed; z-index: 45;
+    top: calc(58px + env(safe-area-inset-top));
+    right: calc(8px + env(safe-area-inset-right));
+    width: min(240px, 72vw); margin: 0; padding: 8px 12px; text-align: left;
+    background: rgba(8, 16, 28, .96); color: #fff;
+    border: 1px solid #e8c547; border-radius: 12px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.45); font-size: 14px; line-height: 1.45;
+  }
+  #trophyBreak b { color: #ffe27a; }
   #keysHint {
     position: fixed; left: calc(8px + env(safe-area-inset-left)); bottom: calc(8px + env(safe-area-inset-bottom));
     z-index: 14; font-size: 12px; background: rgba(0,0,0,.55);
@@ -407,6 +430,8 @@
 
 <canvas id="game"></canvas>
 <div id="safeProbe"></div>
+<button type="button" id="trophyBadge" class="hidden" aria-label="Cup trophies won">🏆 <b id="trophyCount">0</b></button>
+<div id="trophyBreak" class="hidden"></div>
 
 <!-- Start menu -->
 <div id="menu" class="overlay">
@@ -503,9 +528,11 @@
 <div id="trophyScreen" class="overlay hidden">
   <div class="panel">
     <h1>CHAMPIONS!</h1>
-    <canvas id="trophyCanvas" width="360" height="300"></canvas>
+    <canvas id="trophyCanvas" width="520" height="380"></canvas>
     <p id="trophyTeam"></p>
-    <div class="row"><button id="trophyCupBtn">See the bracket</button> <button id="trophyMenuBtn" class="big">Main menu</button></div>
+    <p id="trophyCountLine"></p>
+    <p id="trophySplit"></p>
+    <div class="row"><button id="trophyMenuBtn" class="big">Back to home</button> <button id="trophyCupBtn">See the bracket</button></div>
   </div>
 </div>
 
