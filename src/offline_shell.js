@@ -46,6 +46,7 @@ function loadSettings() {
 function saveSettings() {
   try { localStorage.setItem("soccerSettings", JSON.stringify(settings)); } catch (e) { /* ignore */ }
   saveSavedMinutes(settings.minutes, settings.lengthCustom);
+  if (typeof GameSettings !== "undefined") GameSettings.set("matchLength", settings.minutes, true);
 }
 function chooseMatchLength(minutes, custom) {
   settings.minutes = clampMatchMinutes(minutes);
@@ -94,7 +95,12 @@ const humanIds = () => (settings.mode === "2p" ? ["p1", "p2"] : ["p1"]);
 window.addEventListener("keydown", (e) => {
   if (e.target && e.target.tagName === "INPUT") return;   // typing a team name
   if (inMatch() && ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", "Slash", "Period", "Tab", "Quote"].includes(e.code)) e.preventDefault();
-  if (!keys[e.code]) onKeyPressed(e.code);
+  if (!keys[e.code]) {
+    onKeyPressed(e.code);
+    if (typeof opt === "function" && opt("sprintMode") === "toggle" && (e.code === "ShiftLeft" || e.code === "ShiftRight")) {
+      sprintLatch.p1 = !sprintLatch.p1;
+    }
+  }
   keys[e.code] = true;
 });
 window.addEventListener("keyup", (e) => { keys[e.code] = false; });
@@ -118,7 +124,10 @@ function onKeyPressed(code) {
     for (const action of ["shoot", "pass", "swap", "skill", "flick"]) if (s[action].includes(code)) sim.press(id, action);
   }
 }
-const isDown = (id, action) => controlScheme(id)[action].some((c) => keys[c]) || (touchActive() && !!(pads[id] && pads[id][action]));
+const isDown = (id, action) => {
+  if (action === "sprint" && typeof opt === "function" && opt("sprintMode") === "toggle") return !!sprintLatch[id];
+  return controlScheme(id)[action].some((c) => keys[c]) || (touchActive() && !!(pads[id] && pads[id][action]));
+};
 
 // Read the keys / joystick into the match every frame
 function feedInput() {
@@ -145,18 +154,25 @@ function bindPad(playerId, ids) {
     const len = Math.hypot(dx, dy);
     const max = Math.max(36, base.offsetWidth * 0.42);
     if (len > max) { dx = dx / len * max; dy = dy / len * max; }
-    pad.x = dx / max; pad.y = dy / max;
-    if (Math.hypot(pad.x, pad.y) < 0.15) { pad.x = 0; pad.y = 0; }
+    const filtered = typeof joyFiltered === "function" ? joyFiltered(dx, dy, max) : { x: dx / max, y: dy / max };
+    pad.x = filtered.x; pad.y = filtered.y;
     knob.style.transform = "translate(" + dx + "px," + dy + "px)";
   }
   zone.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     noteFpFollow(playerId);
     if (inMatch() && game.phase === "goal") sim.press(playerId, "skip");
-    pad.pointerId = e.pointerId; pad.baseX = e.clientX; pad.baseY = e.clientY;
-    base.style.left = (e.clientX - base.offsetWidth / 2) + "px";
-    base.style.top = (e.clientY - base.offsetHeight / 2) + "px";
-    base.style.right = "auto"; base.style.bottom = "auto";
+    pad.pointerId = e.pointerId;
+    const fixed = typeof opt === "function" && opt("joyMode") === "fixed";
+    if (fixed) {
+      const r = base.getBoundingClientRect();
+      pad.baseX = r.left + r.width / 2; pad.baseY = r.top + r.height / 2;
+    } else {
+      pad.baseX = e.clientX; pad.baseY = e.clientY;
+      base.style.left = (e.clientX - base.offsetWidth / 2) + "px";
+      base.style.top = (e.clientY - base.offsetHeight / 2) + "px";
+      base.style.right = "auto"; base.style.bottom = "auto";
+    }
     try { zone.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
     movePad(e);
   });
@@ -175,6 +191,11 @@ function bindPad(playerId, ids) {
     if (!el) continue;
     el.addEventListener("pointerdown", (e) => {
       e.preventDefault();
+      if (action === "sprint" && typeof opt === "function" && opt("sprintMode") === "toggle") {
+        sprintLatch[playerId] = !sprintLatch[playerId];
+        el.classList.toggle("pressed", !!sprintLatch[playerId]);
+        return;
+      }
       pad[action] = true; el.classList.add("pressed");
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
       if (inMatch() && !paused) {
@@ -189,6 +210,7 @@ function bindPad(playerId, ids) {
   }
   return pad;
 }
+const sprintLatch = { p1: false, p2: false };
 const pads = {
   p1: bindPad("p1", { zone: "joyZone", base: "joyBase", knob: "joyKnob", shoot: "shootBtn", pass: "passBtn", sprint: "sprintBtn", skill: "skillBtn" }),
   p2: bindPad("p2", { zone: "joyZone2", base: "joyBase2", knob: "joyKnob2", shoot: "shootBtn2", pass: "passBtn2", sprint: "sprintBtn2", skill: "skillBtn2" }),
@@ -440,9 +462,19 @@ document.querySelectorAll("[data-kind]").forEach((b) => b.addEventListener("clic
   renderMenu();
 }));
 document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => { settings.mode = b.dataset.mode; renderMenu(); }));
-document.querySelectorAll("[data-diff]").forEach((b) => b.addEventListener("click", () => { settings.difficulty = b.dataset.diff; renderMenu(); }));
-$("ruleOffside").addEventListener("change", (e) => { settings.rules.offside = e.target.checked; saveSettings(); });
-$("ruleCards").addEventListener("change", (e) => { settings.rules.cards = e.target.checked; saveSettings(); });
+document.querySelectorAll("[data-diff]").forEach((b) => b.addEventListener("click", () => {
+  settings.difficulty = b.dataset.diff;
+  if (typeof GameSettings !== "undefined") GameSettings.set("difficulty", b.dataset.diff, true);
+  renderMenu();
+}));
+$("ruleOffside").addEventListener("change", (e) => {
+  settings.rules.offside = e.target.checked; saveSettings();
+  if (typeof GameSettings !== "undefined") GameSettings.set("offside", e.target.checked, true);
+});
+$("ruleCards").addEventListener("change", (e) => {
+  settings.rules.cards = e.target.checked; saveSettings();
+  if (typeof GameSettings !== "undefined") GameSettings.set("cards", e.target.checked, true);
+});
 document.querySelectorAll("[data-mins]").forEach((b) => b.addEventListener("click", () => {
   if (b.dataset.mins === "custom") chooseMatchLength($("minsInput").value || settings.minutes, true);
   else chooseMatchLength(Number(b.dataset.mins), false);
@@ -708,12 +740,17 @@ $("pauseBtn").addEventListener("click", togglePause);
 const STEP = 1 / 120;
 let lastTime = performance.now(), accumulator = 0, wasWin = false;
 function frame(now) {
+  if (typeof frameGate === "function" && !frameGate(now)) { requestAnimationFrame(frame); return; }
+  window.__fps = Math.round(1000 / Math.max(8, now - (frame.prev || now)));
+  frame.prev = now;
   let dt = (now - lastTime) / 1000;
   lastTime = now;
   if (dt > 0.1) dt = 0.1;
   if (inMatch() && !paused) {
     feedInput();
-    accumulator += dt * (game && game.admin && game.admin.slow ? 0.35 : 1);
+    if (typeof pushMatchTune === "function") pushMatchTune();
+    const pace = typeof opt === "function" ? (Number(opt("gameSpeed")) || 1) : 1;
+    accumulator += dt * pace * (game && game.admin && game.admin.slow ? 0.35 : 1);
     while (accumulator >= STEP) { sim.update(STEP); accumulator -= STEP; }
     players = sim.players;
     for (const ev of game.events.splice(0)) playEvent(ev);

@@ -747,7 +747,7 @@ const SKILL_COOLDOWN = 0.9;        // seconds before you can do another trick
 const SKILL_TIME = { stepover: 0.45, spin: 0.45, flick: 0.55, burst: 0.7 };
 const SKILL_NAMES = { stepover: "Step-over!", spin: "Roulette!", flick: "Rainbow flick!", burst: "Burst!" };
 // How often the computer does tricks when a defender is close (per decision)
-const AI_SKILL_CHANCE = { easy: 0, normal: 0.18, hard: 0.45 };
+const AI_SKILL_CHANCE = { easy: 0, normal: 0.18, hard: 0.45, legendary: 0.62 };
 
 // Difficulty settings for the COMPUTER team
 //   speed      - fraction of RUN_SPEED
@@ -762,6 +762,7 @@ const DIFFICULTY = {
   easy:   { speed: 0.82, think: 0.45, aimErr: 0.60, shootRange: 300 * FIELD, steal: 1.0, slide: 0.0, gkDive: 330 * FIELD, gkReact: 0.30, gkCatch: 0.45, passErr: 0.25 },
   normal: { speed: 0.92, think: 0.25, aimErr: 0.40, shootRange: 360 * FIELD, steal: 1.8, slide: 0.42, gkDive: 390 * FIELD, gkReact: 0.40, gkCatch: 0.60, passErr: 0.12 },
   hard:   { speed: 1.00, think: 0.12, aimErr: 0.25, shootRange: 420 * FIELD, steal: 2.8, slide: 0.8, gkDive: 450 * FIELD, gkReact: 0.50, gkCatch: 0.72, passErr: 0.05 },
+  legendary: { speed: 1.06, think: 0.06, aimErr: 0.12, shootRange: 480 * FIELD, steal: 3.4, slide: 1.05, gkDive: 500 * FIELD, gkReact: 0.62, gkCatch: 0.82, passErr: 0.02 },
 };
 // Computer-controlled teammates of a human use these
 const TEAMMATE_AI = { speed: 0.95, think: 0.22, aimErr: 0.35, shootRange: 360 * FIELD, steal: 1.8, slide: 0.0, gkDive: 400 * FIELD, gkReact: 0.42, gkCatch: 0.62, passErr: 0.1 };
@@ -1197,8 +1198,14 @@ function canKick(p) {
       if (!avail.length) { setActive(c, null); continue; }
       const cur = avail.includes(c.active) ? c.active : null;
       if (cur && c.switchLock > 0) continue;
+      const mode = (game.tune && game.tune.autoSwitch) || "assisted";
+      if (mode === "off") {
+        if (!cur) setActive(c, nearestToBall(avail));
+        continue;
+      }
+      const sticky = mode === "auto" ? 8 : 40;
       const best = nearestToBall(avail);
-      if (!cur || (best !== cur && dist(best, ball) < dist(cur, ball) - 40)) setActive(c, best);
+      if (!cur || (best !== cur && dist(best, ball) < dist(cur, ball) - sticky)) setActive(c, best);
     }
   }
 
@@ -1284,11 +1291,13 @@ function humanShoot(p, charge) {
   let dir = { x: p.fx, y: p.fy };
   // Aim assist: if you shoot roughly toward goal, the ball bends a bit
   // toward the goal mouth (like most soccer video games do).
-  if (dir.x * T.dir > 0.25) {
+    if (dir.x * T.dir > 0.25) {
     const dx = T.targetGoalX - ball.x;
     const yAt = clamp(ball.y + dir.y / dir.x * dx, GOAL_TOP + 12, GOAL_BOTTOM - 12);
     const toGoal = normalize(dx, yAt - ball.y);
-    const pull = (p.trait === "finisher" || (p.shoot || 0) > 85) ? 1.6 : 0.75;
+    const assist = (game.tune && game.tune.assist) || "medium";
+    const basePull = assist === "high" ? 1.45 : assist === "low" ? 0.28 : 0.75;
+    const pull = (p.trait === "finisher" || (p.shoot || 0) > 85) ? basePull + 0.7 : basePull;
     dir = normalize(dir.x + toGoal.x * pull, dir.y + toGoal.y * pull);
   }
   const power = lerp(SHOT_MIN, SHOT_MAX, charge) * boosts(p).shot;
@@ -1312,8 +1321,14 @@ function findPassTarget(p, maxAngleDeg = 55) {
   return best;
 }
 
+function assistAngle(base) {
+  const a = game.tune && game.tune.assist;
+  if (a === "high") return base + 22;
+  if (a === "low") return Math.max(28, base - 16);
+  return base;
+}
 function humanGroundPass(p) {
-  const mate = findPassTarget(p);
+  const mate = findPassTarget(p, assistAngle(55));
   if (mate) {
     const target = aimPoint(p, { x: mate.x + mate.vx * 0.35, y: mate.y + mate.vy * 0.35 });
     groundPass(p, target, mate);
@@ -1768,8 +1783,9 @@ function updateBall(dt) {
   if (game.phase === "dead") { ball.vx *= 0.97; ball.vy *= 0.97; } // out of play: stops quickly
   if (ball.z === 0 && ballSpeed() < 8) { ball.vx = 0; ball.vy = 0; }
 
-  ball.x += ball.vx * dt;
-  ball.y += ball.vy * dt;
+  const ballMul = (game.tune && game.tune.ball) || 1;
+  ball.x += ball.vx * dt * ballMul;
+  ball.y += ball.vy * dt * ballMul;
   ball.spin += ballSpeed() * dt / BALL_R;
 
   // --- Goal posts (only if the ball is lower than the crossbar) ---
@@ -2861,6 +2877,7 @@ function foul(offender, victim) {
   fallDown(victim, 0.9);
   game.stats.fouls++;
   offender.fouls++;
+  if (game.tune && game.tune.stoppage && game.timeLimit) game.timeLimit += 5;
   const inBox = inOwnBox(offender.team, victim);
   let card = null;
   if (game.rules.cards) {

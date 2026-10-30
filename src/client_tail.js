@@ -265,6 +265,9 @@ if (isTouchDevice && $("matchHelp")) {
 
 let lastFrame = performance.now();
 function frame(now) {
+  if (typeof frameGate === "function" && !frameGate(now)) { requestAnimationFrame(frame); return; }
+  window.__fps = Math.round(1000 / Math.max(8, now - (frame.prev || now)));
+  frame.prev = now;
   let dt = (now - lastFrame) / 1000;
   lastFrame = now;
   if (dt > 0.1) dt = 0.1;

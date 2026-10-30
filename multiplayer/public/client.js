@@ -122,11 +122,23 @@ const Sound = {
     } catch (e) { this.ctx = null; }
   },
   muted: false,
-  setMuted(m) { this.muted = !!m; if (this.master) this.master.gain.value = m ? 0 : 1; },
+  sfx: 1,
+  whistleVol: 1,
+  setMuted(m) { this.muted = !!m; if (this.master && this.muted) this.master.gain.value = 0; },
+  applyMix(g) {
+    if (!g) return;
+    this.muted = !!g.mute;
+    this.sfx = g.sfx == null ? 1 : g.sfx;
+    this.whistleVol = g.whistle == null ? 1 : g.whistle;
+    const master = g.mute ? 0 : (g.master == null ? 1 : g.master);
+    if (this.master) this.master.gain.value = master;
+    if (this.crowdGain) this.crowdGain.gain.value = 0.05 * (g.crowd == null ? 1 : g.crowd) * (g.mute ? 0 : 1);
+  },
 
   // a burst of filtered noise with a volume envelope
   noiseBurst(freq, q, peak, attack, decay) {
     if (!this.ctx) return;
+    peak *= (this.sfx == null ? 1 : this.sfx);
     const t = this.ctx.currentTime;
     const src = this.ctx.createBufferSource();
     src.buffer = this.noise; src.loop = true;
@@ -152,7 +164,7 @@ const Sound = {
     o.start(t); o.stop(t + dur + 0.02);
   },
   kick(power) {
-    const v = clamp(power / 1000, 0.25, 1);
+    const v = clamp(power / 1000, 0.25, 1) * (this.sfx == null ? 1 : this.sfx);
     this.tone("sine", 160, 50, 0.35 * v, 0.12);     // the "thump"
     this.noiseBurst(2500, 1.5, 0.08 * v, 0.003, 0.04); // the "click"
   },
@@ -164,9 +176,10 @@ const Sound = {
     o.type = "sine"; o.frequency.value = 2900;
     lfo.frequency.value = 28; lfoGain.gain.value = 140; // the "trill"
     lfo.connect(lfoGain).connect(o.frequency);
+    const wv = 0.09 * (this.whistleVol == null ? 1 : this.whistleVol);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.09, t + 0.02);
-    g.gain.setValueAtTime(0.09, t + dur - 0.05);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, wv), t + 0.02);
+    g.gain.setValueAtTime(Math.max(0.0002, wv), t + dur - 0.05);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g).connect(this.master);
     o.start(t); lfo.start(t); o.stop(t + dur); lfo.stop(t + dur);
@@ -199,6 +212,10 @@ function playEvent([name, arg]) {
   else if (name === "whistleLong") Sound.whistle(true);
   else if (name === "card") Sound.card(arg);
   else if (Sound[name]) Sound[name]();
+  if (typeof haptic === "function") {
+    if (name === "kick") haptic(12);
+    else if (name === "whistleLong" || name === "cheer" || name === "card") haptic(28);
+  }
 }
 
 
@@ -460,8 +477,15 @@ joyZone.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   noteFpFollow(myId);
   if (game.phase === "goal") sendMsg({ t: "press", a: "skip" });
-  touch.pointerId = e.pointerId; touch.baseX = e.clientX; touch.baseY = e.clientY;
-  joyBase.style.left = (e.clientX - 65) + "px"; joyBase.style.top = (e.clientY - 65) + "px"; joyBase.style.bottom = "auto";
+  touch.pointerId = e.pointerId;
+  const fixed = typeof opt === "function" && opt("joyMode") === "fixed";
+  if (fixed) {
+    const r = joyBase.getBoundingClientRect();
+    touch.baseX = r.left + r.width / 2; touch.baseY = r.top + r.height / 2;
+  } else {
+    touch.baseX = e.clientX; touch.baseY = e.clientY;
+    joyBase.style.left = (e.clientX - 65) + "px"; joyBase.style.top = (e.clientY - 65) + "px"; joyBase.style.bottom = "auto";
+  }
   try { joyZone.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
   updateJoystick(e);
 });
@@ -478,14 +502,20 @@ function updateJoystick(e) {
   let dx = e.clientX - touch.baseX, dy = e.clientY - touch.baseY;
   const len = Math.hypot(dx, dy);
   if (len > JOY_MAX) { dx = dx / len * JOY_MAX; dy = dy / len * JOY_MAX; }
-  touch.x = dx / JOY_MAX; touch.y = dy / JOY_MAX;
-  if (Math.hypot(touch.x, touch.y) < 0.15) { touch.x = 0; touch.y = 0; }
+  const filtered = typeof joyFiltered === "function" ? joyFiltered(dx, dy, JOY_MAX) : { x: dx / JOY_MAX, y: dy / JOY_MAX };
+  touch.x = filtered.x; touch.y = filtered.y;
   joyKnob.style.transform = "translate(" + dx + "px," + dy + "px)";
 }
 for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprintBtn", "sprint"], ["skillBtn", "skill"]]) {
   const el = $(id);
   el.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    if (action === "sprint" && typeof opt === "function" && opt("sprintMode") === "toggle") {
+      touch.sprintLatch = !touch.sprintLatch;
+      el.classList.toggle("pressed", !!touch.sprintLatch);
+      sendInput(true);
+      return;
+    }
     touch[action] = true; el.classList.add("pressed");
     try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
     noteFpFollow(myId);
@@ -538,7 +568,8 @@ function sendInput(force) {
   if (!mx && !my && (touch.x || touch.y)) { mx = touch.x; my = touch.y; }
   const stick = cameraStick(mx, my);
   mx = stick.mx; my = stick.my;
-  const msg = { t: "input", mx: Math.round(mx * 100) / 100, my: Math.round(my * 100) / 100, sprint: held("sprint"), shoot: held("shoot"), pass: held("pass") };
+  const sprint = (typeof opt === "function" && opt("sprintMode") === "toggle") ? !!touch.sprintLatch : held("sprint");
+  const msg = { t: "input", mx: Math.round(mx * 100) / 100, my: Math.round(my * 100) / 100, sprint: sprint, shoot: held("shoot"), pass: held("pass") };
   const str = JSON.stringify(msg);
   const now = performance.now();
   if (str !== lastInput || now - lastInputAt > 100 || force) {
@@ -974,6 +1005,388 @@ function drawFlagBadge(ctx, id, x, y, cssH, opts) {
 }
 
 /* =====================================================================
+   SETTINGS - one list of options, saved on this device
+   ---------------------------------------------------------------------
+   Add a setting by putting a field in SETTINGS_TABS. The menu, the
+   save file and Reset to defaults all come from that list.
+   Gameplay rules here are for matches on this device. Online, the
+   host's room choices are the ones that count.
+   ===================================================================== */
+const SETTINGS_KEY = "soccerOptions";
+
+const SETTINGS_TABS = [
+  {
+    id: "controls", title: "Controls",
+    fields: [
+      { id: "lookTouch", label: "Look sensitivity (touch)", type: "range", min: 0.4, max: 2, step: 0.1, def: 1 },
+      { id: "lookMouse", label: "Look sensitivity (mouse)", type: "range", min: 0.4, max: 2, step: 0.1, def: 1 },
+      { id: "joySens", label: "Joystick sensitivity", type: "range", min: 0.5, max: 1.8, step: 0.1, def: 1 },
+      { id: "joyDead", label: "Joystick dead zone", type: "range", min: 0, max: 0.4, step: 0.05, def: 0.15 },
+      { id: "invertY", label: "Invert look up and down", type: "toggle", def: false },
+      { id: "joyMode", label: "Joystick", type: "select", def: "float", options: [
+        { v: "float", label: "Floating" }, { v: "fixed", label: "Fixed" } ] },
+      { id: "btnSize", label: "Touch button size", type: "range", min: 0.7, max: 1.4, step: 0.05, def: 1 },
+      { id: "btnOpacity", label: "Touch button opacity", type: "range", min: 0.35, max: 1, step: 0.05, def: 0.85 },
+      { id: "leftHand", label: "Left-handed layout", type: "toggle", def: false },
+      { id: "haptics", label: "Vibration", type: "toggle", def: false, help: "Only on phones that support it." },
+      { id: "autoSwitch", label: "Auto-switch player", type: "select", def: "assisted", options: [
+        { v: "off", label: "Off" }, { v: "assisted", label: "Assisted" }, { v: "auto", label: "Auto" } ] },
+      { id: "assist", label: "Pass and shot help", type: "select", def: "medium", options: [
+        { v: "low", label: "Low" }, { v: "medium", label: "Medium" }, { v: "high", label: "High" } ] },
+      { id: "sprintMode", label: "Sprint", type: "select", def: "hold", options: [
+        { v: "hold", label: "Hold to sprint" }, { v: "toggle", label: "Tap to sprint" } ] },
+      { id: "hints", label: "Show control hints", type: "toggle", def: true },
+    ],
+  },
+  {
+    id: "camera", title: "Camera",
+    fields: [
+      { id: "camDefault", label: "Default camera", type: "select", def: "tv", options: [
+        { v: "tv", label: "Broadcast" }, { v: "close", label: "Close" }, { v: "fp", label: "First person" } ] },
+      { id: "camZoom", label: "Camera zoom", type: "range", min: 0.8, max: 1.4, step: 0.05, def: 1 },
+      { id: "camHeight", label: "Camera height", type: "range", min: 0.7, max: 1.3, step: 0.05, def: 1 },
+      { id: "fpFov", label: "First-person view angle", type: "range", min: 75, max: 90, step: 1, def: 84, suffix: "°" },
+      { id: "headBob", label: "Head bob", type: "toggle", def: true },
+      { id: "shake", label: "Screen shake", type: "toggle", def: true },
+      { id: "replays", label: "Goal replays", type: "toggle", def: true },
+    ],
+  },
+  {
+    id: "game", title: "Gameplay",
+    note: "These apply to matches on this device. In an online game, the host's rules are used.",
+    fields: [
+      { id: "difficulty", label: "Computer difficulty", type: "select", def: "normal", options: [
+        { v: "easy", label: "Easy" }, { v: "normal", label: "Normal" }, { v: "hard", label: "Hard" }, { v: "legendary", label: "Legendary" } ] },
+      { id: "matchLength", label: "Default match length", type: "select", def: 5, options: [
+        { v: 1, label: "1 minute" }, { v: 2, label: "2 minutes" }, { v: 3, label: "3 minutes" },
+        { v: 5, label: "5 minutes" }, { v: 10, label: "10 minutes" }, { v: 15, label: "15 minutes" }, { v: 20, label: "20 minutes" } ] },
+      { id: "offside", label: "Offside", type: "toggle", def: true },
+      { id: "cards", label: "Fouls and cards", type: "toggle", def: true },
+      { id: "stoppage", label: "Injury and stoppage time", type: "toggle", def: false },
+      { id: "ballSpeed", label: "Ball speed", type: "range", min: 0.85, max: 1.25, step: 0.05, def: 1 },
+      { id: "gameSpeed", label: "Game speed", type: "range", min: 0.7, max: 1.3, step: 0.05, def: 1 },
+    ],
+  },
+  {
+    id: "display", title: "Display",
+    fields: [
+      { id: "quality", label: "Graphics", type: "select", def: "auto", options: [
+        { v: "auto", label: "Auto" }, { v: "low", label: "Low" }, { v: "medium", label: "Medium" }, { v: "high", label: "High" } ] },
+      { id: "fpsCap", label: "Frame rate", type: "select", def: 60, options: [
+        { v: 30, label: "30 fps" }, { v: 60, label: "60 fps" } ] },
+      { id: "showRadar", label: "Radar", type: "toggle", def: true },
+      { id: "showNames", label: "Player names", type: "toggle", def: true },
+      { id: "showStamina", label: "Stamina bars", type: "toggle", def: true },
+      { id: "showFps", label: "FPS counter", type: "toggle", def: false },
+      { id: "hudSize", label: "HUD size", type: "range", min: 0.8, max: 1.5, step: 0.05, def: 1 },
+      { id: "colorblind", label: "Colorblind-friendly colors", type: "toggle", def: false },
+    ],
+  },
+  {
+    id: "audio", title: "Audio",
+    fields: [
+      { id: "master", label: "Master volume", type: "range", min: 0, max: 1, step: 0.05, def: 1 },
+      { id: "crowd", label: "Crowd", type: "range", min: 0, max: 1, step: 0.05, def: 1 },
+      { id: "sfx", label: "Sound effects", type: "range", min: 0, max: 1, step: 0.05, def: 1 },
+      { id: "whistle", label: "Whistle", type: "range", min: 0, max: 1, step: 0.05, def: 1 },
+      { id: "mute", label: "Mute", type: "toggle", def: false },
+    ],
+  },
+  {
+    id: "access", title: "Accessibility",
+    fields: [
+      { id: "bigText", label: "Bigger text", type: "toggle", def: false },
+      { id: "reduceMotion", label: "Reduce motion", type: "toggle", def: false, help: "Turns off shake, head bob and speed blur." },
+      { id: "contrast", label: "High contrast outlines", type: "toggle", def: false },
+    ],
+  },
+];
+
+function settingsFields() {
+  const all = [];
+  for (const tab of SETTINGS_TABS) for (const f of tab.fields) all.push(f);
+  return all;
+}
+function settingsField(id) {
+  return settingsFields().find((f) => f.id === id) || null;
+}
+function coerceSetting(field, value) {
+  if (!field) return value;
+  if (field.type === "toggle") return !!value;
+  if (field.type === "range") return clamp(Number(value), field.min, field.max);
+  if (field.type === "select") {
+    const ok = field.options.some((o) => String(o.v) === String(value));
+    return ok ? (typeof field.def === "number" ? Number(value) : value) : field.def;
+  }
+  return value;
+}
+
+const GameSettings = {
+  values: {},
+  tab: "controls",
+  load() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {}; } catch (e) { saved = {}; }
+    for (const f of settingsFields()) {
+      this.values[f.id] = saved[f.id] == null ? f.def : coerceSetting(f, saved[f.id]);
+    }
+    if (saved.matchLength == null && typeof loadSavedMinutes === "function") {
+      this.values.matchLength = loadSavedMinutes().minutes;
+    }
+  },
+  save() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.values)); } catch (e) { /* private mode */ }
+  },
+  get(id) {
+    if (this.values[id] == null) {
+      const f = settingsField(id);
+      return f ? f.def : undefined;
+    }
+    return this.values[id];
+  },
+  set(id, value, quiet) {
+    const f = settingsField(id);
+    if (!f) return;
+    this.values[id] = coerceSetting(f, value);
+    this.save();
+    if (!quiet) {
+      applySettings();
+      const label = document.querySelector("[data-val='" + id + "']");
+      if (label && f.type === "range") {
+        label.textContent = f.suffix ? Math.round(this.values[id]) + f.suffix : (Math.round(this.values[id] * 100) / 100);
+      } else this.paint();
+    }
+  },
+  resetTab(tabId) {
+    const tab = SETTINGS_TABS.find((t) => t.id === tabId);
+    if (!tab) return;
+    for (const f of tab.fields) this.values[f.id] = f.def;
+    this.save();
+    applySettings();
+    this.paint();
+  },
+  open(tabId) {
+    if (tabId) this.tab = tabId;
+    const root = document.getElementById("settingsScreen");
+    if (root) root.classList.remove("hidden");
+    this.paint();
+  },
+  close() {
+    const root = document.getElementById("settingsScreen");
+    if (root) root.classList.add("hidden");
+  },
+  paint() { paintSettings(); },
+};
+
+function opt(id) { return GameSettings.get(id); }
+function onlineMatch() { return typeof netRole === "string" && !!netRole; }
+function frameGate(now) {
+  const cap = Number(opt("fpsCap")) === 30 ? 30 : 60;
+  if (cap >= 60) return true;
+  if (!frameGate.t) frameGate.t = now;
+  if (now - frameGate.t < 32) return false;
+  frameGate.t = now;
+  return true;
+}
+function hudScale() {
+  let s = Number(opt("hudSize")) || 1;
+  if (opt("bigText")) s *= 1.15;
+  return clamp(s, 0.8, 1.6);
+}
+function joyFiltered(dx, dy, max) {
+  const sens = Number(opt("joySens")) || 1;
+  const dead = Number(opt("joyDead"));
+  let x = (dx / max) * sens, y = (dy / max) * sens;
+  const len = Math.hypot(x, y);
+  if (len < (isFinite(dead) ? dead : 0.15)) return { x: 0, y: 0 };
+  if (len > 1) { x /= len; y /= len; }
+  return { x: x, y: y };
+}
+function haptic(ms) {
+  if (!opt("haptics") || !navigator.vibrate) return;
+  try { navigator.vibrate(ms); } catch (e) { /* not allowed */ }
+}
+
+function applySettings() {
+  const g = GameSettings.values;
+  const root = document.documentElement;
+  root.style.setProperty("--touch-scale", String(g.btnSize || 1));
+  root.style.setProperty("--touch-opacity", String(g.btnOpacity == null ? 0.85 : g.btnOpacity));
+  root.classList.toggle("left-hand", !!g.leftHand);
+  root.classList.toggle("big-text", !!g.bigText);
+  root.classList.toggle("reduce-motion", !!g.reduceMotion);
+  root.classList.toggle("high-contrast", !!g.contrast);
+  root.classList.toggle("colorblind", !!g.colorblind);
+  root.classList.toggle("hide-hints", !g.hints);
+
+  if (typeof setCameraFP === "function") {
+    if (g.camDefault === "fp") setCameraFP(true);
+    else setCameraFP(false);
+  }
+  if (typeof fpShakeOn !== "undefined") fpShakeOn = !g.reduceMotion && !!g.shake;
+  if (typeof quality !== "undefined" && g.quality && g.quality !== "auto") {
+    if (quality !== g.quality) quality = g.quality;
+  }
+
+  if (typeof Sound !== "undefined" && Sound.applyMix) Sound.applyMix(g);
+
+  if (!onlineMatch() && typeof settings !== "undefined" && settings) {
+    settings.difficulty = g.difficulty || settings.difficulty;
+    if (settings.rules) {
+      settings.rules.offside = !!g.offside;
+      settings.rules.cards = !!g.cards;
+    }
+    const off = document.getElementById("ruleOffside");
+    const cards = document.getElementById("ruleCards");
+    if (off) off.checked = !!g.offside;
+    if (cards) cards.checked = !!g.cards;
+    if (typeof chooseMatchLength === "function" && settings.minutes !== g.matchLength) {
+      chooseMatchLength(g.matchLength, false);
+    } else if (typeof renderMenu === "function") renderMenu();
+    if (typeof sim !== "undefined" && sim && sim.game) pushMatchTune();
+  }
+  if (typeof createDiff !== "undefined") {
+    const d = g.difficulty === "legendary" ? "hard" : g.difficulty;
+    if (d === "easy" || d === "normal" || d === "hard") createDiff = d;
+  }
+}
+
+function pushMatchTune() {
+  if (onlineMatch() || typeof sim === "undefined" || !sim || !sim.game) return;
+  const g = GameSettings.values;
+  sim.game.difficulty = g.difficulty || sim.game.difficulty;
+  if (sim.game.rules) {
+    sim.game.rules.offside = !!g.offside;
+    sim.game.rules.cards = !!g.cards;
+  }
+  sim.game.tune = {
+    assist: g.assist || "medium",
+    autoSwitch: g.autoSwitch || "assisted",
+    ball: Number(g.ballSpeed) || 1,
+    stoppage: !!g.stoppage,
+  };
+}
+
+function paintSettings() {
+  const tabs = document.getElementById("settingsTabs");
+  const body = document.getElementById("settingsBody");
+  if (!tabs || !body) return;
+  tabs.innerHTML = SETTINGS_TABS.map((t) =>
+    "<button type='button' data-stab='" + t.id + "'" + (t.id === GameSettings.tab ? " class='on'" : "") + ">" + t.title + "</button>"
+  ).join("");
+  const tab = SETTINGS_TABS.find((t) => t.id === GameSettings.tab) || SETTINGS_TABS[0];
+  let html = tab.note ? "<p class='setNote'>" + tab.note + "</p>" : "";
+  for (const f of tab.fields) {
+    const v = GameSettings.values[f.id];
+    html += "<label class='setRow'><span>" + f.label + "</span>";
+    if (f.type === "toggle") {
+      html += "<input type='checkbox' data-set='" + f.id + "'" + (v ? " checked" : "") + ">";
+    } else if (f.type === "range") {
+      const shown = f.suffix ? Math.round(v) + f.suffix : (Math.round(v * 100) / 100);
+      html += "<span class='setRange'><input type='range' data-set='" + f.id + "' min='" + f.min + "' max='" + f.max + "' step='" + f.step + "' value='" + v + "'><b data-val='" + f.id + "'>" + shown + "</b></span>";
+    } else if (f.type === "select") {
+      html += "<select data-set='" + f.id + "'>" + f.options.map((o) =>
+        "<option value='" + o.v + "'" + (String(o.v) === String(v) ? " selected" : "") + ">" + o.label + "</option>"
+      ).join("") + "</select>";
+    }
+    html += "</label>";
+    if (f.help) html += "<p class='setHelp'>" + f.help + "</p>";
+  }
+  html += "<div class='setReset'><button type='button' id='settingsReset'>Reset to defaults</button></div>";
+  body.innerHTML = html;
+  tabs.querySelectorAll("[data-stab]").forEach((b) => b.addEventListener("click", () => {
+    GameSettings.tab = b.dataset.stab;
+    GameSettings.paint();
+  }));
+  body.querySelectorAll("[data-set]").forEach((el) => {
+    const id = el.dataset.set;
+    const go = () => {
+      let value = el.type === "checkbox" ? el.checked : el.value;
+      GameSettings.set(id, value);
+    };
+    el.addEventListener("input", go);
+    el.addEventListener("change", go);
+  });
+  const reset = document.getElementById("settingsReset");
+  if (reset) reset.addEventListener("click", () => GameSettings.resetTab(tab.id));
+}
+
+function mountSettings() {
+  if (document.getElementById("settingsScreen")) return;
+  const style = document.createElement("style");
+  style.textContent = `
+    #settingsScreen.hidden { display: none !important; }
+    #settingsScreen {
+      position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+      background: rgba(4, 8, 16, .72); padding: 12px;
+      padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    }
+    #settingsCard {
+      width: min(860px, 100%); max-height: min(92dvh, 760px); display: flex; flex-direction: column;
+      background: linear-gradient(180deg, #121a2b, #0c121c); color: #fff;
+      border: 1px solid rgba(232, 197, 71, .45); border-radius: 18px; overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5); font-family: "Trebuchet MS", Arial, sans-serif;
+    }
+    #settingsHead { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #0e1626; border-bottom: 1px solid rgba(255,255,255,.08); }
+    #settingsHead h2 { margin: 0; flex: 1; font-size: 22px; letter-spacing: .4px; }
+    #settingsHead h2 span { color: #e8c547; margin-right: 8px; }
+    #settingsClose { min-width: 44px; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.3); background: #1d4e34; color: #fff; font: inherit; font-weight: 700; }
+    #settingsTabs { display: flex; gap: 6px; padding: 8px 10px; overflow-x: auto; background: #101826; }
+    #settingsTabs button { flex: 0 0 auto; min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.2); background: transparent; color: #d5dbe6; font: inherit; font-weight: 700; }
+    #settingsTabs button.on { background: #e8c547; color: #1a1404; border-color: #e8c547; }
+    #settingsBody { overflow: auto; padding: 8px 16px 18px; -webkit-overflow-scrolling: touch; }
+    .setNote, .setHelp { margin: 4px 0 10px; color: #ffd27a; font-size: 14px; line-height: 1.4; }
+    .setRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 16px; }
+    .setRow span { flex: 1; }
+    .setRow select, .setRange { font: inherit; }
+    .setRow select { min-height: 44px; min-width: 140px; border-radius: 10px; border: 1px solid rgba(255,255,255,.3); background: #0d2818; color: #fff; padding: 0 8px; }
+    .setRow input[type=checkbox] { width: 28px; height: 28px; accent-color: #e8c547; }
+    .setRange { display: flex; align-items: center; gap: 8px; min-width: min(240px, 46vw); }
+    .setRange input { flex: 1; min-height: 44px; }
+    .setRange b { min-width: 42px; text-align: right; color: #e8c547; }
+    .setReset { text-align: center; margin-top: 14px; }
+    #settingsReset { min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,.3); background: #243044; color: #fff; font: inherit; font-weight: 700; }
+    .gearBtn { min-height: 44px; }
+    html.big-text, html.big-text button, html.big-text select { font-size: 18px; }
+    html.hide-hints #keysHint, html.hide-hints #controlsHelp, html.hide-hints #pauseHelp, html.hide-hints #matchHelp { display: none !important; }
+    .tbtn { opacity: var(--touch-opacity, .85); }
+    html.left-hand #touchControls { transform: scaleX(-1); }
+    html.left-hand #touchControls .tbtn { transform: scale(var(--touch-scale, 1)) scaleX(-1); }
+    html:not(.left-hand) #touchControls .tbtn { transform: scale(var(--touch-scale, 1)); }
+    #joyBase, #joyBase2 { transform: scale(var(--touch-scale, 1)); }
+  `;
+  document.head.appendChild(style);
+  const screen = document.createElement("div");
+  screen.id = "settingsScreen";
+  screen.className = "hidden";
+  screen.innerHTML = "<div id='settingsCard'><div id='settingsHead'><h2><span>⚙</span>Settings</h2><button type='button' id='settingsClose' aria-label='Close'>Close</button></div><div id='settingsTabs'></div><div id='settingsBody'></div></div>";
+  document.body.appendChild(screen);
+  document.getElementById("settingsClose").addEventListener("click", () => GameSettings.close());
+  screen.addEventListener("pointerdown", (e) => { if (e.target === screen) GameSettings.close(); });
+  ["settingsBtn", "pauseSettingsBtn", "onlineSettingsBtn", "menuSettingsBtn"].forEach((id) => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      GameSettings.open();
+    });
+  });
+  window.addEventListener("keydown", (e) => {
+    const open = screen && !screen.classList.contains("hidden");
+    if (!open) return;
+    if (e.key === "Escape") GameSettings.close();
+  });
+}
+
+function bootSettings() {
+  GameSettings.load();
+  mountSettings();
+  applySettings();
+}
+setTimeout(bootSettings, 0);
+
+/* =====================================================================
    DRAWING - shared by the offline game and the online client
    ---------------------------------------------------------------------
    Broadcast camera: the pitch is seen from the sideline, up in the
@@ -1104,8 +1517,11 @@ function updateFpCamera(dt) {
     fpCam.pitch = 0.12;
     fpCam.inited = true;
   }
-  let targetYaw = bodyYaw;
-  let targetPitch = 0.11;
+  fpCam.userYaw = (fpCam.userYaw || 0) * Math.exp(-dt * 0.45);
+  fpCam.userPitch = (fpCam.userPitch || 0) * Math.exp(-dt * 0.85);
+  let targetYaw = bodyYaw + (fpCam.userYaw || 0);
+  const heightBias = typeof opt === "function" ? ((Number(opt("camHeight")) || 1) - 1) * 0.12 : 0;
+  let targetPitch = 0.11 + heightBias;
   if (ball) {
     const dx = ball.x - sub.x, dy = ball.y - sub.y;
     const dist = Math.hypot(dx, dy) || 1;
@@ -1114,26 +1530,27 @@ function updateFpCamera(dt) {
       const w = clamp(0.42 * (1 - dist / (16 * m)), 0, 0.42);
       targetYaw = bodyYaw + err * w;
       const toBall = Math.atan2((ball.z || 0) - 1.75 * m, dist);
-      targetPitch = 0.11 + clamp(toBall - 0.11, -0.2, 0.22) * (Math.abs(err) < 0.85 ? 0.4 : 0.12);
+      targetPitch = 0.11 + heightBias + clamp(toBall - 0.11, -0.2, 0.22) * (Math.abs(err) < 0.85 ? 0.4 : 0.12);
     }
   }
   const yawK = 1 - Math.exp(-dt * 7.2);
   const pitchK = 1 - Math.exp(-dt * 5.5);
   fpCam.yaw += wrapAng(targetYaw - fpCam.yaw) * yawK;
-  fpCam.pitch += (targetPitch - fpCam.pitch) * pitchK;
+  fpCam.pitch += (targetPitch + (fpCam.userPitch || 0) - fpCam.pitch) * pitchK;
 
   const speed = Math.hypot(sub.vx || 0, sub.vy || 0);
   const top = (typeof RUN_SPEED === "number" ? RUN_SPEED : 220) * (typeof SPRINT_MULT === "number" ? SPRINT_MULT : 1.35);
   const pace = clamp(speed / Math.max(80, top), 0, 1);
   const sprinting = !!(sub.sprinting || pace > 0.72) && sub.state === "run";
   fpCam.sprint += ((sprinting ? pace : 0) - fpCam.sprint) * (1 - Math.exp(-dt * 4));
-  const wantAmp = (sub.state === "run" && speed > 36) ? m * (0.025 + pace * 0.055) : 0;
+  const bobOn = typeof opt !== "function" || (opt("headBob") && !opt("reduceMotion"));
+  const wantAmp = bobOn && sub.state === "run" && speed > 36 ? m * (0.025 + pace * 0.055) : 0;
   fpCam.amp += (wantAmp - fpCam.amp) * (1 - Math.exp(-dt * 6));
   if (wantAmp > 0.2) fpCam.bob += dt * (7.5 + pace * 6.5) * Math.PI * 2;
   if (sub.state === "slide" || sub.state === "down" || sub.state === "dive") fpCam.dip = Math.max(fpCam.dip, 0.16 * m);
   if (fpCam.prevSpeed > 160 && speed < fpCam.prevSpeed - 80) fpCam.dip = Math.max(fpCam.dip, 0.07 * m);
   fpCam.dip += (0 - fpCam.dip) * (1 - Math.exp(-dt * 5));
-  const fovWant = sprinting ? pace * 8 * Math.PI / 180 : 0;
+  const fovWant = (sprinting && (typeof opt !== "function" || !opt("reduceMotion"))) ? pace * 8 * Math.PI / 180 : 0;
   fpCam.fovExtra += (fovWant - fpCam.fovExtra) * (1 - Math.exp(-dt * 3.5));
 
   const kicking = kickLeft(sub) > 0.2;
@@ -1157,9 +1574,12 @@ function updateFpCamera(dt) {
   const sway = Math.cos(fpCam.bob * 0.5) * fpCam.amp * 0.55;
   const bob = Math.sin(fpCam.bob) * fpCam.amp;
   const eye = 1.75 * m;
-  const jx = fpShakeOn ? (Math.sin(viewTime * 47) * fpCam.shake * 9) : 0;
-  const jy = fpShakeOn ? (Math.cos(viewTime * 53) * fpCam.shake * 6) : 0;
-  const baseFov = (VIEW_W < VIEW_H ? 76 : 84) * Math.PI / 180;
+  const shakeOn = typeof opt !== "function" ? fpShakeOn : (!opt("reduceMotion") && !!opt("shake"));
+  const jx = shakeOn ? (Math.sin(viewTime * 47) * fpCam.shake * 9) : 0;
+  const jy = shakeOn ? (Math.cos(viewTime * 53) * fpCam.shake * 6) : 0;
+  let baseDeg = VIEW_W < VIEW_H ? 76 : 84;
+  if (typeof opt === "function") baseDeg = Number(opt("fpFov")) || baseDeg;
+  const baseFov = baseDeg * Math.PI / 180;
   const hfov = clamp(baseFov + fpCam.fovExtra, 75 * Math.PI / 180, 90 * Math.PI / 180);
   fpView = {
     ox: sub.x + fx * 0.12 * m + rx * sway,
@@ -1175,7 +1595,10 @@ function updateFpCamera(dt) {
     hfov: hfov,
   };
 }
-function bumpFpShake(amt) { if (fpShakeOn) fpCam.shake = Math.min(1, fpCam.shake + amt); }
+function bumpFpShake(amt) {
+  const on = typeof opt !== "function" ? fpShakeOn : (!opt("reduceMotion") && !!opt("shake"));
+  if (on) fpCam.shake = Math.min(1, fpCam.shake + amt);
+}
 function camPoint(x, y, z) {
   const v = fpView;
   const dx = x - v.ox, dy = y - v.oy, dz = (z || 0) - v.oz;
@@ -1320,6 +1743,10 @@ function updateCamera(dt, snap = false) {
   let ty = by;
   const phone = phonePlay();
   let zoom = (phone ? 1.0 : 1.04) / grow;
+  if (typeof opt === "function") {
+    zoom *= Number(opt("camZoom")) || 1;
+    if (opt("camDefault") === "close") zoom *= 1.28;
+  }
 
   if (game.phase === "menu" || game.phase === "lobby") {
     tx = PITCH.cx + Math.sin(viewTime * 0.18) * 90;
@@ -1416,6 +1843,7 @@ function recordTrail() {
 function syncReplay() {
   const goal = game.phase === "goal";
   if (goal && !replay) {
+    if (typeof opt === "function" && opt("replays") === false) { replay = "skip"; return; }
     const span = trail.length ? trail[trail.length - 1].t - trail[0].t : 0;
     if (trail.length >= 12 && span > 0.75) {
       replay = trail.slice();
@@ -1626,7 +2054,8 @@ function drawStandFace(x0, x1, y, z0, z1, row) {
   ctx.moveTo(bl.x, bl.y); ctx.lineTo(br.x, br.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(tl.x, tl.y);
   ctx.closePath();
   ctx.clip();
-  const bob = (game.phase === "goal" ? Math.sin(viewTime * 9 + row) * 2.2 : Math.sin(viewTime * 1.4 + row) * 0.4);
+  const still = typeof opt === "function" && opt("reduceMotion");
+  const bob = still ? 0 : (game.phase === "goal" ? Math.sin(viewTime * 9 + row) * 2.2 : Math.sin(viewTime * 1.4 + row) * 0.4);
   const srcY = (row % 3) * 24;
   ctx.drawImage(crowdSheet, 0, srcY, 512, 24, left, top + bob, right - left, Math.max(2, bot - top - bob));
   ctx.restore();
@@ -2441,6 +2870,18 @@ function drawPlayer(p) {
   }
   ctx.restore();
 
+  if (typeof opt === "function" && opt("colorblind")) {
+    ctx.fillStyle = p.team === "red" ? "#ff9f1c" : "#7eb6ff";
+    if (p.team === "red") ctx.fillRect(foot.x - H * 0.12, foot.y - H * 0.62, H * 0.24, Math.max(3, H * 0.06));
+    else { ctx.beginPath(); ctx.arc(foot.x, foot.y - H * 0.72, Math.max(3, H * 0.07), 0, Math.PI * 2); ctx.fill(); }
+  }
+  if (typeof opt === "function" && opt("contrast")) {
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = Math.max(2, H * 0.04);
+    ctx.beginPath();
+    ctx.arc(foot.x, foot.y - H * 0.5, H * 0.42, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   if (p.yellow > 0 && !p.sentOff && !lying) {
     ctx.fillStyle = "#ffd33d";
     ctx.strokeStyle = "rgba(0,0,0,0.55)";
@@ -2476,6 +2917,9 @@ function drawHair(p, H) {
 
 function drawPlayerHud(p, c) {
   if (fpSubject() === p) return;
+  const showNames = typeof opt !== "function" || opt("showNames") !== false;
+  const showStamina = typeof opt !== "function" || opt("showStamina") !== false;
+  if (!showNames && !showStamina && !c.charging) return;
   const foot = w2s(p.x, p.y, 0);
   if (foot.behind) return;
   const H = 34 * ZMUL * foot.s * (p.tall || 1);
@@ -2489,8 +2933,9 @@ function drawPlayerHud(p, c) {
   const y = foot.y - H - 12;
   ctx.lineWidth = 3;
   ctx.strokeStyle = "rgba(0,0,0,0.75)";
+  if (showNames) {
   ctx.strokeText(label, foot.x, y);
-  ctx.fillStyle = mine ? "#ffd33d" : TEAMS[p.team].ui;
+  ctx.fillStyle = mine ? "#ffd33d" : (typeof opt === "function" && opt("colorblind") ? (p.team === "red" ? "#ff9f1c" : "#7eb6ff") : TEAMS[p.team].ui);
   ctx.fillText(label, foot.x, y);
   if (nm) {
     ctx.font = "bold " + Math.max(10, Math.round(11 + foot.s * 1.5)) + "px Arial";
@@ -2507,7 +2952,8 @@ function drawPlayerHud(p, c) {
   ctx.lineTo(foot.x + 4, tip - 6 + bob);
   ctx.closePath();
   ctx.fill();
-  if (mine) {
+  }
+  if (showStamina && mine) {
     const bw = Math.max(28, 34 * foot.s);
     const by = foot.y + Math.max(5, 6 * foot.s);
     ctx.fillStyle = "rgba(0,0,0,0.55)";
@@ -2564,6 +3010,11 @@ function drawBall() {
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.fillStyle = "#f7f7f7";
   ctx.fill();
+  if (typeof opt === "function" && opt("contrast")) {
+    ctx.lineWidth = Math.max(2, r * 0.18);
+    ctx.strokeStyle = "#111";
+    ctx.stroke();
+  }
   ctx.save();
   ctx.clip();
   ctx.fillStyle = "#1c1c1c";
@@ -2640,6 +3091,9 @@ function teamFlagColors(side) {
   return k ? [k.shirt, k.shorts, k.socks] : null;
 }
 function drawScoreboard() {
+  const hs = typeof hudScale === "function" ? hudScale() : 1;
+  ctx.save();
+  ctx.scale(hs, hs);
   const pad = screenPad();
   const x = 12 + pad.left;
   const y = 10 + pad.top;
@@ -2733,6 +3187,7 @@ function drawScoreboard() {
     }
   }
   if (game.shootout) drawShootoutDots(x, y + h + 40);
+  ctx.restore();
 }
 
 function drawTeamCards(team, x, y, dir) {
@@ -3023,6 +3478,7 @@ function drawConfetti() {
 }
 
 function drawMinimap() {
+  if (typeof opt === "function" && opt("showRadar") === false) return;
   const mw = 150, mh = mw * PITCH.h / PITCH.w;
   const mx = VIEW_W / 2 - mw / 2;
   const my = VIEW_H - mh - 12 - screenPad().bottom;
@@ -3098,6 +3554,11 @@ function considerQuality() {
   if (qSamples.length > 36) qSamples.shift();
   if (qSamples.length < 28 || qCool > 0) return;
   const avg = qSamples.reduce((a, b) => a + b, 0) / qSamples.length;
+  const mode = typeof opt === "function" ? opt("quality") : "auto";
+  if (mode === "low" || mode === "medium" || mode === "high") {
+    if (quality !== mode) { quality = mode; qSamples.length = 0; resize(); }
+    return;
+  }
   if (quality === "high" && avg > 26) { quality = "low"; qCool = 150; qSamples.length = 0; resize(); }
   else if (quality === "low" && avg < 13) { quality = "high"; qCool = 150; qSamples.length = 0; resize(); }
 }
@@ -3237,6 +3698,7 @@ function drawOwnBody(p) {
 }
 function drawFpRush() {
   if (!fpView || fpCam.sprint < 0.4 || quality === "low") return;
+  if (typeof opt === "function" && opt("reduceMotion")) return;
   const a = fpCam.sprint * 0.16;
   ctx.strokeStyle = "rgba(255,255,255," + a.toFixed(3) + ")";
   ctx.lineWidth = 2;
@@ -3268,8 +3730,10 @@ function drawFpHud(sub) {
   ctx.fill();
   ctx.fillStyle = "#fff";
   ctx.fillText(label, VIEW_W * 0.5, y + 14);
+  const showBar = typeof opt !== "function" || opt("showStamina") !== false;
   const st = clamp(sub.stamina == null ? 1 : sub.stamina, 0, 1);
   const bw = Math.min(180, tw);
+  if (showBar) {
   const bx = VIEW_W * 0.5 - bw / 2;
   const by = y + 34;
   ctx.fillStyle = "rgba(0,0,0,0.55)";
@@ -3277,8 +3741,13 @@ function drawFpHud(sub) {
   ctx.fill();
   ctx.fillStyle = st > 0.55 ? "#3dde5a" : st > 0.28 ? "#ffd33d" : "#ff4d3a";
   ctx.fillRect(bx + 1, by + 1, (bw - 2) * st, 6);
+  }
 
+  const showRadar = typeof opt !== "function" || opt("showRadar") !== false;
   const mw = phonePlay() ? 92 : 118;
+  if (!showRadar) {
+    fpShakeRect = null;
+  } else {
   const mh = mw * PITCH.h / PITCH.w;
   const mx = VIEW_W - mw - 14 - pad.right;
   const my = y + (phonePlay() ? 56 : 40);
@@ -3308,18 +3777,26 @@ function drawFpHud(sub) {
     ctx.arc(sx(src.x), sy(src.y), 2.2, 0, Math.PI * 2);
     ctx.fill();
   }
-  const chip = fpShakeOn ? "Shake on" : "Shake off";
+  const shakeNow = typeof opt === "function" ? !!opt("shake") && !opt("reduceMotion") : fpShakeOn;
+  const chip = shakeNow ? "Shake on" : "Shake off";
   ctx.font = "bold 13px Arial";
   const cw = ctx.measureText(chip).width + 16;
   const cx = mx;
   const cy = my + mh + 10;
   fpShakeRect = { x: cx, y: cy, w: cw, h: 28 };
-  ctx.fillStyle = fpShakeOn ? "rgba(232,197,71,0.9)" : "rgba(8,12,20,0.78)";
+  ctx.fillStyle = shakeNow ? "rgba(232,197,71,0.9)" : "rgba(8,12,20,0.78)";
   roundRect(ctx, cx, cy, cw, 28, 8);
   ctx.fill();
-  ctx.fillStyle = fpShakeOn ? "#1a1404" : "#fff";
+  ctx.fillStyle = shakeNow ? "#1a1404" : "#fff";
   ctx.textAlign = "center";
   ctx.fillText(chip, cx + cw / 2, cy + 14);
+  }
+  if (typeof opt === "function" && opt("showFps")) {
+    ctx.font = "bold 13px monospace";
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#fff";
+    ctx.fillText((window.__fps || 0) + " fps", 12 + pad.left, VIEW_H - 18 - pad.bottom);
+  }
 }
 function onFpHudPointer(e) {
   if (!fpShakeRect || !fpSubject() || !canvas) return;
@@ -3330,11 +3807,35 @@ function onFpHudPointer(e) {
   if (vx < r.x || vx > r.x + r.w || vy < r.y || vy > r.y + r.h) return;
   e.preventDefault();
   e.stopPropagation();
-  fpShakeOn = !fpShakeOn;
-  if (!fpShakeOn) fpCam.shake = 0;
-  try { localStorage.setItem("soccerFpShake", fpShakeOn ? "on" : "off"); } catch (err) { /* ignore */ }
+  if (typeof GameSettings !== "undefined") GameSettings.set("shake", !opt("shake"));
+  else {
+    fpShakeOn = !fpShakeOn;
+    if (!fpShakeOn) fpCam.shake = 0;
+  }
 }
-if (canvas) canvas.addEventListener("pointerdown", onFpHudPointer, true);
+if (canvas) {
+  canvas.addEventListener("pointerdown", onFpHudPointer, true);
+  let lookDrag = null;
+  canvas.addEventListener("pointerdown", (e) => {
+    if (e.target !== canvas || !fpSubject()) return;
+    if (e.button != null && e.button !== 0) return;
+    lookDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, type: e.pointerType || "mouse" };
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!lookDrag || e.pointerId !== lookDrag.id) return;
+    const dx = e.clientX - lookDrag.x, dy = e.clientY - lookDrag.y;
+    lookDrag.x = e.clientX; lookDrag.y = e.clientY;
+    if (!dx && !dy) return;
+    const touch = lookDrag.type === "touch";
+    const sens = typeof opt === "function" ? Number(opt(touch ? "lookTouch" : "lookMouse")) || 1 : 1;
+    const inv = typeof opt === "function" && opt("invertY") ? -1 : 1;
+    fpCam.userYaw = (fpCam.userYaw || 0) + dx * 0.0042 * sens;
+    fpCam.userPitch = clamp((fpCam.userPitch || 0) + dy * 0.003 * sens * inv, -0.35, 0.35);
+  });
+  const endLook = (e) => { if (lookDrag && e.pointerId === lookDrag.id) lookDrag = null; };
+  canvas.addEventListener("pointerup", endLook);
+  canvas.addEventListener("pointercancel", endLook);
+}
 
 function roundRect(c, x, y, w, h, r) {
   c.beginPath();
@@ -3673,6 +4174,9 @@ if (isTouchDevice && $("matchHelp")) {
 
 let lastFrame = performance.now();
 function frame(now) {
+  if (typeof frameGate === "function" && !frameGate(now)) { requestAnimationFrame(frame); return; }
+  window.__fps = Math.round(1000 / Math.max(8, now - (frame.prev || now)));
+  frame.prev = now;
   let dt = (now - lastFrame) / 1000;
   lastFrame = now;
   if (dt > 0.1) dt = 0.1;

@@ -35,11 +35,23 @@ const Sound = {
     } catch (e) { this.ctx = null; }
   },
   muted: false,
-  setMuted(m) { this.muted = !!m; if (this.master) this.master.gain.value = m ? 0 : 1; },
+  sfx: 1,
+  whistleVol: 1,
+  setMuted(m) { this.muted = !!m; if (this.master && this.muted) this.master.gain.value = 0; },
+  applyMix(g) {
+    if (!g) return;
+    this.muted = !!g.mute;
+    this.sfx = g.sfx == null ? 1 : g.sfx;
+    this.whistleVol = g.whistle == null ? 1 : g.whistle;
+    const master = g.mute ? 0 : (g.master == null ? 1 : g.master);
+    if (this.master) this.master.gain.value = master;
+    if (this.crowdGain) this.crowdGain.gain.value = 0.05 * (g.crowd == null ? 1 : g.crowd) * (g.mute ? 0 : 1);
+  },
 
   // a burst of filtered noise with a volume envelope
   noiseBurst(freq, q, peak, attack, decay) {
     if (!this.ctx) return;
+    peak *= (this.sfx == null ? 1 : this.sfx);
     const t = this.ctx.currentTime;
     const src = this.ctx.createBufferSource();
     src.buffer = this.noise; src.loop = true;
@@ -65,7 +77,7 @@ const Sound = {
     o.start(t); o.stop(t + dur + 0.02);
   },
   kick(power) {
-    const v = clamp(power / 1000, 0.25, 1);
+    const v = clamp(power / 1000, 0.25, 1) * (this.sfx == null ? 1 : this.sfx);
     this.tone("sine", 160, 50, 0.35 * v, 0.12);     // the "thump"
     this.noiseBurst(2500, 1.5, 0.08 * v, 0.003, 0.04); // the "click"
   },
@@ -77,9 +89,10 @@ const Sound = {
     o.type = "sine"; o.frequency.value = 2900;
     lfo.frequency.value = 28; lfoGain.gain.value = 140; // the "trill"
     lfo.connect(lfoGain).connect(o.frequency);
+    const wv = 0.09 * (this.whistleVol == null ? 1 : this.whistleVol);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.09, t + 0.02);
-    g.gain.setValueAtTime(0.09, t + dur - 0.05);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, wv), t + 0.02);
+    g.gain.setValueAtTime(Math.max(0.0002, wv), t + dur - 0.05);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g).connect(this.master);
     o.start(t); lfo.start(t); o.stop(t + dur); lfo.stop(t + dur);
@@ -112,5 +125,9 @@ function playEvent([name, arg]) {
   else if (name === "whistleLong") Sound.whistle(true);
   else if (name === "card") Sound.card(arg);
   else if (Sound[name]) Sound[name]();
+  if (typeof haptic === "function") {
+    if (name === "kick") haptic(12);
+    else if (name === "whistleLong" || name === "cheer" || name === "card") haptic(28);
+  }
 }
 
