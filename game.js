@@ -426,6 +426,48 @@ function renameFor(teamId, num) {
   return typeof n === "string" ? n : "";
 }
 
+const TEAM100_KEY = "soccerTeam100";
+function loadTeam100() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TEAM100_KEY) || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch (e) { return {}; }
+}
+function teamIs100(id) {
+  if (!id || typeof localStorage === "undefined") return false;
+  return !!loadTeam100()[id];
+}
+function setTeam100Saved(id, on) {
+  if (!id || typeof localStorage === "undefined") return;
+  const map = loadTeam100();
+  if (on) map[id] = true;
+  else delete map[id];
+  try { localStorage.setItem(TEAM100_KEY, JSON.stringify(map)); } catch (e) { /* ignore */ }
+}
+function teamShows100(id) {
+  if (!id) return false;
+  if (teamIs100(id)) return true;
+  try {
+    if (typeof game !== "undefined" && game && game.team100 && game.team100[id]) return true;
+    if (typeof hosted !== "undefined" && hosted && hosted.sim && hosted.sim.game && hosted.sim.game.team100 && hosted.sim.game.team100[id]) return true;
+  } catch (e) { /* ignore */ }
+  return false;
+}
+function withTeam100(squad, id) {
+  if (!teamShows100(id) || !squad || !squad.players) return squad;
+  return Object.assign({}, squad, {
+    players: squad.players.map((p) => Object.assign({}, p, {
+      pace: 100, shoot: 100, pass: 100, dribble: 100, defend: 100, stamina: 100, gk: 100,
+    })),
+  });
+}
+function teamRatingHtml(team) {
+  if (!team) return "";
+  if (teamShows100(team.id)) return "<span class='ovr'>\u2605 100</span>";
+  const n = team.rating || 3;
+  return "<span class='stars'>" + "\u2605".repeat(n) + "</span>";
+}
+
 function overallRating(p) {
   if (!p) return 0;
   const vals = p.pos === "GK"
@@ -450,8 +492,9 @@ function squadCardHtml(teamId) {
   const meta = (typeof findTeam === "function" && findTeam(teamId)) || { id: teamId || "custom", name: "My Team", rating: 3 };
   let sq = squadById(meta.id, meta);
   if (loadPlayAsMe().on) sq = withPlayAsMe(sq);
+  sq = withTeam100(sq, meta.id);
   const head = "<div class='sqhead'><b>" + escHtml(sq.formation) + "</b> · " + escHtml(STYLE_TEXT[sq.style] || "") +
-    " · " + "\u2605".repeat(meta.rating || 3) + "</div>";
+    " · " + (teamShows100(meta.id) ? "<span class='ovr'>\u2605 100</span>" : "\u2605".repeat(meta.rating || 3)) + "</div>";
   const rows = sq.players.map((p) => {
     const priv = p.me ? "" : renameFor(meta.id, p.num);
     const shown = priv || p.name;
@@ -482,6 +525,14 @@ function paintSquad() {
   const sel = document.getElementById("squadTeam");
   const list = document.getElementById("squadList");
   if (!sel || !list) return;
+  if (typeof TEAM_LIST !== "undefined" && sel.options.length) {
+    const keep = sel.value;
+    [...sel.options].forEach((o) => {
+      const t = TEAM_LIST.find((x) => x.id === o.value);
+      if (t) o.textContent = t.name + (teamShows100(t.id) ? " \u2605 100" : "");
+    });
+    if (keep) sel.value = keep;
+  }
   list.innerHTML = squadCardHtml(sel.value);
 }
 
@@ -489,9 +540,9 @@ function openSquadScreen() {
   const screen = document.getElementById("squadScreen");
   const sel = document.getElementById("squadTeam");
   if (!screen || !sel || typeof TEAM_LIST === "undefined") return;
-  if (!sel.options.length) {
-    sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + escHtml(t.name) + "</option>").join("");
-  }
+  const keepSquad = sel.value;
+  sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + escHtml(t.name) + (teamShows100(t.id) ? " \u2605 100" : "") + "</option>").join("");
+  if (keepSquad && [...sel.options].some((o) => o.value === keepSquad)) sel.value = keepSquad;
   try {
     if (typeof settings !== "undefined" && settings.blue && SQUADS[settings.blue]) sel.value = settings.blue;
   } catch (e) { /* ignore */ }
@@ -1498,6 +1549,12 @@ function makePlayer(team, def, index) {
   };
   p.skin = def.skin || skins[(index * 3 + (team === "red" ? 1 : 0)) % skins.length];
   p.hair = def.hair || hairs[(index * 2 + (team === "red" ? 3 : 0)) % hairs.length];
+  const squadId = (game.teams[team] && game.teams[team].id) || "";
+  if (typeof teamIs100 === "function" && teamIs100(squadId)) {
+    p.pace = p.shoot = p.pass = p.dribble = p.defend = p.stam = p.gk = 100;
+    if (!game.team100) game.team100 = {};
+    game.team100[squadId] = true;
+  }
   return p;
 }
 
@@ -3629,6 +3686,18 @@ function update(dt) {
     return { ok, player: pIndex(p), skill: p.skill };
   }
 
+  function restoreSquadStats(p, snap) {
+    if (snap) { Object.assign(p, snap); return; }
+    const sid = game.teams[p.team] && game.teams[p.team].id;
+    const meta = typeof findTeam === "function" ? findTeam(sid) : null;
+    let squad = typeof squadById === "function" ? squadById(sid, meta || { id: sid }) : null;
+    if (p.me && typeof withPlayAsMe === "function" && squad) squad = withPlayAsMe(squad);
+    const pl = squad && squad.players && squad.players.find((x) => x.num === p.num);
+    if (!pl) return;
+    p.pace = pl.pace; p.shoot = pl.shoot; p.pass = pl.pass; p.dribble = pl.dribble;
+    p.defend = pl.defend; p.stam = pl.stamina; p.gk = pl.gk || (pl.pos === "GK" ? 75 : 12);
+  }
+
   createPlayers();
   resetToHome();
 
@@ -3680,11 +3749,56 @@ function update(dt) {
         if (!p) return a;
         if (!a.saved[arg]) a.saved[arg] = { pace: p.pace, shoot: p.shoot, pass: p.pass, dribble: p.dribble, defend: p.defend, stam: p.stam };
         p.pace = p.shoot = p.pass = p.dribble = p.defend = p.stam = 100;
+      } else if (action === "team100") {
+        const id = arg && arg.id;
+        if (!id) return a;
+        if (!a.teamSaved) a.teamSaved = {};
+        if (!a.teamSaved[id]) a.teamSaved[id] = {};
+        if (!game.team100) game.team100 = {};
+        let n = 0;
+        for (const p of roster) {
+          const sid = game.teams[p.team] && game.teams[p.team].id;
+          if (sid !== id) continue;
+          const key = p.team + ":" + p.num;
+          if (!a.teamSaved[id][key]) {
+            const prior = a.saved && a.saved[roster.indexOf(p)];
+            a.teamSaved[id][key] = prior
+              ? { pace: prior.pace, shoot: prior.shoot, pass: prior.pass, dribble: prior.dribble, defend: prior.defend, stam: prior.stam, gk: p.gk }
+              : { pace: p.pace, shoot: p.shoot, pass: p.pass, dribble: p.dribble, defend: p.defend, stam: p.stam, gk: p.gk };
+          }
+          p.pace = p.shoot = p.pass = p.dribble = p.defend = p.stam = p.gk = 100;
+          n++;
+        }
+        if (n) game.team100[id] = true;
+      } else if (action === "teamundo") {
+        const id = arg && arg.id;
+        if (!id) return a;
+        const snaps = a.teamSaved && a.teamSaved[id];
+        for (const p of roster) {
+          const sid = game.teams[p.team] && game.teams[p.team].id;
+          if (sid !== id) continue;
+          const key = p.team + ":" + p.num;
+          restoreSquadStats(p, snaps && snaps[key]);
+        }
+        if (a.teamSaved) delete a.teamSaved[id];
+        if (game.team100) delete game.team100[id];
       } else if (action === "reset") {
         for (const k of Object.keys(a.saved || {})) {
           const p = roster[k];
           if (p) Object.assign(p, a.saved[k]);
         }
+        const boosted = {};
+        for (const id of Object.keys(a.teamSaved || {})) boosted[id] = a.teamSaved[id];
+        for (const id of Object.keys(game.team100 || {})) if (!boosted[id]) boosted[id] = {};
+        for (const id of Object.keys(boosted)) {
+          for (const p of roster) {
+            const sid = game.teams[p.team] && game.teams[p.team].id;
+            if (sid !== id) continue;
+            const key = p.team + ":" + p.num;
+            restoreSquadStats(p, boosted[id][key]);
+          }
+        }
+        game.team100 = {};
         game.admin = { clockPaused: false, slow: false, superSpeed: false, superShot: false, infiniteStamina: false, perfect: false, debug: false, saved: {} };
         return game.admin;
       }

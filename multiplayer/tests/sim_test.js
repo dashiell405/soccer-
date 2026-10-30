@@ -465,3 +465,30 @@ function kickoffOk(sim, label) {
     kickoffOk(sim, sides[0].join(' v ') + ' after a goal');
   }
 }
+{
+  const sim = S.createSim({ teams: S.buildTeamKits(S.findTeam('bra'), S.findTeam('usa')) });
+  sim.addController('p1', 'A', 'blue');
+  sim.start();
+  const before = sim.roster.map((p) => ({ team: p.team, role: p.role, num: p.num, pace: p.pace, gk: p.gk, stam: p.stam, shoot: p.shoot, pass: p.pass, dribble: p.dribble, defend: p.defend }));
+  assert(before.some((p) => p.team === 'blue' && p.role === 'GK' && p.gk < 100), 'the keeper starts below 100');
+  assert(before.some((p) => p.team === 'blue' && p.role !== 'GK' && (p.pace < 100 || p.shoot < 100)), 'an outfield player starts below 100');
+  assert(sim.game.teams.blue.rating >= 1 && sim.game.teams.blue.rating <= 5, 'the team star rating stays in range');
+  sim.admin('team100', { id: 'bra' });
+  const blues = sim.roster.filter((p) => p.team === 'blue');
+  const full = (p) => p.pace === 100 && p.shoot === 100 && p.pass === 100 && p.dribble === 100 && p.defend === 100 && p.stam === 100 && p.gk === 100;
+  assert(blues.length === 11 && blues.every(full), 'every player on that team, including stars and the keeper, is 100');
+  assert(sim.roster.some((p) => p.team === 'red' && p.pace < 100), 'the other team is left alone');
+  assert(sim.game.team100 && sim.game.team100.bra === true, 'the boost is remembered for this match');
+  assert(sim.game.teams.blue.rating <= 5, 'the AI still uses the 1 to 5 star rating');
+  const one = sim.roster.findIndex((p) => p.team === 'red' && p.role !== 'GK');
+  const gkBefore = sim.roster[one].gk;
+  sim.admin('rate', one);
+  assert(sim.roster[one].pace === 100 && sim.roster[one].stam === 100 && sim.roster[one].gk === gkBefore, 'the single-player make 100 still works and leaves keeping alone');
+  sim.admin('teamundo', { id: 'bra' });
+  const restored = sim.roster.filter((p) => p.team === 'blue').every((p) => {
+    const b = before.find((x) => x.team === 'blue' && x.num === p.num && x.role === p.role);
+    return b && p.pace === b.pace && p.gk === b.gk && p.stam === b.stam && p.shoot === b.shoot;
+  });
+  assert(restored, 'undo team 100 puts the original stats back');
+  assert(!sim.game.team100.bra, 'undo clears the match flag');
+}

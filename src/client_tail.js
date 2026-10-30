@@ -78,7 +78,7 @@ function renderLobby() {
   const kits = buildTeamKits(findTeam(room.blueTeam) || TEAM_LIST[0], findTeam(room.redTeam) || TEAM_LIST[1]);
   for (const side of ["blue", "red"]) {
     const sel = $(side + "TeamSel");
-    if (!sel.options.length) sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + esc(t.name) + " (" + t.short + ") " + "\u2605".repeat(t.rating) + "</option>").join("");
+    if (!sel.options.length) sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + esc(t.name) + " (" + t.short + ") " + ((typeof teamShows100 === "function" && teamShows100(t.id)) ? "\u2605 100" : "\u2605".repeat(t.rating)) + "</option>").join("");
     sel.value = side === "blue" ? room.blueTeam || "blue" : room.redTeam || "red";
     sel.disabled = !host;
     const k = kits[side];

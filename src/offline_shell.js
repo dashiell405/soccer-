@@ -407,7 +407,8 @@ function renderMenu() {
   // team cards + the kits they will actually wear (away kit on a clash)
   const B = teamDef(settings.blue), R = teamDef(settings.red);
   const kits = buildTeamKits(B, R);
-  const card = (side, T, k) => flagHtml(T, 26, { wave: true }) + "<span class='teamMeta'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span>" + (k.formation ? " <span class='code'>" + esc(k.formation) + "</span>" : "") + "<br><span class='stars'>" + stars(k.rating) + "</span>" + (k.away ? " <span class='away'>away kit</span>" : "") + "</span>";
+  const rateHtml = (T, k) => (typeof teamShows100 === "function" && teamShows100(T.id)) ? "<span class='ovr'>\u2605 100</span>" : "<span class='stars'>" + stars(k.rating) + "</span>";
+  const card = (side, T, k) => flagHtml(T, 26, { wave: true }) + "<span class='teamMeta'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span>" + (k.formation ? " <span class='code'>" + esc(k.formation) + "</span>" : "") + "<br>" + rateHtml(T, k) + (k.away ? " <span class='away'>away kit</span>" : "") + "</span>";
   $("blueTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P1" : "YOU") + "</span>" + card("blue", B, kits.blue);
   $("redTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P2" : settings.kind === "cup" ? "CUP" : "CPU") + "</span>" + (settings.kind === "cup" ? "<b>7 random teams</b><br><span class='stars'>knockout</span>" : card("red", R, kits.red));
   $("redTeamBtn").disabled = settings.kind === "cup";
@@ -506,7 +507,7 @@ function openTeamPicker(side) {
   for (const T of TEAM_LIST) {
     html += "<button class='teamTile" + (T.id === cur ? " selected" : "") + "' data-team='" + T.id + "'>" + flagHtml(T, 32, { wave: true }) +
       "<span class='kitRow'>" + kitHtml(T.home, 18) + kitHtml(T.away, 14) + "</span>" +
-      "<span class='teamName'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span></span><span class='stars'>" + stars(T.rating) + "</span></button>";
+      "<span class='teamName'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span></span>" + (typeof teamRatingHtml === "function" ? teamRatingHtml(T) : "<span class='stars'>" + stars(T.rating) + "</span>") + "</button>";
   }
   const C = customTeam(settings.custom);
   html += "<button class='teamTile custom" + (cur === "custom" ? " selected" : "") + "' data-team='custom'>" + flagHtml(C, 32, { wave: true }) +
@@ -559,7 +560,8 @@ const myCupMatch = () => cup.rounds[cup.round].find((m) => m.a === 0 || m.b === 
 
 // Results of computer vs computer matches (better rating = better chance)
 function simulateCupMatch(m) {
-  const ra = cup.teams[m.a].rating || 3, rb = cup.teams[m.b].rating || 3;
+  const rank = (t) => (typeof teamShows100 === "function" && teamShows100(t.id)) ? 9 : (t.rating || 3);
+  const ra = rank(cup.teams[m.a]), rb = rank(cup.teams[m.b]);
   const goals = (r, o) => { let g = 0; for (let i = 0; i < 8; i++) if (Math.random() < 0.22 + 0.05 * (r - o)) g++; return g; };
   m.sa = goals(ra, rb); m.sb = goals(rb, ra);
   if (m.sa === m.sb) {
@@ -612,7 +614,7 @@ function matchLine(m) {
   if (m.a === undefined || m.a === null) return "<div class='cm tbd'>?</div>";
   const T = (i) => cup.teams[i];
   const row = (i, s, pen) => "<div class='ct" + (m.winner === i ? " won" : m.winner !== null ? " lost" : "") + (i === 0 ? " me" : "") + "'>" +
-    flagHtml(T(i), 18) + "<span class='nm'>" + esc(T(i).name) + "</span><span class='sc'>" + (s === null ? "" : s) + (pen !== null && pen !== undefined ? " <small>(" + pen + ")</small>" : "") + "</span></div>";
+    flagHtml(T(i), 18) + "<span class='nm'>" + esc(T(i).name) + ((typeof teamShows100 === "function" && teamShows100(T(i).id)) ? " <span class='ovr'>\u2605 100</span>" : "") + "</span><span class='sc'>" + (s === null ? "" : s) + (pen !== null && pen !== undefined ? " <small>(" + pen + ")</small>" : "") + "</span></div>";
   return "<div class='cm" + (m.a === 0 || m.b === 0 ? " mine" : "") + "'>" + row(m.a, m.sa, m.pens && m.pens[0]) + row(m.b, m.sb, m.pens && m.pens[1]) + "</div>";
 }
 function showCup() {

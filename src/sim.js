@@ -896,6 +896,12 @@ function makePlayer(team, def, index) {
   };
   p.skin = def.skin || skins[(index * 3 + (team === "red" ? 1 : 0)) % skins.length];
   p.hair = def.hair || hairs[(index * 2 + (team === "red" ? 3 : 0)) % hairs.length];
+  const squadId = (game.teams[team] && game.teams[team].id) || "";
+  if (typeof teamIs100 === "function" && teamIs100(squadId)) {
+    p.pace = p.shoot = p.pass = p.dribble = p.defend = p.stam = p.gk = 100;
+    if (!game.team100) game.team100 = {};
+    game.team100[squadId] = true;
+  }
   return p;
 }
 
@@ -3027,6 +3033,18 @@ function update(dt) {
     return { ok, player: pIndex(p), skill: p.skill };
   }
 
+  function restoreSquadStats(p, snap) {
+    if (snap) { Object.assign(p, snap); return; }
+    const sid = game.teams[p.team] && game.teams[p.team].id;
+    const meta = typeof findTeam === "function" ? findTeam(sid) : null;
+    let squad = typeof squadById === "function" ? squadById(sid, meta || { id: sid }) : null;
+    if (p.me && typeof withPlayAsMe === "function" && squad) squad = withPlayAsMe(squad);
+    const pl = squad && squad.players && squad.players.find((x) => x.num === p.num);
+    if (!pl) return;
+    p.pace = pl.pace; p.shoot = pl.shoot; p.pass = pl.pass; p.dribble = pl.dribble;
+    p.defend = pl.defend; p.stam = pl.stamina; p.gk = pl.gk || (pl.pos === "GK" ? 75 : 12);
+  }
+
   createPlayers();
   resetToHome();
 
@@ -3078,11 +3096,56 @@ function update(dt) {
         if (!p) return a;
         if (!a.saved[arg]) a.saved[arg] = { pace: p.pace, shoot: p.shoot, pass: p.pass, dribble: p.dribble, defend: p.defend, stam: p.stam };
         p.pace = p.shoot = p.pass = p.dribble = p.defend = p.stam = 100;
+      } else if (action === "team100") {
+        const id = arg && arg.id;
+        if (!id) return a;
+        if (!a.teamSaved) a.teamSaved = {};
+        if (!a.teamSaved[id]) a.teamSaved[id] = {};
+        if (!game.team100) game.team100 = {};
+        let n = 0;
+        for (const p of roster) {
+          const sid = game.teams[p.team] && game.teams[p.team].id;
+          if (sid !== id) continue;
+          const key = p.team + ":" + p.num;
+          if (!a.teamSaved[id][key]) {
+            const prior = a.saved && a.saved[roster.indexOf(p)];
+            a.teamSaved[id][key] = prior
+              ? { pace: prior.pace, shoot: prior.shoot, pass: prior.pass, dribble: prior.dribble, defend: prior.defend, stam: prior.stam, gk: p.gk }
+              : { pace: p.pace, shoot: p.shoot, pass: p.pass, dribble: p.dribble, defend: p.defend, stam: p.stam, gk: p.gk };
+          }
+          p.pace = p.shoot = p.pass = p.dribble = p.defend = p.stam = p.gk = 100;
+          n++;
+        }
+        if (n) game.team100[id] = true;
+      } else if (action === "teamundo") {
+        const id = arg && arg.id;
+        if (!id) return a;
+        const snaps = a.teamSaved && a.teamSaved[id];
+        for (const p of roster) {
+          const sid = game.teams[p.team] && game.teams[p.team].id;
+          if (sid !== id) continue;
+          const key = p.team + ":" + p.num;
+          restoreSquadStats(p, snaps && snaps[key]);
+        }
+        if (a.teamSaved) delete a.teamSaved[id];
+        if (game.team100) delete game.team100[id];
       } else if (action === "reset") {
         for (const k of Object.keys(a.saved || {})) {
           const p = roster[k];
           if (p) Object.assign(p, a.saved[k]);
         }
+        const boosted = {};
+        for (const id of Object.keys(a.teamSaved || {})) boosted[id] = a.teamSaved[id];
+        for (const id of Object.keys(game.team100 || {})) if (!boosted[id]) boosted[id] = {};
+        for (const id of Object.keys(boosted)) {
+          for (const p of roster) {
+            const sid = game.teams[p.team] && game.teams[p.team].id;
+            if (sid !== id) continue;
+            const key = p.team + ":" + p.num;
+            restoreSquadStats(p, boosted[id][key]);
+          }
+        }
+        game.team100 = {};
         game.admin = { clockPaused: false, slow: false, superSpeed: false, superShot: false, infiniteStamina: false, perfect: false, debug: false, saved: {} };
         return game.admin;
       }
