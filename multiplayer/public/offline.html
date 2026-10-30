@@ -1039,6 +1039,48 @@ function renameFor(teamId, num) {
   return typeof n === "string" ? n : "";
 }
 
+const TEAM100_KEY = "soccerTeam100";
+function loadTeam100() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TEAM100_KEY) || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch (e) { return {}; }
+}
+function teamIs100(id) {
+  if (!id || typeof localStorage === "undefined") return false;
+  return !!loadTeam100()[id];
+}
+function setTeam100Saved(id, on) {
+  if (!id || typeof localStorage === "undefined") return;
+  const map = loadTeam100();
+  if (on) map[id] = true;
+  else delete map[id];
+  try { localStorage.setItem(TEAM100_KEY, JSON.stringify(map)); } catch (e) { /* ignore */ }
+}
+function teamShows100(id) {
+  if (!id) return false;
+  if (teamIs100(id)) return true;
+  try {
+    if (typeof game !== "undefined" && game && game.team100 && game.team100[id]) return true;
+    if (typeof hosted !== "undefined" && hosted && hosted.sim && hosted.sim.game && hosted.sim.game.team100 && hosted.sim.game.team100[id]) return true;
+  } catch (e) { /* ignore */ }
+  return false;
+}
+function withTeam100(squad, id) {
+  if (!teamShows100(id) || !squad || !squad.players) return squad;
+  return Object.assign({}, squad, {
+    players: squad.players.map((p) => Object.assign({}, p, {
+      pace: 100, shoot: 100, pass: 100, dribble: 100, defend: 100, stamina: 100, gk: 100,
+    })),
+  });
+}
+function teamRatingHtml(team) {
+  if (!team) return "";
+  if (teamShows100(team.id)) return "<span class='ovr'>\u2605 100</span>";
+  const n = team.rating || 3;
+  return "<span class='stars'>" + "\u2605".repeat(n) + "</span>";
+}
+
 function overallRating(p) {
   if (!p) return 0;
   const vals = p.pos === "GK"
@@ -1063,8 +1105,9 @@ function squadCardHtml(teamId) {
   const meta = (typeof findTeam === "function" && findTeam(teamId)) || { id: teamId || "custom", name: "My Team", rating: 3 };
   let sq = squadById(meta.id, meta);
   if (loadPlayAsMe().on) sq = withPlayAsMe(sq);
+  sq = withTeam100(sq, meta.id);
   const head = "<div class='sqhead'><b>" + escHtml(sq.formation) + "</b> · " + escHtml(STYLE_TEXT[sq.style] || "") +
-    " · " + "\u2605".repeat(meta.rating || 3) + "</div>";
+    " · " + (teamShows100(meta.id) ? "<span class='ovr'>\u2605 100</span>" : "\u2605".repeat(meta.rating || 3)) + "</div>";
   const rows = sq.players.map((p) => {
     const priv = p.me ? "" : renameFor(meta.id, p.num);
     const shown = priv || p.name;
@@ -1095,6 +1138,14 @@ function paintSquad() {
   const sel = document.getElementById("squadTeam");
   const list = document.getElementById("squadList");
   if (!sel || !list) return;
+  if (typeof TEAM_LIST !== "undefined" && sel.options.length) {
+    const keep = sel.value;
+    [...sel.options].forEach((o) => {
+      const t = TEAM_LIST.find((x) => x.id === o.value);
+      if (t) o.textContent = t.name + (teamShows100(t.id) ? " \u2605 100" : "");
+    });
+    if (keep) sel.value = keep;
+  }
   list.innerHTML = squadCardHtml(sel.value);
 }
 
@@ -1102,9 +1153,9 @@ function openSquadScreen() {
   const screen = document.getElementById("squadScreen");
   const sel = document.getElementById("squadTeam");
   if (!screen || !sel || typeof TEAM_LIST === "undefined") return;
-  if (!sel.options.length) {
-    sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + escHtml(t.name) + "</option>").join("");
-  }
+  const keepSquad = sel.value;
+  sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + escHtml(t.name) + (teamShows100(t.id) ? " \u2605 100" : "") + "</option>").join("");
+  if (keepSquad && [...sel.options].some((o) => o.value === keepSquad)) sel.value = keepSquad;
   try {
     if (typeof settings !== "undefined" && settings.blue && SQUADS[settings.blue]) sel.value = settings.blue;
   } catch (e) { /* ignore */ }
@@ -2114,6 +2165,12 @@ function makePlayer(team, def, index) {
   };
   p.skin = def.skin || skins[(index * 3 + (team === "red" ? 1 : 0)) % skins.length];
   p.hair = def.hair || hairs[(index * 2 + (team === "red" ? 3 : 0)) % hairs.length];
+  const squadId = (game.teams[team] && game.teams[team].id) || "";
+  if (typeof teamIs100 === "function" && teamIs100(squadId)) {
+    p.pace = p.shoot = p.pass = p.dribble = p.defend = p.stam = p.gk = 100;
+    if (!game.team100) game.team100 = {};
+    game.team100[squadId] = true;
+  }
   return p;
 }
 
@@ -4245,6 +4302,18 @@ function update(dt) {
     return { ok, player: pIndex(p), skill: p.skill };
   }
 
+  function restoreSquadStats(p, snap) {
+    if (snap) { Object.assign(p, snap); return; }
+    const sid = game.teams[p.team] && game.teams[p.team].id;
+    const meta = typeof findTeam === "function" ? findTeam(sid) : null;
+    let squad = typeof squadById === "function" ? squadById(sid, meta || { id: sid }) : null;
+    if (p.me && typeof withPlayAsMe === "function" && squad) squad = withPlayAsMe(squad);
+    const pl = squad && squad.players && squad.players.find((x) => x.num === p.num);
+    if (!pl) return;
+    p.pace = pl.pace; p.shoot = pl.shoot; p.pass = pl.pass; p.dribble = pl.dribble;
+    p.defend = pl.defend; p.stam = pl.stamina; p.gk = pl.gk || (pl.pos === "GK" ? 75 : 12);
+  }
+
   createPlayers();
   resetToHome();
 
@@ -4296,11 +4365,56 @@ function update(dt) {
         if (!p) return a;
         if (!a.saved[arg]) a.saved[arg] = { pace: p.pace, shoot: p.shoot, pass: p.pass, dribble: p.dribble, defend: p.defend, stam: p.stam };
         p.pace = p.shoot = p.pass = p.dribble = p.defend = p.stam = 100;
+      } else if (action === "team100") {
+        const id = arg && arg.id;
+        if (!id) return a;
+        if (!a.teamSaved) a.teamSaved = {};
+        if (!a.teamSaved[id]) a.teamSaved[id] = {};
+        if (!game.team100) game.team100 = {};
+        let n = 0;
+        for (const p of roster) {
+          const sid = game.teams[p.team] && game.teams[p.team].id;
+          if (sid !== id) continue;
+          const key = p.team + ":" + p.num;
+          if (!a.teamSaved[id][key]) {
+            const prior = a.saved && a.saved[roster.indexOf(p)];
+            a.teamSaved[id][key] = prior
+              ? { pace: prior.pace, shoot: prior.shoot, pass: prior.pass, dribble: prior.dribble, defend: prior.defend, stam: prior.stam, gk: p.gk }
+              : { pace: p.pace, shoot: p.shoot, pass: p.pass, dribble: p.dribble, defend: p.defend, stam: p.stam, gk: p.gk };
+          }
+          p.pace = p.shoot = p.pass = p.dribble = p.defend = p.stam = p.gk = 100;
+          n++;
+        }
+        if (n) game.team100[id] = true;
+      } else if (action === "teamundo") {
+        const id = arg && arg.id;
+        if (!id) return a;
+        const snaps = a.teamSaved && a.teamSaved[id];
+        for (const p of roster) {
+          const sid = game.teams[p.team] && game.teams[p.team].id;
+          if (sid !== id) continue;
+          const key = p.team + ":" + p.num;
+          restoreSquadStats(p, snaps && snaps[key]);
+        }
+        if (a.teamSaved) delete a.teamSaved[id];
+        if (game.team100) delete game.team100[id];
       } else if (action === "reset") {
         for (const k of Object.keys(a.saved || {})) {
           const p = roster[k];
           if (p) Object.assign(p, a.saved[k]);
         }
+        const boosted = {};
+        for (const id of Object.keys(a.teamSaved || {})) boosted[id] = a.teamSaved[id];
+        for (const id of Object.keys(game.team100 || {})) if (!boosted[id]) boosted[id] = {};
+        for (const id of Object.keys(boosted)) {
+          for (const p of roster) {
+            const sid = game.teams[p.team] && game.teams[p.team].id;
+            if (sid !== id) continue;
+            const key = p.team + ":" + p.num;
+            restoreSquadStats(p, boosted[id][key]);
+          }
+        }
+        game.team100 = {};
         game.admin = { clockPaused: false, slow: false, superSpeed: false, superShot: false, infiniteStamina: false, perfect: false, debug: false, saved: {} };
         return game.admin;
       }
@@ -8209,7 +8323,8 @@ function renderMenu() {
   // team cards + the kits they will actually wear (away kit on a clash)
   const B = teamDef(settings.blue), R = teamDef(settings.red);
   const kits = buildTeamKits(B, R);
-  const card = (side, T, k) => flagHtml(T, 26, { wave: true }) + "<span class='teamMeta'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span>" + (k.formation ? " <span class='code'>" + esc(k.formation) + "</span>" : "") + "<br><span class='stars'>" + stars(k.rating) + "</span>" + (k.away ? " <span class='away'>away kit</span>" : "") + "</span>";
+  const rateHtml = (T, k) => (typeof teamShows100 === "function" && teamShows100(T.id)) ? "<span class='ovr'>\u2605 100</span>" : "<span class='stars'>" + stars(k.rating) + "</span>";
+  const card = (side, T, k) => flagHtml(T, 26, { wave: true }) + "<span class='teamMeta'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span>" + (k.formation ? " <span class='code'>" + esc(k.formation) + "</span>" : "") + "<br>" + rateHtml(T, k) + (k.away ? " <span class='away'>away kit</span>" : "") + "</span>";
   $("blueTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P1" : "YOU") + "</span>" + card("blue", B, kits.blue);
   $("redTeamBtn").innerHTML = "<span class='who'>" + (settings.mode === "2p" ? "P2" : settings.kind === "cup" ? "CUP" : "CPU") + "</span>" + (settings.kind === "cup" ? "<b>7 random teams</b><br><span class='stars'>knockout</span>" : card("red", R, kits.red));
   $("redTeamBtn").disabled = settings.kind === "cup";
@@ -8308,7 +8423,7 @@ function openTeamPicker(side) {
   for (const T of TEAM_LIST) {
     html += "<button class='teamTile" + (T.id === cur ? " selected" : "") + "' data-team='" + T.id + "'>" + flagHtml(T, 32, { wave: true }) +
       "<span class='kitRow'>" + kitHtml(T.home, 18) + kitHtml(T.away, 14) + "</span>" +
-      "<span class='teamName'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span></span><span class='stars'>" + stars(T.rating) + "</span></button>";
+      "<span class='teamName'><b>" + esc(T.name) + "</b> <span class='code'>" + T.short + "</span></span>" + (typeof teamRatingHtml === "function" ? teamRatingHtml(T) : "<span class='stars'>" + stars(T.rating) + "</span>") + "</button>";
   }
   const C = customTeam(settings.custom);
   html += "<button class='teamTile custom" + (cur === "custom" ? " selected" : "") + "' data-team='custom'>" + flagHtml(C, 32, { wave: true }) +
@@ -8361,7 +8476,8 @@ const myCupMatch = () => cup.rounds[cup.round].find((m) => m.a === 0 || m.b === 
 
 // Results of computer vs computer matches (better rating = better chance)
 function simulateCupMatch(m) {
-  const ra = cup.teams[m.a].rating || 3, rb = cup.teams[m.b].rating || 3;
+  const rank = (t) => (typeof teamShows100 === "function" && teamShows100(t.id)) ? 9 : (t.rating || 3);
+  const ra = rank(cup.teams[m.a]), rb = rank(cup.teams[m.b]);
   const goals = (r, o) => { let g = 0; for (let i = 0; i < 8; i++) if (Math.random() < 0.22 + 0.05 * (r - o)) g++; return g; };
   m.sa = goals(ra, rb); m.sb = goals(rb, ra);
   if (m.sa === m.sb) {
@@ -8414,7 +8530,7 @@ function matchLine(m) {
   if (m.a === undefined || m.a === null) return "<div class='cm tbd'>?</div>";
   const T = (i) => cup.teams[i];
   const row = (i, s, pen) => "<div class='ct" + (m.winner === i ? " won" : m.winner !== null ? " lost" : "") + (i === 0 ? " me" : "") + "'>" +
-    flagHtml(T(i), 18) + "<span class='nm'>" + esc(T(i).name) + "</span><span class='sc'>" + (s === null ? "" : s) + (pen !== null && pen !== undefined ? " <small>(" + pen + ")</small>" : "") + "</span></div>";
+    flagHtml(T(i), 18) + "<span class='nm'>" + esc(T(i).name) + ((typeof teamShows100 === "function" && teamShows100(T(i).id)) ? " <span class='ovr'>\u2605 100</span>" : "") + "</span><span class='sc'>" + (s === null ? "" : s) + (pen !== null && pen !== undefined ? " <small>(" + pen + ")</small>" : "") + "</span></div>";
   return "<div class='cm" + (m.a === 0 || m.b === 0 ? " mine" : "") + "'>" + row(m.a, m.sa, m.pens && m.pens[0]) + row(m.b, m.sb, m.pens && m.pens[1]) + "</div>";
 }
 function showCup() {
@@ -8776,7 +8892,7 @@ window.soccerDebug = {
       z-index: 80; left: 0; top: 0; margin: 0;
       width: 420px; height: 520px;
       display: flex; flex-direction: column; overflow: hidden; padding: 0;
-      touch-action: manipulation; font-size: 15px;
+      font-size: 15px;
     }
     #adminPanel[hidden], #adminBubble[hidden], #adminShield[hidden] { display: none !important; }
     #adminBar {
@@ -8811,16 +8927,37 @@ window.soccerDebug = {
       min-width: 44px; min-height: 44px; margin: 0; padding: 0;
       font-size: 26px; line-height: 1;
     }
+    #adminScroll { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
     #adminBody {
-      overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y;
-      padding: 8px 14px 22px; overscroll-behavior: contain; min-height: 0;
+      flex: 1 1 auto; min-height: 0; width: 100%;
+      overflow-x: hidden; overflow-y: scroll;
+      -webkit-overflow-scrolling: touch; touch-action: pan-y;
+      overscroll-behavior: contain;
+      padding: 8px 18px 36px 12px;
+      scrollbar-width: none;
     }
+    #adminBody::-webkit-scrollbar { width: 0; height: 0; }
+    #adminRail {
+      position: absolute; right: 4px; top: 8px; bottom: 10px; width: 8px;
+      border-radius: 8px; background: rgba(255,255,255,.16);
+      pointer-events: none;
+    }
+    #adminThumb {
+      display: block; width: 8px; min-height: 28px; border-radius: 8px;
+      background: #e8c547; box-shadow: 0 0 0 1px rgba(0,0,0,.45);
+    }
+    #adminBody.can-up { box-shadow: inset 0 22px 16px -14px rgba(0,0,0,.88); }
+    #adminBody.can-down { box-shadow: inset 0 -26px 18px -12px rgba(0,0,0,.9); }
+    #adminBody.can-up.can-down { box-shadow: inset 0 22px 16px -14px rgba(0,0,0,.88), inset 0 -26px 18px -12px rgba(0,0,0,.9); }
     #adminPanel button, #adminPrompt button, #adminBubble {
       font: inherit; font-weight: 700; min-height: var(--admin-hit, 44px); margin: 3px; padding: 8px 10px;
       border-radius: 10px; border: 1px solid rgba(255,255,255,.35);
       background: #1d4e34; color: #fff; cursor: pointer; touch-action: manipulation;
     }
     #adminPanel button.on { background: #e6b325; color: #1a1404; border-color: #ffe27a; }
+    #adminBody button, #adminBody label, #adminBody select, #adminBody input, #adminBody .hint {
+      touch-action: pan-y;
+    }
     #adminPanel .grid {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.4em), 1fr));
       gap: 6px; justify-content: stretch;
@@ -8828,6 +8965,10 @@ window.soccerDebug = {
     #adminPanel .grid button { margin: 0; width: 100%; }
     #adminPanel .row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; }
     #adminPanel[data-fit="s"] .row label { font-size: 0.92em; }
+    #adminPanel .team100 { align-items: stretch; }
+    #adminPanel .team100 select { min-height: 44px; width: 100%; max-width: 100%; }
+    #adminPanel .team100 .keep, #adminPanel .hint { font-size: 14px; line-height: 1.3; }
+    #adminPanel .hint { opacity: .85; flex: 1 0 100%; text-align: center; }
     #adminPanel #adminResize {
       position: absolute; right: 0; bottom: 0; z-index: 2;
       width: 44px; height: 44px; min-width: 44px; min-height: 44px; margin: 0; padding: 0;
@@ -8892,6 +9033,7 @@ window.soccerDebug = {
       </div>
       <button type="button" id="adminMin" aria-label="Collapse helpers">–</button>
     </div>
+    <div id="adminScroll">
     <div id="adminBody">
     <p id="adminNote"></p>
     <div class="grid">
@@ -8928,11 +9070,20 @@ window.soccerDebug = {
       <select id="adminPlayer" aria-label="Which player"></select>
       <button type="button" id="adminRate">Make 100</button>
     </div>
+    <div class="row team100">
+      <label>Team <select id="adminTeam" aria-label="Which team"></select></label>
+      <label class="keep"><input type="checkbox" id="adminTeamKeep"> Save on this device</label>
+      <span class="hint">Leave unticked for this match only.</span>
+      <button type="button" id="adminTeam100">Make whole team 100</button>
+      <button type="button" id="adminTeamUndo">Undo team 100</button>
+    </div>
     <div class="row">
       <button type="button" id="adminReset">Put everything back</button>
       <button type="button" id="adminPlace" title="Reset position and size">Reset position</button>
       <button type="button" id="adminLock">Lock</button>
     </div>
+    </div>
+    <div id="adminRail" aria-hidden="true"><i id="adminThumb"></i></div>
     </div>
     <button type="button" id="adminResize" aria-label="Resize helpers"></button>
   </div>`);
@@ -9077,6 +9228,7 @@ window.soccerDebug = {
     panel.style.setProperty("--admin-hit", (s.w < 320 ? 40 : 44) + "px");
     panel.dataset.fit = s.w < 340 ? "s" : (s.w >= 520 ? "l" : "m");
     markPreset(s.w, s.h);
+    markAdminScroll();
     return s;
   }
   function savePlace() {
@@ -9111,6 +9263,7 @@ window.soccerDebug = {
     const top = parseFloat(panel.style.top);
     put(panel, isFinite(left) ? left : x, isFinite(top) ? top : y, "panel");
     refreshPanel();
+    requestAnimationFrame(markAdminScroll);
   }
   function showBubbleAt(x, y) {
     panel.hidden = true;
@@ -9282,6 +9435,54 @@ window.soccerDebug = {
   shield.addEventListener("pointerup", (e) => { e.preventDefault(); e.stopPropagation(); });
   panel.addEventListener("pointerdown", (e) => e.stopPropagation());
   panel.addEventListener("pointerup", (e) => e.stopPropagation());
+  const adminBody = document.getElementById("adminBody");
+  function markAdminScroll() {
+    if (!adminBody) return;
+    const max = adminBody.scrollHeight - adminBody.clientHeight;
+    adminBody.classList.toggle("can-up", adminBody.scrollTop > 6);
+    adminBody.classList.toggle("can-down", max > 8 && adminBody.scrollTop < max - 6);
+    const rail = document.getElementById("adminRail");
+    const thumb = document.getElementById("adminThumb");
+    if (!rail || !thumb) return;
+    const room = max > 8;
+    rail.style.opacity = room ? "1" : "0";
+    const track = rail.clientHeight || 1;
+    const ratio = adminBody.scrollHeight > 0 ? adminBody.clientHeight / adminBody.scrollHeight : 1;
+    const h = Math.max(28, Math.round(track * Math.min(1, ratio)));
+    const travel = Math.max(0, track - h);
+    const top = max > 0 ? (adminBody.scrollTop / max) * travel : 0;
+    thumb.style.height = h + "px";
+    thumb.style.transform = "translateY(" + Math.round(top) + "px)";
+  }
+    if (adminBody) {
+    adminBody.addEventListener("scroll", markAdminScroll, { passive: true });
+    adminBody.addEventListener("wheel", (e) => {
+      e.stopPropagation();
+      const max = adminBody.scrollHeight - adminBody.clientHeight;
+      const dy = e.deltaY || 0;
+      const up = dy < 0 && adminBody.scrollTop <= 0;
+      const down = dy > 0 && adminBody.scrollTop >= max - 1;
+      if (up || down || max <= 1) e.preventDefault();
+    }, { passive: false });
+    adminBody.addEventListener("touchmove", (e) => {
+      e.stopPropagation();
+    }, { passive: true });
+    let bodyGesture = null;
+    adminBody.addEventListener("pointerdown", (e) => {
+      if (e.target && e.target.closest && e.target.closest("#adminBar, #adminResize")) return;
+      bodyGesture = { id: e.pointerId, y: e.clientY, moved: false };
+    });
+    adminBody.addEventListener("pointermove", (e) => {
+      if (!bodyGesture || e.pointerId !== bodyGesture.id) return;
+      if (Math.abs(e.clientY - bodyGesture.y) > 8) bodyGesture.moved = true;
+      e.stopPropagation();
+    });
+    adminBody.addEventListener("pointerup", (e) => {
+      if (bodyGesture && bodyGesture.id === e.pointerId && bodyGesture.moved) swallowClick = true;
+      bodyGesture = null;
+    });
+    adminBody.addEventListener("pointercancel", () => { bodyGesture = null; });
+  }
   window.addEventListener("resize", keepInside);
   window.addEventListener("orientationchange", keepInside);
   if (window.visualViewport) {
@@ -9377,6 +9578,8 @@ window.soccerDebug = {
   function refreshPanel() {
     const s = liveSim();
     const note = document.getElementById("adminNote");
+    fillTeamSelect();
+    markAdminScroll();
     if (!s || !s.admin) {
       if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "";
       return;
@@ -9393,6 +9596,7 @@ window.soccerDebug = {
       document.getElementById("adminBlue").value = g.score.blue;
       document.getElementById("adminRed").value = g.score.red;
     }
+    fillTeamSelect();
     const sel = document.getElementById("adminPlayer");
     const keep = sel.value;
     sel.innerHTML = "";
@@ -9403,6 +9607,63 @@ window.soccerDebug = {
       sel.appendChild(o);
     });
     if (keep) sel.value = keep;
+    markAdminScroll();
+  }
+  function fillTeamSelect() {
+    const sel = document.getElementById("adminTeam");
+    if (!sel) return;
+    const s = liveSim();
+    const mine = s && (s.controllers || []).find((c) => c && !c.cpu);
+    const mySide = mine && mine.team;
+    const opts = [];
+    const seen = {};
+    const mark = (id) => (typeof teamShows100 === "function" && teamShows100(id)) ? " \u2605 100" : "";
+    const youId = (mySide && s && s.game && s.game.teams[mySide] && s.game.teams[mySide].id)
+      || (typeof settings !== "undefined" && settings && settings.blue)
+      || "";
+    if (s && s.game && s.game.teams) {
+      for (const side of ["blue", "red"]) {
+        const t = s.game.teams[side];
+        if (!t || !t.id || seen[t.id]) continue;
+        seen[t.id] = true;
+        const who = t.id === youId ? " (you)" : " (on the pitch)";
+        opts.push({ v: t.id, label: (t.name || t.id) + who + mark(t.id) });
+      }
+    }
+    if (typeof TEAM_LIST !== "undefined") {
+      for (const t of TEAM_LIST) {
+        if (seen[t.id]) continue;
+        seen[t.id] = true;
+        opts.push({ v: t.id, label: t.name + mark(t.id) });
+      }
+    }
+    if (!seen.custom && typeof customTeam === "function" && typeof settings !== "undefined" && settings && settings.custom) {
+      const C = customTeam(settings.custom);
+      opts.push({ v: "custom", label: (C.name || "My Team") + " (custom)" + mark("custom") });
+    }
+    const keep = sel.value || youId;
+    sel.innerHTML = opts.map((o) => "<option value='" + o.v + "'>" + String(o.label).replace(/</g, "") + "</option>").join("");
+    if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
+  }
+  function clearSavedTeam100() {
+    if (typeof loadTeam100 !== "function" || typeof setTeam100Saved !== "function") return;
+    for (const id of Object.keys(loadTeam100())) setTeam100Saved(id, false);
+  }
+  function afterTeamChange() {
+    if (typeof renderMenu === "function") renderMenu();
+    if (typeof paintSquad === "function") paintSquad();
+    const blue = document.getElementById("blueTeamSel");
+    const red = document.getElementById("redTeamSel");
+    if (blue) blue.innerHTML = "";
+    if (red) red.innerHTML = "";
+    if (typeof renderLobby === "function" && (blue || red)) {
+      try { renderLobby(); } catch (e) { /* lobby is not open */ }
+    }
+  }
+  function teamOnPitch(id) {
+    const s = liveSim();
+    if (!s || !s.roster || !s.game || !s.game.teams) return false;
+    return s.roster.some((p) => s.game.teams[p.team] && s.game.teams[p.team].id === id);
   }
 
   panel.addEventListener("click", (e) => {
@@ -9419,8 +9680,10 @@ window.soccerDebug = {
     if (btn.dataset && btn.dataset.size) { applyPreset(btn.dataset.size); return; }
     if (btn.id === "adminPlace") { resetPlace(); return; }
     if (btn.id === "adminLock") {
+      clearSavedTeam100();
       const s = liveSim();
       if (s && s.admin) s.admin("reset");
+      afterTeamChange();
       setUnlocked(false);
       hidePanel();
       debug.hidden = true;
@@ -9443,7 +9706,43 @@ window.soccerDebug = {
       run("rate", document.getElementById("adminPlayer").value);
       return;
     }
-    if (btn.id === "adminReset") { run("reset"); return; }
+    if (btn.id === "adminTeam100" || btn.id === "adminTeamUndo") {
+      const note = document.getElementById("adminNote");
+      if (!unlocked() || guestBlocked()) {
+        if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "Unlock the helpers first.";
+        return;
+      }
+      const id = document.getElementById("adminTeam").value;
+      const save = document.getElementById("adminTeamKeep").checked;
+      if (!id) return;
+      if (btn.id === "adminTeam100") {
+        const onPitch = teamOnPitch(id);
+        if (!onPitch && !save) {
+          if (note) note.textContent = "That team is not in this match. Tick Save on this device.";
+          return;
+        }
+        if (save && typeof setTeam100Saved === "function") setTeam100Saved(id, true);
+        if (onPitch) run("team100", { id: id });
+        if (note) note.textContent = save
+          ? (onPitch ? "Whole team is 100, saved on this device." : "Saved on this device. They are 100 next time you play them.")
+          : "Whole team is 100 for this match.";
+      } else {
+        if (typeof setTeam100Saved === "function") setTeam100Saved(id, false);
+        if (liveSim()) run("teamundo", { id: id });
+        if (note) note.textContent = "That team is back to its own stats.";
+      }
+      afterTeamChange();
+      fillTeamSelect();
+      return;
+    }
+    if (btn.id === "adminReset") {
+      clearSavedTeam100();
+      run("reset");
+      afterTeamChange();
+      const note = document.getElementById("adminNote");
+      if (note && !guestBlocked()) note.textContent = "Everything is back, including team 100.";
+      return;
+    }
     const flag = btn.getAttribute("data-flag");
     if (flag) {
       const s = liveSim();

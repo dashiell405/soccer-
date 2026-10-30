@@ -3987,7 +3987,7 @@ function renderLobby() {
   const kits = buildTeamKits(findTeam(room.blueTeam) || TEAM_LIST[0], findTeam(room.redTeam) || TEAM_LIST[1]);
   for (const side of ["blue", "red"]) {
     const sel = $(side + "TeamSel");
-    if (!sel.options.length) sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + esc(t.name) + " (" + t.short + ") " + "\u2605".repeat(t.rating) + "</option>").join("");
+    if (!sel.options.length) sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + esc(t.name) + " (" + t.short + ") " + ((typeof teamShows100 === "function" && teamShows100(t.id)) ? "\u2605 100" : "\u2605".repeat(t.rating)) + "</option>").join("");
     sel.value = side === "blue" ? room.blueTeam || "blue" : room.redTeam || "red";
     sel.disabled = !host;
     const k = kits[side];
@@ -4314,7 +4314,7 @@ window.mpDebug = {
       z-index: 80; left: 0; top: 0; margin: 0;
       width: 420px; height: 520px;
       display: flex; flex-direction: column; overflow: hidden; padding: 0;
-      touch-action: manipulation; font-size: 15px;
+      font-size: 15px;
     }
     #adminPanel[hidden], #adminBubble[hidden], #adminShield[hidden] { display: none !important; }
     #adminBar {
@@ -4349,16 +4349,37 @@ window.mpDebug = {
       min-width: 44px; min-height: 44px; margin: 0; padding: 0;
       font-size: 26px; line-height: 1;
     }
+    #adminScroll { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
     #adminBody {
-      overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y;
-      padding: 8px 14px 22px; overscroll-behavior: contain; min-height: 0;
+      flex: 1 1 auto; min-height: 0; width: 100%;
+      overflow-x: hidden; overflow-y: scroll;
+      -webkit-overflow-scrolling: touch; touch-action: pan-y;
+      overscroll-behavior: contain;
+      padding: 8px 18px 36px 12px;
+      scrollbar-width: none;
     }
+    #adminBody::-webkit-scrollbar { width: 0; height: 0; }
+    #adminRail {
+      position: absolute; right: 4px; top: 8px; bottom: 10px; width: 8px;
+      border-radius: 8px; background: rgba(255,255,255,.16);
+      pointer-events: none;
+    }
+    #adminThumb {
+      display: block; width: 8px; min-height: 28px; border-radius: 8px;
+      background: #e8c547; box-shadow: 0 0 0 1px rgba(0,0,0,.45);
+    }
+    #adminBody.can-up { box-shadow: inset 0 22px 16px -14px rgba(0,0,0,.88); }
+    #adminBody.can-down { box-shadow: inset 0 -26px 18px -12px rgba(0,0,0,.9); }
+    #adminBody.can-up.can-down { box-shadow: inset 0 22px 16px -14px rgba(0,0,0,.88), inset 0 -26px 18px -12px rgba(0,0,0,.9); }
     #adminPanel button, #adminPrompt button, #adminBubble {
       font: inherit; font-weight: 700; min-height: var(--admin-hit, 44px); margin: 3px; padding: 8px 10px;
       border-radius: 10px; border: 1px solid rgba(255,255,255,.35);
       background: #1d4e34; color: #fff; cursor: pointer; touch-action: manipulation;
     }
     #adminPanel button.on { background: #e6b325; color: #1a1404; border-color: #ffe27a; }
+    #adminBody button, #adminBody label, #adminBody select, #adminBody input, #adminBody .hint {
+      touch-action: pan-y;
+    }
     #adminPanel .grid {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.4em), 1fr));
       gap: 6px; justify-content: stretch;
@@ -4366,6 +4387,10 @@ window.mpDebug = {
     #adminPanel .grid button { margin: 0; width: 100%; }
     #adminPanel .row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; }
     #adminPanel[data-fit="s"] .row label { font-size: 0.92em; }
+    #adminPanel .team100 { align-items: stretch; }
+    #adminPanel .team100 select { min-height: 44px; width: 100%; max-width: 100%; }
+    #adminPanel .team100 .keep, #adminPanel .hint { font-size: 14px; line-height: 1.3; }
+    #adminPanel .hint { opacity: .85; flex: 1 0 100%; text-align: center; }
     #adminPanel #adminResize {
       position: absolute; right: 0; bottom: 0; z-index: 2;
       width: 44px; height: 44px; min-width: 44px; min-height: 44px; margin: 0; padding: 0;
@@ -4430,6 +4455,7 @@ window.mpDebug = {
       </div>
       <button type="button" id="adminMin" aria-label="Collapse helpers">–</button>
     </div>
+    <div id="adminScroll">
     <div id="adminBody">
     <p id="adminNote"></p>
     <div class="grid">
@@ -4466,11 +4492,20 @@ window.mpDebug = {
       <select id="adminPlayer" aria-label="Which player"></select>
       <button type="button" id="adminRate">Make 100</button>
     </div>
+    <div class="row team100">
+      <label>Team <select id="adminTeam" aria-label="Which team"></select></label>
+      <label class="keep"><input type="checkbox" id="adminTeamKeep"> Save on this device</label>
+      <span class="hint">Leave unticked for this match only.</span>
+      <button type="button" id="adminTeam100">Make whole team 100</button>
+      <button type="button" id="adminTeamUndo">Undo team 100</button>
+    </div>
     <div class="row">
       <button type="button" id="adminReset">Put everything back</button>
       <button type="button" id="adminPlace" title="Reset position and size">Reset position</button>
       <button type="button" id="adminLock">Lock</button>
     </div>
+    </div>
+    <div id="adminRail" aria-hidden="true"><i id="adminThumb"></i></div>
     </div>
     <button type="button" id="adminResize" aria-label="Resize helpers"></button>
   </div>`);
@@ -4615,6 +4650,7 @@ window.mpDebug = {
     panel.style.setProperty("--admin-hit", (s.w < 320 ? 40 : 44) + "px");
     panel.dataset.fit = s.w < 340 ? "s" : (s.w >= 520 ? "l" : "m");
     markPreset(s.w, s.h);
+    markAdminScroll();
     return s;
   }
   function savePlace() {
@@ -4649,6 +4685,7 @@ window.mpDebug = {
     const top = parseFloat(panel.style.top);
     put(panel, isFinite(left) ? left : x, isFinite(top) ? top : y, "panel");
     refreshPanel();
+    requestAnimationFrame(markAdminScroll);
   }
   function showBubbleAt(x, y) {
     panel.hidden = true;
@@ -4820,6 +4857,54 @@ window.mpDebug = {
   shield.addEventListener("pointerup", (e) => { e.preventDefault(); e.stopPropagation(); });
   panel.addEventListener("pointerdown", (e) => e.stopPropagation());
   panel.addEventListener("pointerup", (e) => e.stopPropagation());
+  const adminBody = document.getElementById("adminBody");
+  function markAdminScroll() {
+    if (!adminBody) return;
+    const max = adminBody.scrollHeight - adminBody.clientHeight;
+    adminBody.classList.toggle("can-up", adminBody.scrollTop > 6);
+    adminBody.classList.toggle("can-down", max > 8 && adminBody.scrollTop < max - 6);
+    const rail = document.getElementById("adminRail");
+    const thumb = document.getElementById("adminThumb");
+    if (!rail || !thumb) return;
+    const room = max > 8;
+    rail.style.opacity = room ? "1" : "0";
+    const track = rail.clientHeight || 1;
+    const ratio = adminBody.scrollHeight > 0 ? adminBody.clientHeight / adminBody.scrollHeight : 1;
+    const h = Math.max(28, Math.round(track * Math.min(1, ratio)));
+    const travel = Math.max(0, track - h);
+    const top = max > 0 ? (adminBody.scrollTop / max) * travel : 0;
+    thumb.style.height = h + "px";
+    thumb.style.transform = "translateY(" + Math.round(top) + "px)";
+  }
+    if (adminBody) {
+    adminBody.addEventListener("scroll", markAdminScroll, { passive: true });
+    adminBody.addEventListener("wheel", (e) => {
+      e.stopPropagation();
+      const max = adminBody.scrollHeight - adminBody.clientHeight;
+      const dy = e.deltaY || 0;
+      const up = dy < 0 && adminBody.scrollTop <= 0;
+      const down = dy > 0 && adminBody.scrollTop >= max - 1;
+      if (up || down || max <= 1) e.preventDefault();
+    }, { passive: false });
+    adminBody.addEventListener("touchmove", (e) => {
+      e.stopPropagation();
+    }, { passive: true });
+    let bodyGesture = null;
+    adminBody.addEventListener("pointerdown", (e) => {
+      if (e.target && e.target.closest && e.target.closest("#adminBar, #adminResize")) return;
+      bodyGesture = { id: e.pointerId, y: e.clientY, moved: false };
+    });
+    adminBody.addEventListener("pointermove", (e) => {
+      if (!bodyGesture || e.pointerId !== bodyGesture.id) return;
+      if (Math.abs(e.clientY - bodyGesture.y) > 8) bodyGesture.moved = true;
+      e.stopPropagation();
+    });
+    adminBody.addEventListener("pointerup", (e) => {
+      if (bodyGesture && bodyGesture.id === e.pointerId && bodyGesture.moved) swallowClick = true;
+      bodyGesture = null;
+    });
+    adminBody.addEventListener("pointercancel", () => { bodyGesture = null; });
+  }
   window.addEventListener("resize", keepInside);
   window.addEventListener("orientationchange", keepInside);
   if (window.visualViewport) {
@@ -4915,6 +5000,8 @@ window.mpDebug = {
   function refreshPanel() {
     const s = liveSim();
     const note = document.getElementById("adminNote");
+    fillTeamSelect();
+    markAdminScroll();
     if (!s || !s.admin) {
       if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "";
       return;
@@ -4931,6 +5018,7 @@ window.mpDebug = {
       document.getElementById("adminBlue").value = g.score.blue;
       document.getElementById("adminRed").value = g.score.red;
     }
+    fillTeamSelect();
     const sel = document.getElementById("adminPlayer");
     const keep = sel.value;
     sel.innerHTML = "";
@@ -4941,6 +5029,63 @@ window.mpDebug = {
       sel.appendChild(o);
     });
     if (keep) sel.value = keep;
+    markAdminScroll();
+  }
+  function fillTeamSelect() {
+    const sel = document.getElementById("adminTeam");
+    if (!sel) return;
+    const s = liveSim();
+    const mine = s && (s.controllers || []).find((c) => c && !c.cpu);
+    const mySide = mine && mine.team;
+    const opts = [];
+    const seen = {};
+    const mark = (id) => (typeof teamShows100 === "function" && teamShows100(id)) ? " \u2605 100" : "";
+    const youId = (mySide && s && s.game && s.game.teams[mySide] && s.game.teams[mySide].id)
+      || (typeof settings !== "undefined" && settings && settings.blue)
+      || "";
+    if (s && s.game && s.game.teams) {
+      for (const side of ["blue", "red"]) {
+        const t = s.game.teams[side];
+        if (!t || !t.id || seen[t.id]) continue;
+        seen[t.id] = true;
+        const who = t.id === youId ? " (you)" : " (on the pitch)";
+        opts.push({ v: t.id, label: (t.name || t.id) + who + mark(t.id) });
+      }
+    }
+    if (typeof TEAM_LIST !== "undefined") {
+      for (const t of TEAM_LIST) {
+        if (seen[t.id]) continue;
+        seen[t.id] = true;
+        opts.push({ v: t.id, label: t.name + mark(t.id) });
+      }
+    }
+    if (!seen.custom && typeof customTeam === "function" && typeof settings !== "undefined" && settings && settings.custom) {
+      const C = customTeam(settings.custom);
+      opts.push({ v: "custom", label: (C.name || "My Team") + " (custom)" + mark("custom") });
+    }
+    const keep = sel.value || youId;
+    sel.innerHTML = opts.map((o) => "<option value='" + o.v + "'>" + String(o.label).replace(/</g, "") + "</option>").join("");
+    if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
+  }
+  function clearSavedTeam100() {
+    if (typeof loadTeam100 !== "function" || typeof setTeam100Saved !== "function") return;
+    for (const id of Object.keys(loadTeam100())) setTeam100Saved(id, false);
+  }
+  function afterTeamChange() {
+    if (typeof renderMenu === "function") renderMenu();
+    if (typeof paintSquad === "function") paintSquad();
+    const blue = document.getElementById("blueTeamSel");
+    const red = document.getElementById("redTeamSel");
+    if (blue) blue.innerHTML = "";
+    if (red) red.innerHTML = "";
+    if (typeof renderLobby === "function" && (blue || red)) {
+      try { renderLobby(); } catch (e) { /* lobby is not open */ }
+    }
+  }
+  function teamOnPitch(id) {
+    const s = liveSim();
+    if (!s || !s.roster || !s.game || !s.game.teams) return false;
+    return s.roster.some((p) => s.game.teams[p.team] && s.game.teams[p.team].id === id);
   }
 
   panel.addEventListener("click", (e) => {
@@ -4957,8 +5102,10 @@ window.mpDebug = {
     if (btn.dataset && btn.dataset.size) { applyPreset(btn.dataset.size); return; }
     if (btn.id === "adminPlace") { resetPlace(); return; }
     if (btn.id === "adminLock") {
+      clearSavedTeam100();
       const s = liveSim();
       if (s && s.admin) s.admin("reset");
+      afterTeamChange();
       setUnlocked(false);
       hidePanel();
       debug.hidden = true;
@@ -4981,7 +5128,43 @@ window.mpDebug = {
       run("rate", document.getElementById("adminPlayer").value);
       return;
     }
-    if (btn.id === "adminReset") { run("reset"); return; }
+    if (btn.id === "adminTeam100" || btn.id === "adminTeamUndo") {
+      const note = document.getElementById("adminNote");
+      if (!unlocked() || guestBlocked()) {
+        if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "Unlock the helpers first.";
+        return;
+      }
+      const id = document.getElementById("adminTeam").value;
+      const save = document.getElementById("adminTeamKeep").checked;
+      if (!id) return;
+      if (btn.id === "adminTeam100") {
+        const onPitch = teamOnPitch(id);
+        if (!onPitch && !save) {
+          if (note) note.textContent = "That team is not in this match. Tick Save on this device.";
+          return;
+        }
+        if (save && typeof setTeam100Saved === "function") setTeam100Saved(id, true);
+        if (onPitch) run("team100", { id: id });
+        if (note) note.textContent = save
+          ? (onPitch ? "Whole team is 100, saved on this device." : "Saved on this device. They are 100 next time you play them.")
+          : "Whole team is 100 for this match.";
+      } else {
+        if (typeof setTeam100Saved === "function") setTeam100Saved(id, false);
+        if (liveSim()) run("teamundo", { id: id });
+        if (note) note.textContent = "That team is back to its own stats.";
+      }
+      afterTeamChange();
+      fillTeamSelect();
+      return;
+    }
+    if (btn.id === "adminReset") {
+      clearSavedTeam100();
+      run("reset");
+      afterTeamChange();
+      const note = document.getElementById("adminNote");
+      if (note && !guestBlocked()) note.textContent = "Everything is back, including team 100.";
+      return;
+    }
     const flag = btn.getAttribute("data-flag");
     if (flag) {
       const s = liveSim();
