@@ -214,8 +214,15 @@ joyZone.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   noteFpFollow(myId);
   if (game.phase === "goal") sendMsg({ t: "press", a: "skip" });
-  touch.pointerId = e.pointerId; touch.baseX = e.clientX; touch.baseY = e.clientY;
-  joyBase.style.left = (e.clientX - 65) + "px"; joyBase.style.top = (e.clientY - 65) + "px"; joyBase.style.bottom = "auto";
+  touch.pointerId = e.pointerId;
+  const fixed = typeof opt === "function" && opt("joyMode") === "fixed";
+  if (fixed) {
+    const r = joyBase.getBoundingClientRect();
+    touch.baseX = r.left + r.width / 2; touch.baseY = r.top + r.height / 2;
+  } else {
+    touch.baseX = e.clientX; touch.baseY = e.clientY;
+    joyBase.style.left = (e.clientX - 65) + "px"; joyBase.style.top = (e.clientY - 65) + "px"; joyBase.style.bottom = "auto";
+  }
   try { joyZone.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
   updateJoystick(e);
 });
@@ -232,14 +239,20 @@ function updateJoystick(e) {
   let dx = e.clientX - touch.baseX, dy = e.clientY - touch.baseY;
   const len = Math.hypot(dx, dy);
   if (len > JOY_MAX) { dx = dx / len * JOY_MAX; dy = dy / len * JOY_MAX; }
-  touch.x = dx / JOY_MAX; touch.y = dy / JOY_MAX;
-  if (Math.hypot(touch.x, touch.y) < 0.15) { touch.x = 0; touch.y = 0; }
+  const filtered = typeof joyFiltered === "function" ? joyFiltered(dx, dy, JOY_MAX) : { x: dx / JOY_MAX, y: dy / JOY_MAX };
+  touch.x = filtered.x; touch.y = filtered.y;
   joyKnob.style.transform = "translate(" + dx + "px," + dy + "px)";
 }
 for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprintBtn", "sprint"], ["skillBtn", "skill"]]) {
   const el = $(id);
   el.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    if (action === "sprint" && typeof opt === "function" && opt("sprintMode") === "toggle") {
+      touch.sprintLatch = !touch.sprintLatch;
+      el.classList.toggle("pressed", !!touch.sprintLatch);
+      sendInput(true);
+      return;
+    }
     touch[action] = true; el.classList.add("pressed");
     try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
     noteFpFollow(myId);
@@ -292,7 +305,8 @@ function sendInput(force) {
   if (!mx && !my && (touch.x || touch.y)) { mx = touch.x; my = touch.y; }
   const stick = cameraStick(mx, my);
   mx = stick.mx; my = stick.my;
-  const msg = { t: "input", mx: Math.round(mx * 100) / 100, my: Math.round(my * 100) / 100, sprint: held("sprint"), shoot: held("shoot"), pass: held("pass") };
+  const sprint = (typeof opt === "function" && opt("sprintMode") === "toggle") ? !!touch.sprintLatch : held("sprint");
+  const msg = { t: "input", mx: Math.round(mx * 100) / 100, my: Math.round(my * 100) / 100, sprint: sprint, shoot: held("shoot"), pass: held("pass") };
   const str = JSON.stringify(msg);
   const now = performance.now();
   if (str !== lastInput || now - lastInputAt > 100 || force) {
