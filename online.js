@@ -4116,12 +4116,12 @@ window.mpDebug = {
     }
     #adminPrompt, #adminPanel {
       position: fixed; z-index: 90;
-      width: min(440px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right)));
       background: rgba(8, 16, 28, .97); border: 2px solid #e8c547; border-radius: 16px;
       box-shadow: 0 16px 40px rgba(0,0,0,.55); box-sizing: border-box;
     }
     #adminPrompt {
       left: 50%; top: 18vh; transform: translateX(-50%);
+      width: min(440px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right)));
       padding: 16px; text-align: center;
     }
     #adminPrompt h2 { margin: 0 0 8px; font-size: 22px; }
@@ -4133,9 +4133,9 @@ window.mpDebug = {
     #adminWrong { min-height: 1.2em; color: #ffb4b4; font-weight: 700; }
     #adminPanel {
       z-index: 80; left: 0; top: 0; margin: 0;
-      max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 12px);
+      width: 420px; height: 520px;
       display: flex; flex-direction: column; overflow: hidden; padding: 0;
-      touch-action: manipulation;
+      touch-action: manipulation; font-size: 15px;
     }
     #adminPanel[hidden], #adminBubble[hidden], #adminShield[hidden] { display: none !important; }
     #adminBar {
@@ -4147,7 +4147,20 @@ window.mpDebug = {
       cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
     }
     #adminPanel.adminDragging #adminBar, #adminBubble.adminDragging { cursor: grabbing; }
-    #adminBar h2 { flex: 1; margin: 0; font-size: 18px; text-align: left; line-height: 1.2; }
+    #adminBar h2 {
+      flex: 1; margin: 0; min-width: 0; font-size: 1.15em; text-align: left; line-height: 1.2;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .adminSizes { display: flex; flex: 0 0 auto; gap: 2px; }
+    .adminSizes button {
+      min-width: 40px; min-height: 44px; margin: 0; padding: 0 6px;
+      font-size: 15px; line-height: 1;
+    }
+    .adminSizes button.on { background: #e6b325; color: #1a1404; border-color: #ffe27a; }
+    #adminPanel[data-fit="s"] #adminBar { flex-wrap: wrap; row-gap: 2px; }
+    #adminPanel[data-fit="s"] #adminBar h2 { order: 1; }
+    #adminPanel[data-fit="s"] #adminMin { order: 2; }
+    #adminPanel[data-fit="s"] .adminSizes { order: 3; flex: 1 0 100%; justify-content: flex-end; }
     .adminGrip {
       width: 18px; height: 22px; display: grid; grid-template-columns: 4px 4px;
       grid-auto-rows: 4px; gap: 3px 4px; align-content: center; flex: 0 0 auto;
@@ -4159,15 +4172,34 @@ window.mpDebug = {
     }
     #adminBody {
       overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y;
-      padding: 8px 12px 12px; overscroll-behavior: contain;
+      padding: 8px 14px 22px; overscroll-behavior: contain; min-height: 0;
     }
     #adminPanel button, #adminPrompt button, #adminBubble {
-      font: inherit; font-weight: 700; min-height: 44px; margin: 3px; padding: 8px 10px;
+      font: inherit; font-weight: 700; min-height: var(--admin-hit, 44px); margin: 3px; padding: 8px 10px;
       border-radius: 10px; border: 1px solid rgba(255,255,255,.35);
       background: #1d4e34; color: #fff; cursor: pointer; touch-action: manipulation;
     }
     #adminPanel button.on { background: #e6b325; color: #1a1404; border-color: #ffe27a; }
-    #adminPanel .grid { display: flex; flex-wrap: wrap; justify-content: center; }
+    #adminPanel .grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.4em), 1fr));
+      gap: 6px; justify-content: stretch;
+    }
+    #adminPanel .grid button { margin: 0; width: 100%; }
+    #adminPanel .row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; }
+    #adminPanel[data-fit="s"] .row label { font-size: 0.92em; }
+    #adminPanel #adminResize {
+      position: absolute; right: 0; bottom: 0; z-index: 2;
+      width: 44px; height: 44px; min-width: 44px; min-height: 44px; margin: 0; padding: 0;
+      border: 0; border-radius: 0 0 14px 0; background: transparent; color: transparent;
+      cursor: nwse-resize; touch-action: none;
+    }
+    #adminResize::after {
+      content: ""; position: absolute; right: 7px; bottom: 7px; width: 16px; height: 16px;
+      background:
+        linear-gradient(135deg, transparent 0 45%, #e8c547 45% 58%, transparent 58% 68%, #e8c547 68% 80%, transparent 80%);
+      pointer-events: none;
+    }
+    #adminPanel.adminResizing #adminResize { cursor: nwse-resize; }
     #adminPanel input[type=number] {
       font: inherit; font-size: 16px; width: 64px; padding: 8px; border-radius: 8px; border: 1px solid #fff;
     }
@@ -4192,6 +4224,9 @@ window.mpDebug = {
     }
     #adminBubble { box-sizing: border-box; margin: 0; padding: 0; }
     #adminMin { margin: 0; }
+    #adminPanel .adminSizes button, #adminPanel #adminMin {
+      min-width: 40px; min-height: 44px; margin: 0;
+    }
   `;
   document.head.appendChild(style);
 
@@ -4209,6 +4244,11 @@ window.mpDebug = {
     <div id="adminBar">
       <span class="adminGrip" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
       <h2>Game helpers</h2>
+      <div class="adminSizes" role="group" aria-label="Panel size">
+        <button type="button" data-size="s" aria-label="Small">S</button>
+        <button type="button" data-size="m" aria-label="Medium">M</button>
+        <button type="button" data-size="l" aria-label="Large">L</button>
+      </div>
       <button type="button" id="adminMin" aria-label="Collapse helpers">–</button>
     </div>
     <div id="adminBody">
@@ -4249,10 +4289,11 @@ window.mpDebug = {
     </div>
     <div class="row">
       <button type="button" id="adminReset">Put everything back</button>
-      <button type="button" id="adminPlace">Reset position</button>
+      <button type="button" id="adminPlace" title="Reset position and size">Reset position</button>
       <button type="button" id="adminLock">Lock</button>
     </div>
     </div>
+    <button type="button" id="adminResize" aria-label="Resize helpers"></button>
   </div>`);
   const bubble = el(`<button type="button" id="adminBubble" hidden aria-label="Open game helpers"><span class="adminGrip" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></button>`);
   const shield = el(`<div id="adminShield" hidden></div>`);
@@ -4298,7 +4339,11 @@ window.mpDebug = {
       const raw = JSON.parse(localStorage.getItem(PLACE_KEY) || "null");
       if (!raw || typeof raw !== "object") return null;
       if (!isFinite(raw.x) || !isFinite(raw.y)) return null;
-      return { x: Number(raw.x), y: Number(raw.y), collapsed: !!raw.collapsed };
+      return {
+        x: Number(raw.x), y: Number(raw.y), collapsed: !!raw.collapsed,
+        w: isFinite(raw.w) ? Number(raw.w) : 0,
+        h: isFinite(raw.h) ? Number(raw.h) : 0,
+      };
     } catch (e) { return null; }
   }
   function place(el, x, y) {
@@ -4326,14 +4371,84 @@ window.mpDebug = {
     if (kind === "bubble") return clampPos(b.right - w - 8, b.top + 60, el);
     return clampPos(b.left + Math.max(0, (b.right - b.left - w) / 2), b.bottom - h - 8, el);
   }
+  const MIN_W = 240;
+  const MIN_H = 220;
+  function isPhone() {
+    const b = viewportBox();
+    const vw = b.right - b.left;
+    const coarse = window.matchMedia && matchMedia("(pointer: coarse)").matches;
+    return vw < 700 || (coarse && vw < 900);
+  }
+  function viewportMax() {
+    const b = viewportBox();
+    return {
+      w: Math.max(MIN_W, b.right - b.left),
+      h: Math.max(MIN_H, b.bottom - b.top),
+    };
+  }
+  // fixed:true stops the size at the screen edge from the panel's current corner,
+  // so dragging the grip never slides the panel.
+  function clampSize(w, h, fixed) {
+    const cap = viewportMax();
+    let maxW = cap.w, maxH = cap.h;
+    if (fixed) {
+      const b = viewportBox();
+      const left = parseFloat(panel.style.left);
+      const top = parseFloat(panel.style.top);
+      if (isFinite(left)) maxW = Math.max(MIN_W, b.right - left);
+      if (isFinite(top)) maxH = Math.max(MIN_H, b.bottom - top);
+    }
+    return {
+      w: Math.round(Math.min(Math.max(MIN_W, w), maxW)),
+      h: Math.round(Math.min(Math.max(MIN_H, h), maxH)),
+    };
+  }
+  function defaultSize() {
+    const cap = viewportMax();
+    if (isPhone()) return clampSize(Math.min(300, cap.w), Math.min(420, Math.round(cap.h * 0.62)));
+    return clampSize(Math.min(440, cap.w), Math.min(560, Math.round(cap.h * 0.72)));
+  }
+  function presetSize(which) {
+    const phone = isPhone();
+    const table = phone
+      ? { s: { w: 260, h: 340 }, m: { w: 320, h: 500 }, l: { w: 520, h: 700 } }
+      : { s: { w: 300, h: 380 }, m: { w: 440, h: 560 }, l: { w: 700, h: 740 } };
+    const t = table[which] || table.m;
+    return clampSize(t.w, t.h);
+  }
+  function markPreset(w, h) {
+    const buttons = panel.querySelectorAll(".adminSizes button");
+    let best = null, bestD = 36;
+    buttons.forEach((btn) => {
+      const s = presetSize(btn.dataset.size);
+      const d = Math.hypot(s.w - w, s.h - h);
+      btn.classList.remove("on");
+      if (d < bestD) { bestD = d; best = btn; }
+    });
+    if (best) best.classList.add("on");
+  }
+  function applySize(w, h, fixed) {
+    const s = clampSize(w, h, fixed);
+    panel.style.width = s.w + "px";
+    panel.style.height = s.h + "px";
+    const font = Math.round(Math.min(18, Math.max(13, 8 + s.w / 46)));
+    panel.style.fontSize = font + "px";
+    panel.style.setProperty("--admin-hit", (s.w < 320 ? 40 : 44) + "px");
+    panel.dataset.fit = s.w < 340 ? "s" : (s.w >= 520 ? "l" : "m");
+    markPreset(s.w, s.h);
+    return s;
+  }
   function savePlace() {
     const el = bubble.hidden ? panel : bubble;
     if (el.hidden) return;
+    const prev = (() => { try { return JSON.parse(localStorage.getItem(PLACE_KEY) || "null") || {}; } catch (e) { return {}; } })();
     try {
       localStorage.setItem(PLACE_KEY, JSON.stringify({
         x: Math.round(parseFloat(el.style.left) || 0),
         y: Math.round(parseFloat(el.style.top) || 0),
         collapsed: !bubble.hidden,
+        w: Math.round(parseFloat(panel.style.width) || prev.w || 0),
+        h: Math.round(parseFloat(panel.style.height) || prev.h || 0),
       }));
     } catch (e) { /* private mode */ }
   }
@@ -4344,7 +4459,16 @@ window.mpDebug = {
   function showPanelAt(x, y) {
     bubble.hidden = true;
     panel.hidden = false;
+    const saved = loadPlace();
+    if (saved && saved.w >= MIN_W && saved.h >= MIN_H) applySize(saved.w, saved.h);
+    else { const d = defaultSize(); applySize(d.w, d.h); }
     put(panel, x, y, "panel");
+    // Growing may have been clamped to the old corner. Pull it back on screen.
+    const fitted = clampSize(panel.offsetWidth, panel.offsetHeight);
+    applySize(fitted.w, fitted.h);
+    const left = parseFloat(panel.style.left);
+    const top = parseFloat(panel.style.top);
+    put(panel, isFinite(left) ? left : x, isFinite(top) ? top : y, "panel");
     refreshPanel();
   }
   function showBubbleAt(x, y) {
@@ -4374,9 +4498,23 @@ window.mpDebug = {
     savePlace();
   }
   function keepInside() {
-    const el = !panel.hidden ? panel : (!bubble.hidden ? bubble : null);
-    if (!el) return;
-    put(el, parseFloat(el.style.left) || 0, parseFloat(el.style.top) || 0, el === bubble ? "bubble" : "panel");
+    if (!panel.hidden) {
+      const fitted = clampSize(panel.offsetWidth, panel.offsetHeight);
+      applySize(fitted.w, fitted.h);
+      put(panel, parseFloat(panel.style.left) || 0, parseFloat(panel.style.top) || 0, "panel");
+      savePlace();
+      return;
+    }
+    if (!bubble.hidden) {
+      put(bubble, parseFloat(bubble.style.left) || 0, parseFloat(bubble.style.top) || 0, "bubble");
+      savePlace();
+    }
+  }
+  function applyPreset(which) {
+    const s = presetSize(which);
+    applySize(s.w, s.h);
+    const p = clampPos(parseFloat(panel.style.left) || 0, parseFloat(panel.style.top) || 0, panel);
+    place(panel, p.x, p.y);
     savePlace();
   }
   function eatNextClick() {
@@ -4439,8 +4577,51 @@ window.mpDebug = {
       collapsePanel();
     } else shield.hidden = true;
   }
+  let resizeDrag = null;
+  const resizeBtn = document.getElementById("adminResize");
+  function endResize(e) {
+    if (!resizeDrag || (e && e.pointerId !== resizeDrag.id)) return;
+    const moved = resizeDrag.moved;
+    resizeDrag = null;
+    panel.classList.remove("adminResizing");
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    if (moved) { eatNextClick(); savePlace(); }
+    else shield.hidden = true;
+  }
+  resizeBtn.addEventListener("pointerdown", (e) => {
+    if (e.button != null && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = panel.getBoundingClientRect();
+    resizeDrag = {
+      id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false,
+      w: rect.width, h: rect.height,
+      left: parseFloat(panel.style.left) || rect.left,
+      top: parseFloat(panel.style.top) || rect.top,
+    };
+    shield.hidden = false;
+    panel.classList.add("adminResizing");
+    try { resizeBtn.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  });
+  resizeBtn.addEventListener("pointermove", (e) => {
+    if (!resizeDrag || e.pointerId !== resizeDrag.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!resizeDrag.moved && Math.hypot(e.clientX - resizeDrag.x0, e.clientY - resizeDrag.y0) >= DRAG_SLOP) resizeDrag.moved = true;
+    if (!resizeDrag.moved) return;
+    const s = clampSize(resizeDrag.w + (e.clientX - resizeDrag.x0), resizeDrag.h + (e.clientY - resizeDrag.y0), true);
+    applySize(s.w, s.h, true);
+    place(panel, resizeDrag.left, resizeDrag.top);
+  });
+  resizeBtn.addEventListener("pointerup", endResize);
+  resizeBtn.addEventListener("pointercancel", endResize);
+  resizeBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+
   const bar = document.getElementById("adminBar");
-  bar.addEventListener("pointerdown", (e) => beginDrag(bar, e));
+  bar.addEventListener("pointerdown", (e) => {
+    if (e.target && e.target.closest && e.target.closest(".adminSizes")) return;
+    beginDrag(bar, e);
+  });
   bar.addEventListener("pointermove", moveDrag);
   bar.addEventListener("pointerup", endDrag);
   bar.addEventListener("pointercancel", endDrag);
@@ -4593,6 +4774,8 @@ window.mpDebug = {
     const btn = e.target.closest("button");
     if (!btn || !panel.contains(btn)) return;
     if (btn.id === "adminMin") { collapsePanel(); return; }
+    if (btn.id === "adminResize") return;
+    if (btn.dataset && btn.dataset.size) { applyPreset(btn.dataset.size); return; }
     if (btn.id === "adminPlace") { resetPlace(); return; }
     if (btn.id === "adminLock") {
       const s = liveSim();
