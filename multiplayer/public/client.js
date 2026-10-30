@@ -4391,6 +4391,13 @@ window.mpDebug = {
     #adminPanel .team100 select { min-height: 44px; width: 100%; max-width: 100%; }
     #adminPanel .team100 .keep, #adminPanel .hint { font-size: 14px; line-height: 1.3; }
     #adminPanel .hint { opacity: .85; flex: 1 0 100%; text-align: center; }
+    #adminCup { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .45); }
+    #adminCup[hidden] { display: none !important; }
+    #adminCup h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
+    #adminCupState { margin: 0 0 6px; text-align: center; font-size: 13px; line-height: 1.35; color: #ffd27a; }
+    #adminCup select { min-height: 44px; max-width: 100%; }
+    #adminCup input[type=number] { width: 58px; }
+    #adminPanel[data-fit="s"] #adminCup .grid { grid-template-columns: 1fr; }
     #adminPanel #adminResize {
       position: absolute; right: 0; bottom: 0; z-index: 2;
       width: 44px; height: 44px; min-width: 44px; min-height: 44px; margin: 0; padding: 0;
@@ -4498,6 +4505,42 @@ window.mpDebug = {
       <span class="hint">Leave unticked for this match only.</span>
       <button type="button" id="adminTeam100">Make whole team 100</button>
       <button type="button" id="adminTeamUndo">Undo team 100</button>
+    </div>
+    <div id="adminCup" hidden>
+      <h3>Cup</h3>
+      <p id="adminCupState"></p>
+      <div class="row">
+        <button type="button" id="adminCupStart">Start a new cup</button>
+        <button type="button" id="adminCupRestart">Restart cup</button>
+        <button type="button" id="adminCupUndo">Undo last cup change</button>
+      </div>
+      <div class="row">
+        <label>I play as <select id="adminCupMe" aria-label="Team you play as in the cup"></select></label>
+        <button type="button" id="adminCupMeGo">Play as this team</button>
+      </div>
+      <div class="row">
+        <label>Send <select id="adminCupSend" aria-label="Team to send through the cup"></select></label>
+      </div>
+      <div class="grid">
+        <button type="button" data-cup-send="0">Send to Quarterfinal</button>
+        <button type="button" data-cup-send="1">Send to Semifinal</button>
+        <button type="button" data-cup-send="2">Send to Final</button>
+      </div>
+      <div class="grid">
+        <button type="button" id="adminCupWin">Win this match</button>
+        <button type="button" id="adminCupSkip">Skip to next round</button>
+      </div>
+      <div class="row">
+        <label>Match <select id="adminCupMatch" aria-label="Bracket match"></select></label>
+        <label>Winner <select id="adminCupWinner" aria-label="Who wins this match"></select></label>
+        <label>Score <input id="adminCupScoreA" type="number" min="0" max="30" aria-label="Goals for the first team"> - <input id="adminCupScoreB" type="number" min="0" max="30" aria-label="Goals for the second team"></label>
+        <button type="button" id="adminCupResult">Set this result</button>
+      </div>
+      <div class="row">
+        <label>Final <select id="adminCupFinalA" aria-label="First finalist"></select></label>
+        <label>vs <select id="adminCupFinalB" aria-label="Second finalist"></select></label>
+        <button type="button" id="adminCupFinal">Jump to Final</button>
+      </div>
     </div>
     <div class="row">
       <button type="button" id="adminReset">Put everything back</button>
@@ -5001,6 +5044,7 @@ window.mpDebug = {
     const s = liveSim();
     const note = document.getElementById("adminNote");
     fillTeamSelect();
+    fillCupPanel();
     markAdminScroll();
     if (!s || !s.admin) {
       if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "";
@@ -5029,6 +5073,7 @@ window.mpDebug = {
       sel.appendChild(o);
     });
     if (keep) sel.value = keep;
+    fillCupPanel();
     markAdminScroll();
   }
   function fillTeamSelect() {
@@ -5081,6 +5126,81 @@ window.mpDebug = {
     if (typeof renderLobby === "function" && (blue || red)) {
       try { renderLobby(); } catch (e) { /* lobby is not open */ }
     }
+  }
+  function cupReady() {
+    const note = document.getElementById("adminNote");
+    if (!unlocked()) {
+      if (note) note.textContent = "Unlock the helpers first.";
+      return false;
+    }
+    if (guestBlocked()) {
+      if (note) note.textContent = "Only the host can use these in an online game.";
+      return false;
+    }
+    if (typeof cupAdmin !== "function") {
+      if (note) note.textContent = "Cups stay on this device.";
+      return false;
+    }
+    return true;
+  }
+  function optHtml(list, valueKey, labelKey) {
+    return list.map((o) => "<option value='" + String(o[valueKey]).replace(/'/g, "") + "'>" + String(o[labelKey]).replace(/</g, "") + "</option>").join("");
+  }
+  function keepSelect(sel, html, prefer) {
+    if (!sel) return;
+    const prev = sel.value || prefer || "";
+    sel.innerHTML = html;
+    if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
+    else if (sel.options.length) sel.selectedIndex = 0;
+  }
+  function fillCupWinners() {
+    const match = document.getElementById("adminCupMatch");
+    const winner = document.getElementById("adminCupWinner");
+    if (!match || !winner) return;
+    const opt = match.selectedOptions && match.selectedOptions[0];
+    const aId = opt && opt.dataset.aId;
+    const bId = opt && opt.dataset.bId;
+    const aName = opt && opt.dataset.aName;
+    const bName = opt && opt.dataset.bName;
+    const prev = winner.value;
+    if (!aId || !bId) { winner.innerHTML = ""; return; }
+    winner.innerHTML = "<option value='" + aId + "'>" + String(aName).replace(/</g, "") + "</option><option value='" + bId + "'>" + String(bName).replace(/</g, "") + "</option>";
+    if (prev === bId) winner.value = bId;
+  }
+  function fillCupPanel() {
+    const box = document.getElementById("adminCup");
+    if (!box) return;
+    const offline = typeof cupAdmin === "function";
+    box.hidden = !offline;
+    if (!offline) return;
+    let state = { active: false, teams: [], matches: [], status: "No cup yet.", youId: "", canUndo: false };
+    try { state = cupAdmin("state") || state; } catch (e) { /* cup is offline only */ }
+    const status = document.getElementById("adminCupState");
+    if (status) status.textContent = state.status || "";
+    const teams = state.teams || [];
+    const teamHtml = optHtml(teams, "id", "name");
+    keepSelect(document.getElementById("adminCupMe"), teamHtml, state.youId);
+    keepSelect(document.getElementById("adminCupSend"), teamHtml, state.youId);
+    keepSelect(document.getElementById("adminCupFinalA"), teamHtml, state.youId);
+    const other = teams.find((t) => t.id !== (document.getElementById("adminCupFinalA") || {}).value);
+    keepSelect(document.getElementById("adminCupFinalB"), teamHtml, other && other.id);
+    const matchHtml = (state.matches || []).map((m) => "<option value='" + m.key + "' data-a-id='" + m.aId + "' data-b-id='" + m.bId + "' data-a-name='" + String(m.aName).replace(/'/g, "") + "' data-b-name='" + String(m.bName).replace(/'/g, "") + "'>" + String(m.label).replace(/</g, "") + "</option>").join("");
+    keepSelect(document.getElementById("adminCupMatch"), matchHtml, "");
+    fillCupWinners();
+    const start = document.getElementById("adminCupStart");
+    const restart = document.getElementById("adminCupRestart");
+    if (start) start.hidden = !!state.active;
+    if (restart) restart.hidden = !state.active;
+    markAdminScroll();
+  }
+  function runCup(action, arg) {
+    if (!cupReady()) return;
+    let state = null;
+    try { state = cupAdmin(action, arg || {}); } catch (e) { state = { note: "That cup change did not work." }; }
+    const note = document.getElementById("adminNote");
+    if (note && state && state.note) note.textContent = state.note;
+    fillCupPanel();
+    markAdminScroll();
   }
   function teamOnPitch(id) {
     const s = liveSim();
@@ -5157,6 +5277,30 @@ window.mpDebug = {
       fillTeamSelect();
       return;
     }
+    if (btn.dataset && btn.dataset.cupSend != null) {
+      runCup("send", { id: document.getElementById("adminCupSend").value, round: Number(btn.dataset.cupSend) });
+      return;
+    }
+    if (btn.id === "adminCupStart") { runCup("start"); return; }
+    if (btn.id === "adminCupRestart") { runCup("restart"); return; }
+    if (btn.id === "adminCupUndo") { runCup("undo"); return; }
+    if (btn.id === "adminCupMeGo") { runCup("me", { id: document.getElementById("adminCupMe").value }); return; }
+    if (btn.id === "adminCupWin") { runCup("win"); return; }
+    if (btn.id === "adminCupSkip") { runCup("skip"); return; }
+    if (btn.id === "adminCupResult") {
+      const parts = (document.getElementById("adminCupMatch").value || "").split(":");
+      runCup("result", {
+        round: Number(parts[0]), index: Number(parts[1]),
+        winner: document.getElementById("adminCupWinner").value,
+        sa: document.getElementById("adminCupScoreA").value,
+        sb: document.getElementById("adminCupScoreB").value,
+      });
+      return;
+    }
+    if (btn.id === "adminCupFinal") {
+      runCup("final", { a: document.getElementById("adminCupFinalA").value, b: document.getElementById("adminCupFinalB").value });
+      return;
+    }
     if (btn.id === "adminReset") {
       clearSavedTeam100();
       run("reset");
@@ -5177,6 +5321,8 @@ window.mpDebug = {
     else if (act === "time") run("time", Number(btn.getAttribute("data-n")));
     else if (act) run(act);
   });
+  const cupMatchSel = document.getElementById("adminCupMatch");
+  if (cupMatchSel) cupMatchSel.addEventListener("change", fillCupWinners);
 
   let frames = 0, fpsStamp = performance.now(), fps = 0;
   function debugTick() {

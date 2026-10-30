@@ -465,7 +465,7 @@ function orient(spec, landscape) {
     await swPage.waitForFunction(() => window.pwaStatus && (window.pwaStatus.sw === "ready" || window.pwaStatus.sw === "failed"), null, { timeout: 15000 });
     const keys = await swPage.evaluate(async () => { const k = await caches.keys(); return k; });
     console.log("service worker caches", keys.join(","));
-    if (!keys.some((k) => k.indexOf("stadium-soccer-pages-v29") >= 0)) fail("service worker cache was not bumped: " + keys.join(","));
+    if (!keys.some((k) => k.indexOf("stadium-soccer-pages-v30") >= 0)) fail("service worker cache was not bumped: " + keys.join(","));
     await swPage.ctx.close();
   } catch (err) {
     fail("test crashed: " + (err && err.stack ? err.stack : err));

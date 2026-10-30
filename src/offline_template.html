@@ -290,8 +290,8 @@
   .customBox input[type=text] { font: inherit; font-size: 16px; padding: 8px; border-radius: 8px; border: 0; width: 150px; touch-action: manipulation; }
   .customBox input[type=color] { width: 44px; height: 30px; border: 0; padding: 0; vertical-align: middle; background: none; }
   .customBox label { margin: 0 6px; font-size: 13px; }
-  #bracket { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 8px 0; }
-  #bracket .col { display: flex; flex-direction: column; gap: 10px; justify-content: space-around; min-width: 170px; }
+  #bracket { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+  #bracket .col { display: flex; flex-direction: column; gap: 10px; justify-content: space-around; min-width: min(170px, 100%); flex: 1 1 150px; }
   .cm { background: rgba(0,0,0,.35); border-radius: 8px; padding: 4px 6px; text-align: left; border: 2px solid transparent; min-width: 0; max-width: 100%; box-sizing: border-box; }
   .cm.mine { border-color: #ffd33d; }
   .cm.tbd { text-align: center; opacity: .5; padding: 14px; }
