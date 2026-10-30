@@ -314,8 +314,8 @@
   .customBox input[type=text] { font: inherit; font-size: 16px; padding: 8px; border-radius: 8px; border: 0; width: 150px; touch-action: manipulation; }
   .customBox input[type=color] { width: 44px; height: 30px; border: 0; padding: 0; vertical-align: middle; background: none; }
   .customBox label { margin: 0 6px; font-size: 13px; }
-  #bracket { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 8px 0; }
-  #bracket .col { display: flex; flex-direction: column; gap: 10px; justify-content: space-around; min-width: 170px; }
+  #bracket { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+  #bracket .col { display: flex; flex-direction: column; gap: 10px; justify-content: space-around; min-width: min(170px, 100%); flex: 1 1 150px; }
   .cm { background: rgba(0,0,0,.35); border-radius: 8px; padding: 4px 6px; text-align: left; border: 2px solid transparent; min-width: 0; max-width: 100%; box-sizing: border-box; }
   .cm.mine { border-color: #ffd33d; }
   .cm.tbd { text-align: center; opacity: .5; padding: 14px; }
@@ -8472,11 +8472,24 @@ $("continueCupBtn").addEventListener("click", () => { cup = loadCup(); if (cup) 
 const CUP_ROUND_NAMES = ["Quarter-final", "Semi-final", "Final"];
 let cup = null;
 function loadCup() { try { return JSON.parse(localStorage.getItem("soccerCup") || "null"); } catch (e) { return null; } }
-function saveCup() { try { localStorage.setItem("soccerCup", JSON.stringify(cup)); } catch (e) { /* ignore */ } }
+function saveCup() {
+  try {
+    if (!cup) localStorage.removeItem("soccerCup");
+    else localStorage.setItem("soccerCup", JSON.stringify(cup));
+  } catch (e) { /* ignore */ }
+}
+const cupUndo = [];
+function rememberCup() {
+  try {
+    cupUndo.push(cup ? JSON.parse(JSON.stringify(cup)) : null);
+    if (cupUndo.length > 25) cupUndo.shift();
+  } catch (e) { /* ignore */ }
+}
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
 // A new cup: your team + 7 random others. teams[0] is always you.
 function newCup() {
+  rememberCup();
   const mine = teamDef(settings.blue);
   const others = shuffle(TEAM_LIST.filter((t) => t.id !== mine.id)).slice(0, 7);
   const teams = [mine, ...others];
@@ -8488,7 +8501,7 @@ function newCup() {
   saveCup();
   showCup();
 }
-const myCupMatch = () => cup.rounds[cup.round].find((m) => m.a === 0 || m.b === 0) || null;
+const myCupMatch = () => (cup && cup.rounds[cup.round] && cup.rounds[cup.round].find((m) => m.a === 0 || m.b === 0)) || null;
 
 // Results of computer vs computer matches (better rating = better chance)
 function simulateCupMatch(m) {
@@ -8578,6 +8591,362 @@ $("cupNewBtn").addEventListener("click", newCup);
 $("cupTrophyBtn").addEventListener("click", showTrophy);
 $("trophyMenuBtn").addEventListener("click", goToMenu);
 $("trophyCupBtn").addEventListener("click", () => showCup());
+
+// Helpers for the hidden panel. Every change is one undo step, saved on this device.
+function blankTie(a, b) {
+  return { a: a, b: b, sa: null, sb: null, pens: null, winner: null };
+}
+function resolveCupTeam(id) {
+  if (!id) return null;
+  if (id === "custom" && typeof customTeam === "function" && typeof settings !== "undefined") return customTeam(settings.custom);
+  return (typeof findTeam === "function" && findTeam(id)) || null;
+}
+function cupStrength(idx) {
+  const t = cup.teams[idx];
+  if (!t) return 0;
+  if (typeof teamShows100 === "function" && teamShows100(t.id)) return 9;
+  return t.rating || 3;
+}
+function favored(i, j) {
+  const d = cupStrength(i) - cupStrength(j);
+  if (d !== 0) return d > 0 ? i : j;
+  return i < j ? i : j;
+}
+function award(m, winner) {
+  m.winner = winner;
+  const home = winner === m.a;
+  m.sa = home ? 2 : 0;
+  m.sb = home ? 0 : 2;
+  m.pens = null;
+}
+function cupIds(extra) {
+  const ids = [];
+  const add = (id) => { if (id && ids.indexOf(id) < 0 && resolveCupTeam(id)) ids.push(id); };
+  (extra || []).forEach(add);
+  if (cup && cup.teams) cup.teams.forEach((t) => add(t.id));
+  if (typeof settings !== "undefined" && settings.blue) add(settings.blue);
+  if (typeof TEAM_LIST !== "undefined") TEAM_LIST.forEach((t) => add(t.id));
+  return ids.slice(0, 8).map((id) => resolveCupTeam(id));
+}
+function freshCup(teams) {
+  return {
+    teams: teams, rounds: [[], [], []], round: 0, over: false, champion: null, out: false,
+    difficulty: (typeof settings !== "undefined" && settings.difficulty) || "normal",
+  };
+}
+function playerAlive() {
+  if (!cup) return false;
+  if (cup.over) return cup.champion === 0;
+  for (let r = 0; r < 3; r++) {
+    for (const m of cup.rounds[r] || []) {
+      if ((m.a === 0 || m.b === 0) && m.winner == null) return true;
+    }
+  }
+  return false;
+}
+function syncCupProgress() {
+  cup.over = false;
+  cup.champion = null;
+  let open = -1;
+  for (let r = 0; r < 3; r++) {
+    const list = cup.rounds[r] || [];
+    if (!list.length || list.some((m) => m.winner == null)) {
+      open = list.length ? r : Math.max(0, r - 1);
+      break;
+    }
+  }
+  if (open < 0) {
+    cup.round = 2;
+    cup.over = true;
+    cup.champion = cup.rounds[2][0] ? cup.rounds[2][0].winner : null;
+  } else cup.round = open;
+  cup.out = !playerAlive();
+}
+function cupRefresh() {
+  saveCup();
+  if (cup && typeof showCup === "function") showCup();
+  else {
+    if (typeof renderMenu === "function") renderMenu();
+    if (typeof showScreen === "function") showScreen("menu");
+  }
+}
+function takeSlot(used) {
+  for (let i = 0; i < cup.teams.length; i++) if (!used[i]) { used[i] = true; return i; }
+  return 0;
+}
+function installPath(focusId, target, rivalId) {
+  const playerId = (cup && cup.teams && cup.teams[0] && cup.teams[0].id) || settings.blue;
+  const teams = cupIds(rivalId ? [focusId, rivalId] : [playerId, focusId]);
+  if (teams.length < 8) return "Not enough teams for a cup.";
+  if (rivalId) {
+    const a = resolveCupTeam(focusId), b = resolveCupTeam(rivalId);
+    const rest = teams.filter((t) => t.id !== a.id && t.id !== b.id);
+    cup = freshCup([a, b].concat(rest).slice(0, 8));
+  } else {
+    const focus = resolveCupTeam(focusId);
+    const me = resolveCupTeam(playerId) || focus;
+    const ordered = [];
+    const push = (t) => { if (t && !ordered.some((x) => x.id === t.id)) ordered.push(t); };
+    push(me); push(focus); teams.forEach(push);
+    cup = freshCup(ordered.slice(0, 8));
+  }
+  const fi = cup.teams.findIndex((t) => t.id === focusId);
+  const used = {};
+  used[fi] = true;
+  let bi = -1;
+  if (rivalId) { bi = cup.teams.findIndex((t) => t.id === rivalId); used[bi] = true; }
+  const qf = [null, null, null, null];
+  if (rivalId) {
+    const o0 = takeSlot(used), o1 = takeSlot(used), o2 = takeSlot(used);
+    const o3 = takeSlot(used), o4 = takeSlot(used), o5 = takeSlot(used);
+    qf[0] = blankTie(fi, o0); award(qf[0], fi);
+    qf[1] = blankTie(o1, o2); award(qf[1], favored(o1, o2));
+    qf[2] = blankTie(bi, o3); award(qf[2], bi);
+    qf[3] = blankTie(o4, o5); award(qf[3], favored(o4, o5));
+    const sf0 = blankTie(fi, qf[1].winner); award(sf0, fi);
+    const sf1 = blankTie(bi, qf[3].winner); award(sf1, bi);
+    cup.rounds = [qf, [sf0, sf1], [blankTie(fi, bi)]];
+  } else if ((target | 0) <= 0) {
+    const order = [fi];
+    while (order.length < 8) order.push(takeSlot(used));
+    for (let i = 0; i < 4; i++) qf[i] = blankTie(order[i * 2], order[i * 2 + 1]);
+    cup.rounds = [qf, [], []];
+  } else if ((target | 0) === 1) {
+    const opp = takeSlot(used);
+    qf[0] = blankTie(fi, opp); award(qf[0], fi);
+    const a = takeSlot(used), b = takeSlot(used); qf[1] = blankTie(a, b); award(qf[1], favored(a, b));
+    const c = takeSlot(used), d = takeSlot(used); qf[2] = blankTie(c, d); award(qf[2], favored(c, d));
+    const e = takeSlot(used), f = takeSlot(used); qf[3] = blankTie(e, f); award(qf[3], favored(e, f));
+    cup.rounds = [qf, [blankTie(fi, qf[1].winner), blankTie(qf[2].winner, qf[3].winner)], []];
+  } else {
+    const opp = takeSlot(used);
+    qf[0] = blankTie(fi, opp); award(qf[0], fi);
+    const a = takeSlot(used), b = takeSlot(used); qf[1] = blankTie(a, b); award(qf[1], favored(a, b));
+    const c = takeSlot(used), d = takeSlot(used); qf[2] = blankTie(c, d); award(qf[2], favored(c, d));
+    const e = takeSlot(used), f = takeSlot(used); qf[3] = blankTie(e, f); award(qf[3], favored(e, f));
+    const side = favored(qf[2].winner, qf[3].winner);
+    const sf0 = blankTie(fi, qf[1].winner); award(sf0, fi);
+    const sf1 = blankTie(qf[2].winner, qf[3].winner); award(sf1, side);
+    cup.rounds = [qf, [sf0, sf1], [blankTie(fi, side)]];
+  }
+  syncCupProgress();
+  return "";
+}
+function remapIndex(i, from, to) {
+  if (i === from) return to;
+  if (i === to) return from;
+  return i;
+}
+function remapMatch(m, from, to) {
+  m.a = remapIndex(m.a, from, to);
+  m.b = remapIndex(m.b, from, to);
+  if (m.winner != null) m.winner = remapIndex(m.winner, from, to);
+}
+function cupControlsOpen() {
+  try {
+    if (localStorage.getItem("soccerAdminUnlock") !== "yes") return false;
+  } catch (e) { return false; }
+  if (typeof netRole === "string" && netRole === "guest") return false;
+  if (typeof netIsHost === "function" && typeof netRole === "string" && netRole && !netIsHost()) return false;
+  return true;
+}
+function cupBlockedNote() {
+  if (typeof netRole === "string" && netRole === "guest") return "Only the host can use these in an online game.";
+  if (typeof netIsHost === "function" && typeof netRole === "string" && netRole && !netIsHost()) return "Only the host can use these in an online game.";
+  return "Unlock the helpers first.";
+}
+function cupSetMe(id) {
+  if (!cupControlsOpen()) return cupBlockedNote();
+  const team = resolveCupTeam(id);
+  if (!team) return "Pick a team.";
+  rememberCup();
+  if (!cup) {
+    const teams = cupIds([team.id]);
+    const rest = teams.filter((t) => t.id !== team.id);
+    cup = freshCup([team].concat(rest).slice(0, 8));
+    const qf = [];
+    for (let i = 0; i < 4; i++) qf.push(blankTie(i * 2, i * 2 + 1));
+    cup.rounds = [qf, [], []];
+    syncCupProgress();
+    cupRefresh();
+    return "You play as " + team.name + ".";
+  }
+  const idx = cup.teams.findIndex((t) => t.id === team.id);
+  if (idx === 0) { cupUndo.pop(); return "You already play as " + team.name + "."; }
+  if (idx > 0) {
+    const tmp = cup.teams[0];
+    cup.teams[0] = cup.teams[idx];
+    cup.teams[idx] = tmp;
+    for (const round of cup.rounds) for (const m of round) remapMatch(m, 0, idx);
+    if (cup.champion != null) cup.champion = remapIndex(cup.champion, 0, idx);
+  } else cup.teams[0] = team;
+  syncCupProgress();
+  cupRefresh();
+  return "You play as " + cup.teams[0].name + ".";
+}
+function cupSend(id, round) {
+  if (!cupControlsOpen()) return cupBlockedNote();
+  const team = resolveCupTeam(id);
+  if (!team) return "Pick a team.";
+  rememberCup();
+  const err = installPath(team.id, round | 0, null);
+  if (err) { cup = cupUndo.pop(); return err; }
+  cupRefresh();
+  const where = ["quarterfinal", "semifinal", "final"][round | 0] || "bracket";
+  return team.name + " are in the " + where + ".";
+}
+function cupJumpFinal(idA, idB) {
+  if (!cupControlsOpen()) return cupBlockedNote();
+  const a = resolveCupTeam(idA), b = resolveCupTeam(idB);
+  if (!a || !b) return "Pick two teams.";
+  if (a.id === b.id) return "Pick two different teams.";
+  rememberCup();
+  const err = installPath(a.id, 2, b.id);
+  if (err) { cup = cupUndo.pop(); return err; }
+  cupRefresh();
+  return "Final: " + a.name + " vs " + b.name + ". You play as " + a.name + ".";
+}
+function advanceRound() {
+  const list = cup.rounds[cup.round] || [];
+  if (!list.length || list.some((m) => m.winner == null)) { syncCupProgress(); return; }
+  if (cup.round >= 2) { syncCupProgress(); return; }
+  const winners = list.map((m) => m.winner);
+  const next = [];
+  for (let i = 0; i < winners.length; i += 2) next.push(blankTie(winners[i], winners[i + 1]));
+  cup.rounds[cup.round + 1] = next;
+  for (let r = cup.round + 2; r < 3; r++) cup.rounds[r] = [];
+  cup.round += 1;
+  syncCupProgress();
+}
+function cupWinCurrent() {
+  if (!cupControlsOpen()) return cupBlockedNote();
+  if (!cup) return "Start a cup first.";
+  if (cup.over) return "The cup is already over.";
+  const m = myCupMatch();
+  if (!m) return "You are not in this round.";
+  rememberCup();
+  award(m, 0);
+  for (const o of cup.rounds[cup.round]) if (o.winner == null) simulateCupMatch(o);
+  advanceRound();
+  cupRefresh();
+  if (cup.over) return cup.champion === 0 ? "You won the cup." : cup.teams[cup.champion].name + " won the cup.";
+  return "You won. Next up: the " + ["quarterfinal", "semifinal", "final"][cup.round] + ".";
+}
+function cupSkipRound() {
+  if (!cupControlsOpen()) return cupBlockedNote();
+  if (!cup) return "Start a cup first.";
+  if (cup.over) return "The cup is already over.";
+  rememberCup();
+  for (const o of cup.rounds[cup.round]) if (o.winner == null) simulateCupMatch(o);
+  advanceRound();
+  cupRefresh();
+  if (cup.over) return cup.champion === 0 ? "You won the cup." : cup.teams[cup.champion].name + " won the cup.";
+  return "On to the " + ["quarterfinal", "semifinal", "final"][cup.round] + (cup.out ? ". You are out." : ".");
+}
+function cupSetResult(round, index, winnerId, sa, sb) {
+  if (!cupControlsOpen()) return cupBlockedNote();
+  if (!cup) return "Start a cup first.";
+  const m = (cup.rounds[round | 0] || [])[index | 0];
+  if (!m || !cup.teams[m.a] || !cup.teams[m.b]) return "That match is not in the bracket.";
+  const winner = winnerId === cup.teams[m.a].id ? m.a : winnerId === cup.teams[m.b].id ? m.b : null;
+  if (winner == null) return "Pick one of the two teams.";
+  rememberCup();
+  m.winner = winner;
+  const a = sa === "" || sa == null ? null : Number(sa);
+  const b = sb === "" || sb == null ? null : Number(sb);
+  if (a != null && b != null && isFinite(a) && isFinite(b)) {
+    m.sa = Math.max(0, a | 0);
+    m.sb = Math.max(0, b | 0);
+    if (m.sa === m.sb) m.pens = winner === m.a ? [5, 4] : [4, 5];
+    else {
+      m.pens = null;
+      if ((winner === m.a) !== (m.sa > m.sb)) { const t = m.sa; m.sa = m.sb; m.sb = t; }
+    }
+  } else award(m, winner);
+  for (let r = round | 0; r < 2; r++) {
+    const prev = cup.rounds[r];
+    if (!prev.length || prev.some((x) => x.winner == null)) {
+      for (let k = r + 1; k < 3; k++) cup.rounds[k] = [];
+      break;
+    }
+    const winners = prev.map((x) => x.winner);
+    const old = cup.rounds[r + 1] || [];
+    const built = [];
+    for (let i = 0; i < winners.length; i += 2) {
+      const A = winners[i], B = winners[i + 1];
+      const keep = old[i / 2];
+      if (keep && keep.winner != null && ((keep.a === A && keep.b === B) || (keep.a === B && keep.b === A))) built.push(keep);
+      else built.push(blankTie(A, B));
+    }
+    cup.rounds[r + 1] = built;
+  }
+  syncCupProgress();
+  cupRefresh();
+  return cup.teams[winner].name + " win that match.";
+}
+function undoCupChange() {
+  if (!cupControlsOpen()) return cupBlockedNote();
+  if (!cupUndo.length) return "Nothing to undo.";
+  cup = cupUndo.pop();
+  cupRefresh();
+  return cup ? "Undid the last cup change." : "Undid the cup.";
+}
+function cupRoundWord(n) { return ["Quarterfinal", "Semifinal", "Final"][n] || "Cup"; }
+function cupPanelState() {
+  const teams = (typeof TEAM_LIST !== "undefined" ? TEAM_LIST : []).map((t) => ({ id: t.id, name: t.name }));
+  if (!cup) return { active: false, canUndo: cupUndo.length > 0, youId: settings.blue, teams: teams, matches: [], status: "No cup yet." };
+  const matches = [];
+  for (let r = 0; r < 3; r++) {
+    (cup.rounds[r] || []).forEach((m, i) => {
+      const A = cup.teams[m.a], B = cup.teams[m.b];
+      if (!A || !B) return;
+      const score = m.winner == null ? "vs" : (m.sa + "-" + m.sb + (m.pens ? " pens" : ""));
+      matches.push({
+        key: r + ":" + i, round: r, index: i,
+        aId: A.id, bId: B.id, aName: A.name, bName: B.name,
+        label: cupRoundWord(r) + ": " + A.name + " " + score + " " + B.name,
+      });
+    });
+  }
+  let status;
+  if (cup.over) status = cup.champion === 0 ? "You won the cup." : cup.teams[cup.champion].name + " won the cup.";
+  else if (cup.out) status = cupRoundWord(cup.round) + " · you are out";
+  else {
+    const m = myCupMatch();
+    const opp = m ? cup.teams[m.a === 0 ? m.b : m.a] : null;
+    status = cupRoundWord(cup.round) + " · you play as " + cup.teams[0].name + (opp ? " vs " + opp.name : "");
+  }
+  return {
+    active: true, canUndo: cupUndo.length > 0, over: !!cup.over, out: !!cup.out,
+    round: cup.round, youId: cup.teams[0].id, youName: cup.teams[0].name,
+    teams: teams, matches: matches, status: status,
+  };
+}
+function cupAdmin(action, arg) {
+  arg = arg || {};
+  if (action === "state") return cupPanelState();
+  if (!cupControlsOpen()) {
+    const state = cupPanelState();
+    state.note = cupBlockedNote();
+    state.blocked = true;
+    return state;
+  }
+  let note = "";
+  if (action === "undo") note = undoCupChange();
+  else if (action === "start" || action === "restart") {
+    newCup();
+    note = "New cup. You play as " + cup.teams[0].name + ".";
+  } else if (action === "send") note = cupSend(arg.id, arg.round | 0);
+  else if (action === "win") note = cupWinCurrent();
+  else if (action === "skip") note = cupSkipRound();
+  else if (action === "result") note = cupSetResult(arg.round | 0, arg.index | 0, arg.winner, arg.sa, arg.sb);
+  else if (action === "final") note = cupJumpFinal(arg.a, arg.b);
+  else if (action === "me") note = cupSetMe(arg.id);
+  else note = "Unknown cup command.";
+  const state = cupPanelState();
+  state.note = note;
+  return state;
+}
 
 // ---- Trophy ceremony: a shining cup, confetti and the crowd going wild ----
 let trophyAnim = null;
@@ -8985,6 +9354,13 @@ window.soccerDebug = {
     #adminPanel .team100 select { min-height: 44px; width: 100%; max-width: 100%; }
     #adminPanel .team100 .keep, #adminPanel .hint { font-size: 14px; line-height: 1.3; }
     #adminPanel .hint { opacity: .85; flex: 1 0 100%; text-align: center; }
+    #adminCup { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .45); }
+    #adminCup[hidden] { display: none !important; }
+    #adminCup h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
+    #adminCupState { margin: 0 0 6px; text-align: center; font-size: 13px; line-height: 1.35; color: #ffd27a; }
+    #adminCup select { min-height: 44px; max-width: 100%; }
+    #adminCup input[type=number] { width: 58px; }
+    #adminPanel[data-fit="s"] #adminCup .grid { grid-template-columns: 1fr; }
     #adminPanel #adminResize {
       position: absolute; right: 0; bottom: 0; z-index: 2;
       width: 44px; height: 44px; min-width: 44px; min-height: 44px; margin: 0; padding: 0;
@@ -9092,6 +9468,42 @@ window.soccerDebug = {
       <span class="hint">Leave unticked for this match only.</span>
       <button type="button" id="adminTeam100">Make whole team 100</button>
       <button type="button" id="adminTeamUndo">Undo team 100</button>
+    </div>
+    <div id="adminCup" hidden>
+      <h3>Cup</h3>
+      <p id="adminCupState"></p>
+      <div class="row">
+        <button type="button" id="adminCupStart">Start a new cup</button>
+        <button type="button" id="adminCupRestart">Restart cup</button>
+        <button type="button" id="adminCupUndo">Undo last cup change</button>
+      </div>
+      <div class="row">
+        <label>I play as <select id="adminCupMe" aria-label="Team you play as in the cup"></select></label>
+        <button type="button" id="adminCupMeGo">Play as this team</button>
+      </div>
+      <div class="row">
+        <label>Send <select id="adminCupSend" aria-label="Team to send through the cup"></select></label>
+      </div>
+      <div class="grid">
+        <button type="button" data-cup-send="0">Send to Quarterfinal</button>
+        <button type="button" data-cup-send="1">Send to Semifinal</button>
+        <button type="button" data-cup-send="2">Send to Final</button>
+      </div>
+      <div class="grid">
+        <button type="button" id="adminCupWin">Win this match</button>
+        <button type="button" id="adminCupSkip">Skip to next round</button>
+      </div>
+      <div class="row">
+        <label>Match <select id="adminCupMatch" aria-label="Bracket match"></select></label>
+        <label>Winner <select id="adminCupWinner" aria-label="Who wins this match"></select></label>
+        <label>Score <input id="adminCupScoreA" type="number" min="0" max="30" aria-label="Goals for the first team"> - <input id="adminCupScoreB" type="number" min="0" max="30" aria-label="Goals for the second team"></label>
+        <button type="button" id="adminCupResult">Set this result</button>
+      </div>
+      <div class="row">
+        <label>Final <select id="adminCupFinalA" aria-label="First finalist"></select></label>
+        <label>vs <select id="adminCupFinalB" aria-label="Second finalist"></select></label>
+        <button type="button" id="adminCupFinal">Jump to Final</button>
+      </div>
     </div>
     <div class="row">
       <button type="button" id="adminReset">Put everything back</button>
@@ -9595,6 +10007,7 @@ window.soccerDebug = {
     const s = liveSim();
     const note = document.getElementById("adminNote");
     fillTeamSelect();
+    fillCupPanel();
     markAdminScroll();
     if (!s || !s.admin) {
       if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "";
@@ -9623,6 +10036,7 @@ window.soccerDebug = {
       sel.appendChild(o);
     });
     if (keep) sel.value = keep;
+    fillCupPanel();
     markAdminScroll();
   }
   function fillTeamSelect() {
@@ -9675,6 +10089,81 @@ window.soccerDebug = {
     if (typeof renderLobby === "function" && (blue || red)) {
       try { renderLobby(); } catch (e) { /* lobby is not open */ }
     }
+  }
+  function cupReady() {
+    const note = document.getElementById("adminNote");
+    if (!unlocked()) {
+      if (note) note.textContent = "Unlock the helpers first.";
+      return false;
+    }
+    if (guestBlocked()) {
+      if (note) note.textContent = "Only the host can use these in an online game.";
+      return false;
+    }
+    if (typeof cupAdmin !== "function") {
+      if (note) note.textContent = "Cups stay on this device.";
+      return false;
+    }
+    return true;
+  }
+  function optHtml(list, valueKey, labelKey) {
+    return list.map((o) => "<option value='" + String(o[valueKey]).replace(/'/g, "") + "'>" + String(o[labelKey]).replace(/</g, "") + "</option>").join("");
+  }
+  function keepSelect(sel, html, prefer) {
+    if (!sel) return;
+    const prev = sel.value || prefer || "";
+    sel.innerHTML = html;
+    if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
+    else if (sel.options.length) sel.selectedIndex = 0;
+  }
+  function fillCupWinners() {
+    const match = document.getElementById("adminCupMatch");
+    const winner = document.getElementById("adminCupWinner");
+    if (!match || !winner) return;
+    const opt = match.selectedOptions && match.selectedOptions[0];
+    const aId = opt && opt.dataset.aId;
+    const bId = opt && opt.dataset.bId;
+    const aName = opt && opt.dataset.aName;
+    const bName = opt && opt.dataset.bName;
+    const prev = winner.value;
+    if (!aId || !bId) { winner.innerHTML = ""; return; }
+    winner.innerHTML = "<option value='" + aId + "'>" + String(aName).replace(/</g, "") + "</option><option value='" + bId + "'>" + String(bName).replace(/</g, "") + "</option>";
+    if (prev === bId) winner.value = bId;
+  }
+  function fillCupPanel() {
+    const box = document.getElementById("adminCup");
+    if (!box) return;
+    const offline = typeof cupAdmin === "function";
+    box.hidden = !offline;
+    if (!offline) return;
+    let state = { active: false, teams: [], matches: [], status: "No cup yet.", youId: "", canUndo: false };
+    try { state = cupAdmin("state") || state; } catch (e) { /* cup is offline only */ }
+    const status = document.getElementById("adminCupState");
+    if (status) status.textContent = state.status || "";
+    const teams = state.teams || [];
+    const teamHtml = optHtml(teams, "id", "name");
+    keepSelect(document.getElementById("adminCupMe"), teamHtml, state.youId);
+    keepSelect(document.getElementById("adminCupSend"), teamHtml, state.youId);
+    keepSelect(document.getElementById("adminCupFinalA"), teamHtml, state.youId);
+    const other = teams.find((t) => t.id !== (document.getElementById("adminCupFinalA") || {}).value);
+    keepSelect(document.getElementById("adminCupFinalB"), teamHtml, other && other.id);
+    const matchHtml = (state.matches || []).map((m) => "<option value='" + m.key + "' data-a-id='" + m.aId + "' data-b-id='" + m.bId + "' data-a-name='" + String(m.aName).replace(/'/g, "") + "' data-b-name='" + String(m.bName).replace(/'/g, "") + "'>" + String(m.label).replace(/</g, "") + "</option>").join("");
+    keepSelect(document.getElementById("adminCupMatch"), matchHtml, "");
+    fillCupWinners();
+    const start = document.getElementById("adminCupStart");
+    const restart = document.getElementById("adminCupRestart");
+    if (start) start.hidden = !!state.active;
+    if (restart) restart.hidden = !state.active;
+    markAdminScroll();
+  }
+  function runCup(action, arg) {
+    if (!cupReady()) return;
+    let state = null;
+    try { state = cupAdmin(action, arg || {}); } catch (e) { state = { note: "That cup change did not work." }; }
+    const note = document.getElementById("adminNote");
+    if (note && state && state.note) note.textContent = state.note;
+    fillCupPanel();
+    markAdminScroll();
   }
   function teamOnPitch(id) {
     const s = liveSim();
@@ -9751,6 +10240,30 @@ window.soccerDebug = {
       fillTeamSelect();
       return;
     }
+    if (btn.dataset && btn.dataset.cupSend != null) {
+      runCup("send", { id: document.getElementById("adminCupSend").value, round: Number(btn.dataset.cupSend) });
+      return;
+    }
+    if (btn.id === "adminCupStart") { runCup("start"); return; }
+    if (btn.id === "adminCupRestart") { runCup("restart"); return; }
+    if (btn.id === "adminCupUndo") { runCup("undo"); return; }
+    if (btn.id === "adminCupMeGo") { runCup("me", { id: document.getElementById("adminCupMe").value }); return; }
+    if (btn.id === "adminCupWin") { runCup("win"); return; }
+    if (btn.id === "adminCupSkip") { runCup("skip"); return; }
+    if (btn.id === "adminCupResult") {
+      const parts = (document.getElementById("adminCupMatch").value || "").split(":");
+      runCup("result", {
+        round: Number(parts[0]), index: Number(parts[1]),
+        winner: document.getElementById("adminCupWinner").value,
+        sa: document.getElementById("adminCupScoreA").value,
+        sb: document.getElementById("adminCupScoreB").value,
+      });
+      return;
+    }
+    if (btn.id === "adminCupFinal") {
+      runCup("final", { a: document.getElementById("adminCupFinalA").value, b: document.getElementById("adminCupFinalB").value });
+      return;
+    }
     if (btn.id === "adminReset") {
       clearSavedTeam100();
       run("reset");
@@ -9771,6 +10284,8 @@ window.soccerDebug = {
     else if (act === "time") run("time", Number(btn.getAttribute("data-n")));
     else if (act) run(act);
   });
+  const cupMatchSel = document.getElementById("adminCupMatch");
+  if (cupMatchSel) cupMatchSel.addEventListener("change", fillCupWinners);
 
   let frames = 0, fpsStamp = performance.now(), fps = 0;
   function debugTick() {
