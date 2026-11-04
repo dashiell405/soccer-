@@ -92,6 +92,9 @@ function orient(spec, landscape) {
 
   async function openPhone(browser, spec, extra) {
     const ctx = await browser.newContext({ ...spec, ...(extra || {}), serviceWorkers: "allow" });
+    await ctx.addInitScript(() => {
+      try { localStorage.setItem("soccerPlayer", JSON.stringify({ name: "Alex Kid", team: "blue", color: "#e6b325" })); } catch (e) {}
+    });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => {
       // Headless WebKit rejects AudioContext when the machine has no sound card.
@@ -437,6 +440,7 @@ function orient(spec, landscape) {
     });
     await ctx.addInitScript(() => {
       Object.defineProperty(Navigator.prototype, "standalone", { configurable: true, get: () => true });
+      try { localStorage.setItem("soccerPlayer", JSON.stringify({ name: "Alex Kid", team: "blue", color: "#e6b325" })); } catch (e) {}
     });
     const solo = await ctx.newPage();
     solo.on("pageerror", (e) => fail("standalone pageerror: " + e.message));
@@ -465,7 +469,7 @@ function orient(spec, landscape) {
     await swPage.waitForFunction(() => window.pwaStatus && (window.pwaStatus.sw === "ready" || window.pwaStatus.sw === "failed"), null, { timeout: 15000 });
     const keys = await swPage.evaluate(async () => { const k = await caches.keys(); return k; });
     console.log("service worker caches", keys.join(","));
-    if (!keys.some((k) => k.indexOf("floodlight-kickoff-pages-v32") >= 0)) fail("service worker cache was not bumped: " + keys.join(","));
+    if (!keys.some((k) => k.indexOf("floodlight-kickoff-pages-v33") >= 0)) fail("service worker cache was not bumped: " + keys.join(","));
     await swPage.ctx.close();
   } catch (err) {
     fail("test crashed: " + (err && err.stack ? err.stack : err));

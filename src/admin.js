@@ -167,6 +167,9 @@
     #adminPanel .team100 select { min-height: 44px; width: 100%; max-width: 100%; }
     #adminPanel .team100 .keep, #adminPanel .hint { font-size: 14px; line-height: 1.3; }
     #adminPanel .hint { opacity: .85; flex: 1 0 100%; text-align: center; }
+    #adminWins, #adminLength { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .35); }
+    #adminWins h3, #adminLength h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
+    #adminLength input[type=number] { width: 72px; }
     #adminCup { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .45); }
     #adminCup[hidden] { display: none !important; }
     #adminCup h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
@@ -251,6 +254,33 @@
       <label>Blue <input id="adminBlue" type="number" min="0" max="99" value="0"></label>
       <label>Red <input id="adminRed" type="number" min="0" max="99" value="0"></label>
       <button type="button" id="adminSetScore">Set score</button>
+    </div>
+    <div id="adminWins">
+      <h3>Wins</h3>
+      <div class="grid">
+        <button type="button" id="adminWinBlue">Award win: Home</button>
+        <button type="button" id="adminWinRed">Award win: Away</button>
+      </div>
+      <div class="row">
+        <label>Trophies <select id="adminTrophyTeam" aria-label="Team for cup trophies"></select></label>
+        <button type="button" id="adminTrophyPlus">+1 cup</button>
+        <button type="button" id="adminTrophyMinus">−1 cup</button>
+      </div>
+    </div>
+    <div id="adminLength">
+      <h3>Match length</h3>
+      <div class="row">
+        <label>Minutes <input id="adminMinutes" type="number" min="1" max="999" value="5" aria-label="Match length in minutes"></label>
+        <button type="button" id="adminSetMinutes">Set length</button>
+        <button type="button" id="adminNoLimit">No time limit</button>
+      </div>
+      <div class="grid">
+        <button type="button" data-addmin="1">+1 min</button>
+        <button type="button" data-addmin="5">+5 min</button>
+        <button type="button" data-addmin="10">+10 min</button>
+        <button type="button" data-addmin="-1">−1 min</button>
+      </div>
+      <p class="hint">The menu still offers 1–90. No time limit ends only from here, or when you quit.</p>
     </div>
     <div class="grid">
       <button type="button" data-act="time" data-n="-30">More time</button>
@@ -800,12 +830,50 @@
     }
   }
 
+  function loadTrophyBook() {
+    try {
+      const raw = JSON.parse(localStorage.getItem("soccerTrophies") || "null");
+      if (raw && Array.isArray(raw.wins)) {
+        if (!raw.revoked || typeof raw.revoked !== "object") raw.revoked = {};
+        return raw;
+      }
+    } catch (e) { /* ignore */ }
+    return { wins: [], revoked: {} };
+  }
+  function fillTrophyTeams() {
+    const sel = document.getElementById("adminTrophyTeam");
+    if (!sel || typeof TEAM_LIST === "undefined") return;
+    const keep = sel.value;
+    sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + String(t.name).replace(/</g, "") + "</option>").join("");
+    if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
+  }
+  function adjustTrophies(teamId, delta) {
+    const team = (typeof findTeam === "function" && findTeam(teamId)) || null;
+    if (!team) return "Pick a team.";
+    const book = loadTrophyBook();
+    if (delta > 0) {
+      book.wins.push({ id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), teamId: team.id, name: team.name });
+    } else {
+      let i = -1;
+      for (let k = book.wins.length - 1; k >= 0; k--) if (book.wins[k] && book.wins[k].teamId === team.id) i = k;
+      if (i < 0) return team.name + " has no cup to take away.";
+      const removed = book.wins.splice(i, 1)[0];
+      if (removed && removed.id && removed.id.charAt(0) !== "m") book.revoked[removed.id] = true;
+    }
+    try { localStorage.setItem("soccerTrophies", JSON.stringify(book)); } catch (e) { return "Could not save on this device."; }
+    if (typeof paintTrophyBadge === "function") paintTrophyBadge();
+    if (typeof paintTrophyLines === "function") paintTrophyLines();
+    return team.name + (delta > 0 ? " +1 cup." : " −1 cup.") + " Total " + book.wins.length + ".";
+  }
+  function rememberAdminLength(spec) {
+    window.__adminLength = spec;
+  }
   function run(action, arg) {
     const s = liveSim();
     if (!canUse() || !s) {
       const note = document.getElementById("adminNote");
       if (note) note.textContent = guestBlocked()
-        ? "Only the host can use these in an online game."
+        ? "Only the host's helpers change this match. Trophy counts stay on your device."
         : "Start a match first.";
       return null;
     }
@@ -820,14 +888,15 @@
     const s = liveSim();
     const note = document.getElementById("adminNote");
     fillTeamSelect();
+    fillTrophyTeams();
     fillCupPanel();
     markAdminScroll();
     if (!s || !s.admin) {
-      if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "";
+      if (note) note.textContent = guestBlocked() ? "Only the host's helpers change this match. Trophy counts stay on your device." : "";
       return;
     }
     const a = s.admin("get");
-    if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "";
+    if (note) note.textContent = guestBlocked() ? "Only the host's helpers change this match. Trophy counts stay on your device." : "";
     document.getElementById("adminClock").textContent = a.clockPaused ? "Play clock" : "Pause clock";
     document.getElementById("adminClock").classList.toggle("on", !!a.clockPaused);
     panel.querySelectorAll("[data-flag]").forEach((btn) => {
@@ -838,6 +907,13 @@
       document.getElementById("adminBlue").value = g.score.blue;
       document.getElementById("adminRed").value = g.score.red;
     }
+    const blueName = (g && g.teams && g.teams.blue && g.teams.blue.name) || "Home";
+    const redName = (g && g.teams && g.teams.red && g.teams.red.name) || "Away";
+    const winBlue = document.getElementById("adminWinBlue");
+    const winRed = document.getElementById("adminWinRed");
+    if (winBlue) winBlue.textContent = "Award win: " + blueName;
+    if (winRed) winRed.textContent = "Award win: " + redName;
+    fillTrophyTeams();
     fillTeamSelect();
     const sel = document.getElementById("adminPlayer");
     const keep = sel.value;
@@ -910,7 +986,7 @@
       return false;
     }
     if (guestBlocked()) {
-      if (note) note.textContent = "Only the host can use these in an online game.";
+      if (note) note.textContent = "Only the host's helpers change this match. Trophy counts stay on your device.";
       return false;
     }
     if (typeof cupAdmin !== "function") {
@@ -1007,6 +1083,51 @@
       debug.hidden = true;
       return;
     }
+    if (btn.id === "adminWinBlue" || btn.id === "adminWinRed") {
+      run("award", { team: btn.id === "adminWinRed" ? "red" : "blue" });
+      const note = document.getElementById("adminNote");
+      if (note && !guestBlocked() && liveSim()) note.textContent = "That team wins. The usual result screen follows.";
+      return;
+    }
+    if (btn.id === "adminTrophyPlus" || btn.id === "adminTrophyMinus") {
+      const note = document.getElementById("adminNote");
+      if (!unlocked()) {
+        if (note) note.textContent = "Unlock the helpers first.";
+        return;
+      }
+      const msg = adjustTrophies(document.getElementById("adminTrophyTeam").value, btn.id === "adminTrophyPlus" ? 1 : -1);
+      if (note) note.textContent = msg;
+      return;
+    }
+    if (btn.id === "adminSetMinutes" || btn.id === "adminNoLimit") {
+      const note = document.getElementById("adminNote");
+      if (!unlocked() || guestBlocked()) {
+        if (note) note.textContent = guestBlocked() ? "Only the host's helpers change this match. Trophy counts stay on your device." : "Unlock the helpers first.";
+        return;
+      }
+      if (btn.id === "adminNoLimit") {
+        rememberAdminLength({ unlimited: true });
+        if (liveSim()) run("length", { unlimited: true });
+        if (note) note.textContent = "No time limit. The match ends from here, or when you quit.";
+      } else {
+        const mins = Math.round(Number(document.getElementById("adminMinutes").value));
+        if (!isFinite(mins) || mins < 1 || mins > 999) {
+          if (note) note.textContent = "Use 1 to 999 minutes, or No time limit.";
+          return;
+        }
+        rememberAdminLength({ minutes: mins });
+        if (liveSim()) run("length", { minutes: mins });
+        if (note) note.textContent = mins + " minute match from the helpers.";
+      }
+      return;
+    }
+    if (btn.dataset && btn.dataset.addmin != null) {
+      const n = Number(btn.dataset.addmin);
+      run("addmin", n);
+      const note = document.getElementById("adminNote");
+      if (note && !guestBlocked() && liveSim()) note.textContent = (n > 0 ? "+" : "") + n + " min on the clock.";
+      return;
+    }
     if (btn.id === "adminSetScore") {
       run("score", {
         blue: document.getElementById("adminBlue").value,
@@ -1027,7 +1148,7 @@
     if (btn.id === "adminTeam100" || btn.id === "adminTeamUndo") {
       const note = document.getElementById("adminNote");
       if (!unlocked() || guestBlocked()) {
-        if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "Unlock the helpers first.";
+        if (note) note.textContent = guestBlocked() ? "Only the host's helpers change this match. Trophy counts stay on your device." : "Unlock the helpers first.";
         return;
       }
       const id = document.getElementById("adminTeam").value;

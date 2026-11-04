@@ -260,7 +260,10 @@ const rosterList = () => (sim ? sim.roster : []);
 function hudSubtitle() {
   const kindText = matchKind === "cup" ? "CUP " + CUP_ROUND_NAMES[cup ? cup.round : 0] + ": " : "";
   if (game.matchType === "shootout") return "Penalty shootout \u2022 5 kicks each, then sudden death";
-  const info = describeMatchLength((game.timeLimit || MATCH_LENGTH) / 60);
+  if (!game.timeLimit) return "No time limit  \u2022  " + kindText + (settings.mode === "1p" ? "1P vs CPU (" + game.difficulty + ")" : "2 Players");
+  const info = game.timeLimit > 90 * 60
+    ? { minutes: Math.round(game.timeLimit / 60) }
+    : describeMatchLength(game.timeLimit / 60);
   const half = game.timeLimit && game.clock >= game.timeLimit / 2 ? "2nd half" : "1st half";
   const who = settings.mode === "1p" ? "1P vs CPU (" + game.difficulty + ")" : "2 Players";
   const draw = game.knockout ? " \u2022 draw = penalties" : "";
@@ -298,10 +301,13 @@ function newMatch(opts) {
   const kits = buildTeamKits(opts.blue, opts.red);
   applyTeamKits(kits);
   renderBackground();         // the fans in the stands wear the new colours
+  const extra = (typeof window !== "undefined" && window.__adminLength) || null;
   sim = createSim({
     mode: settings.mode === "2p" ? "2 players" : "1 player", difficulty: settings.difficulty, teams: kits,
     rules: settings.rules, knockout: opts.knockout, matchType: opts.matchType,
-    minutes: settings.minutes,
+    minutes: extra ? undefined : settings.minutes,
+    adminMinutes: extra && !extra.unlimited ? extra.minutes : undefined,
+    unlimited: !!(extra && extra.unlimited),
   });
   game = sim.game; ball = sim.ball; controllers = sim.controllers; players = sim.players;
   sim.addController("p1", "P1", "blue");
@@ -594,6 +600,7 @@ function rememberCupWin(c) {
   const i = book.wins.findIndex((w) => w && w.id === c.id);
   const team = c.teams[0];
   if (won && i < 0) {
+    if (book.revoked && book.revoked[c.id]) return false;
     book.wins.push({ id: c.id, teamId: team.id, name: team.name });
     saveTrophies(book);
     return true;
@@ -1276,7 +1283,8 @@ function showWin() {
   $("cupContinueBtn").classList.toggle("hidden", !isCup);
   if (isCup) {
     recordCupResult();
-    $("cupContinueBtn").textContent = cup.over && cup.champion === 0 ? "\ud83c\udfc6 Lift the trophy!" : "Continue cup";
+    if (cup.over && cup.champion === 0) { showTrophy(); return; }
+    $("cupContinueBtn").textContent = "Continue cup";
   }
   showScreen("winScreen");
 }

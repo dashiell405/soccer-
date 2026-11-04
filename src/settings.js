@@ -286,7 +286,7 @@ function paintSettings() {
     html += "</label>";
     if (f.help) html += "<p class='setHelp'>" + f.help + "</p>";
   }
-  html += "<div class='setReset'><button type='button' id='settingsReset'>Reset to defaults</button></div>";
+  html += "<div class='setReset'><button type='button' id='settingsEditPlayer'>Edit profile</button> <button type='button' id='settingsReset'>Reset to defaults</button></div>";
   body.innerHTML = html;
   tabs.querySelectorAll("[data-stab]").forEach((b) => b.addEventListener("click", () => {
     GameSettings.tab = b.dataset.stab;
@@ -303,6 +303,8 @@ function paintSettings() {
   });
   const reset = document.getElementById("settingsReset");
   if (reset) reset.addEventListener("click", () => GameSettings.resetTab(tab.id));
+  const edit = document.getElementById("settingsEditPlayer");
+  if (edit) edit.addEventListener("click", () => { if (typeof PlayerAccount !== "undefined") PlayerAccount.open(true); });
 }
 
 function mountSettings() {

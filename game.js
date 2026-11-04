@@ -746,9 +746,16 @@ function saveSavedMinutes(minutes, custom) {
 // a few seconds (from before every match was 5:00) is ignored.
 function resolveMatchSeconds(opts) {
   if (opts && opts.matchType === "shootout") return 0;
+  // Helpers can run a match with no clock, or up to 999 minutes.
+  // The public picker still uses clampMatchMinutes (1–90).
+  if (opts && opts.unlimited) return 0;
+  if (opts && opts.adminMinutes != null && opts.adminMinutes !== "") {
+    const v = Math.round(Number(opts.adminMinutes));
+    if (isFinite(v) && v >= 1 && v <= 999) return v * 60;
+  }
   if (opts && opts.minutes != null && opts.minutes !== "") return clampMatchMinutes(opts.minutes) * 60;
   const t = opts && Number(opts.timeLimit);
-  if (isFinite(t) && t >= 60 && t <= 90 * 60) return Math.round(t);
+  if (isFinite(t) && t >= 60 && t <= 999 * 60) return Math.round(t);
   return MATCH_LENGTH;
 }
 // Overhead throw-in: wind the ball up behind the head, then swing it forward.
@@ -3599,7 +3606,7 @@ function update(dt) {
     return {
       ph: game.phase,
       sc: [game.score.blue, game.score.red],
-      cl: r1(game.clock), tm: r2(game.timer),
+      cl: r1(game.clock), tm: r2(game.timer), tl: game.timeLimit | 0,
       cm: c.timer > 0 ? [c.text, c.color, r2(c.timer)] : null,
       sp: game.setpiece ? [game.setpiece.type, game.setpiece.team, idx(game.setpiece.taker), game.setpiece.indirect ? 1 : 0, r2(game.setpiece.throwT || 0)] : null,
       ls: game.lastScorer, w: game.winner,
@@ -3724,8 +3731,35 @@ function update(dt) {
       } else if (action === "score" && live) {
         game.score.blue = Math.max(0, arg.blue | 0);
         game.score.red = Math.max(0, arg.red | 0);
-      } else if (action === "time" && live && game.timeLimit) {
-        game.clock = clamp(game.clock + (Number(arg) || 0), 0, game.timeLimit);
+      } else if (action === "time" && live) {
+        const next = game.clock + (Number(arg) || 0);
+        if (game.timeLimit) game.clock = clamp(next, 0, game.timeLimit);
+        else game.clock = Math.max(0, next);
+      } else if (action === "addmin" && live) {
+        const delta = Math.round(Number(arg) || 0) * 60;
+        if (!game.timeLimit) {
+          if (delta > 0) { game.timeLimit = Math.ceil(game.clock) + delta; a.unlimited = false; }
+        } else {
+          game.timeLimit = Math.max(60, game.timeLimit + delta);
+          if (game.clock >= game.timeLimit) fullTime();
+        }
+      } else if (action === "length" && live) {
+        if (arg && arg.unlimited) {
+          game.timeLimit = 0;
+          a.unlimited = true;
+        } else {
+          const mins = Math.round(Number(arg && arg.minutes));
+          if (isFinite(mins) && mins >= 1 && mins <= 999) {
+            game.timeLimit = mins * 60;
+            a.unlimited = false;
+            if (game.clock >= game.timeLimit) fullTime();
+          }
+        }
+      } else if (action === "award" && live && game.phase !== "win") {
+        const team = arg && arg.team === "red" ? "red" : "blue";
+        const otherSide = team === "blue" ? "red" : "blue";
+        if ((game.score[team] | 0) <= (game.score[otherSide] | 0)) game.score[team] = (game.score[otherSide] | 0) + 1;
+        endGame(team);
       } else if (action === "clock") {
         a.clockPaused = !!arg;
       } else if (action === "half" && live && game.timeLimit) {

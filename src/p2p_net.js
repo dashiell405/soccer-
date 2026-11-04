@@ -292,9 +292,12 @@ function sendJoined(room, m) {
 }
 
 function startMatch(room) {
+  const extra = (typeof window !== "undefined" && window.__adminLength) || null;
   room.sim = createSim({
     mode: room.mode, difficulty: room.difficulty, rules: room.rules, matchType: room.matchType,
-    minutes: room.minutes,
+    minutes: extra ? undefined : room.minutes,
+    adminMinutes: extra && !extra.unlimited ? extra.minutes : undefined,
+    unlimited: !!(extra && extra.unlimited),
     teams: buildTeamKits(findTeam(room.blueTeam), findTeam(room.redTeam)),
   });
   for (const m of room.members.values()) {

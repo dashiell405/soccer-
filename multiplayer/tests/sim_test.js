@@ -492,3 +492,23 @@ function kickoffOk(sim, label) {
   assert(restored, 'undo team 100 puts the original stats back');
   assert(!sim.game.team100.bra, 'undo clears the match flag');
 }
+{
+  assert(S.createSim({ minutes: 200 }).game.timeLimit === 5400, 'the public picker still stops at 90 minutes');
+  const sim = S.createSim({ adminMinutes: 240 });
+  sim.start();
+  assert(sim.game.timeLimit === 240 * 60, 'helpers can set 240 minutes');
+  sim.admin('addmin', 10);
+  assert(sim.game.timeLimit === 250 * 60, '+10 min extends the match');
+  sim.admin('addmin', -1);
+  assert(sim.game.timeLimit === 249 * 60, '-1 min shortens the match');
+  sim.admin('length', { unlimited: true });
+  assert(sim.game.timeLimit === 0, 'no time limit clears the clock cap');
+  sim.game.clock = 99999;
+  sim.game.phase = 'play';
+  sim.update(1);
+  assert(sim.game.phase === 'play', 'no time limit does not end the match');
+  const snap = sim.snapshot();
+  assert(snap.tl === 0, 'the snapshot tells guests there is no time limit');
+  sim.admin('award', { team: 'red' });
+  assert(sim.game.phase === 'win' && sim.game.winner === 'red' && sim.game.score.red > sim.game.score.blue, 'award win ends the match for that team');
+}
