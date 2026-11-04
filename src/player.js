@@ -49,6 +49,30 @@
     if (badName(n)) return "Pick a different name.";
     return "";
   }
+  function filterText(text) {
+    const raw = String(text || "");
+    if (raw.replace(/[<>]/g, "").trim().length > 100) return "Keep the message under 100 characters.";
+    const s = raw.replace(/[<>]/g, "").trim();
+    if (!s) return "";
+    if (badName(s)) return "Pick a different message.";
+    return "";
+  }
+  function deviceId() {
+    let id = "";
+    try { id = localStorage.getItem("soccerDeviceId") || ""; } catch (e) { /* ignore */ }
+    if (!/^[a-f0-9]{32}$/.test(id)) {
+      const saved = read();
+      if (saved && /^[a-f0-9]{32}$/.test(saved.deviceId || "")) id = saved.deviceId;
+    }
+    if (!/^[a-f0-9]{32}$/.test(id)) {
+      const bytes = new Uint8Array(16);
+      if (crypto && crypto.getRandomValues) crypto.getRandomValues(bytes);
+      else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+      id = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    }
+    try { localStorage.setItem("soccerDeviceId", id); } catch (e) { /* private mode */ }
+    return id;
+  }
 
   const style = document.createElement("style");
   style.textContent = `
@@ -178,7 +202,7 @@
     const box = document.getElementById("playerGateMsg");
     if (msg) { box.textContent = msg; return; }
     const team = document.getElementById("playerTeam").value || "blue";
-    const account = { name: name.replace(/[<>]/g, "").trim(), team: team, color: color };
+    const account = { name: name.replace(/[<>]/g, "").trim(), team: team, color: color, deviceId: deviceId() };
     write(account);
     try { localStorage.setItem("soccerName", account.name); } catch (err) { /* ignore */ }
     const input = document.getElementById("nameInput");
@@ -193,7 +217,10 @@
     load: read,
     name() { const a = read(); return a ? a.name : ""; },
     open: open,
+    deviceId: deviceId,
+    filterText: filterText,
   };
+  deviceId();
 
   if (!read()) open(false);
   paintChip();

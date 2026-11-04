@@ -268,9 +268,17 @@ function broadcastRoom(room, note) {
   broadcast(room, info);
 }
 
-function addMember(room, name) {
+function cleanDeviceId(id) {
+  const s = String(id || "").toLowerCase().replace(/[^a-f0-9]/g, "").slice(0, 64);
+  return s.length >= 16 ? s : "";
+}
+function thisDeviceId() {
+  if (typeof PlayerAccount !== "undefined" && PlayerAccount.deviceId) return cleanDeviceId(PlayerAccount.deviceId());
+  return "";
+}
+function addMember(room, name, deviceId) {
   const m = {
-    id: randomId(6), token: randomId(12), name, team: autoTeam(room),
+    id: randomId(6), token: randomId(12), name, deviceId: cleanDeviceId(deviceId), team: autoTeam(room),
     conn: null, local: false, connected: true, ping: 0, lastHeard: Date.now(),
   };
   room.members.set(m.id, m);
@@ -283,6 +291,157 @@ function attachReturning(room, name, token) {
   if (token) m = [...room.members.values()].find((x) => x.token === token);
   if (!m) m = [...room.members.values()].find((x) => !x.connected && x.name.toLowerCase() === name.toLowerCase());
   return m;
+}
+
+const BAN_KEY = "soccerHostBans";
+function loadBans() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(BAN_KEY) || "null");
+    if (raw && Array.isArray(raw.bans)) return raw.bans.filter((b) => b && typeof b.name === "string");
+  } catch (e) { /* ignore */ }
+  return [];
+}
+function saveBans(bans) {
+  try { localStorage.setItem(BAN_KEY, JSON.stringify({ bans: bans })); } catch (e) { /* private mode */ }
+}
+function listActiveBans() {
+  const now = Date.now();
+  const all = loadBans();
+  const kept = all.filter((b) => b.until == null || Number(b.until) > now);
+  if (kept.length !== all.length) saveBans(kept);
+  return kept;
+}
+function lookupBan(deviceId, name) {
+  const bans = listActiveBans();
+  const id = cleanDeviceId(deviceId);
+  if (id) {
+    const hit = bans.find((b) => b.deviceId && b.deviceId === id);
+    if (hit) return hit;
+  }
+  if (!id && name) {
+    const want = String(name).toLowerCase();
+    return bans.find((b) => !b.deviceId && String(b.name).toLowerCase() === want) || null;
+  }
+  return null;
+}
+function rememberBan(entry) {
+  const bans = listActiveBans().filter((b) => {
+    if (entry.deviceId && b.deviceId === entry.deviceId) return false;
+    if (!entry.deviceId && entry.name && !b.deviceId && b.name === entry.name) return false;
+    return true;
+  });
+  bans.push(entry);
+  saveBans(bans);
+  return entry;
+}
+function durationLabel(minutes) {
+  const n = Math.round(Number(minutes) || 0);
+  if (n === 1) return "1 minute";
+  if (n === 60) return "1 hour";
+  if (n === 1440) return "1 day";
+  if (n > 0 && n % 1440 === 0) return (n / 1440) + (n === 1440 ? " day" : " days");
+  if (n > 0 && n % 60 === 0) return (n / 60) + (n === 60 ? " hour" : " hours");
+  return n + " minutes";
+}
+function removalHeadline(info) {
+  const message = String((info && info.message) || "").replace(/[<>]/g, "").trim().slice(0, 100);
+  const permanent = !info || info.permanent || info.until == null;
+  if (permanent) {
+    return message ? "You are banned from this host's games: " + message : "You are banned from this host's games.";
+  }
+  const mins = Number(info.minutes) || Math.max(1, Math.round((Number(info.until) - Date.now()) / 60000));
+  const label = durationLabel(mins);
+  return message ? "Removed by the host for " + label + ": " + message : "Removed by the host for " + label + ".";
+}
+function removalPayload(ban) {
+  return {
+    t: "removed",
+    until: ban.until,
+    message: ban.message || "",
+    permanent: ban.until == null,
+    minutes: ban.until == null ? 0 : (Number(ban.minutes) || 1),
+  };
+}
+function banTimeLeft(ban) {
+  if (!ban || ban.until == null) return "Permanent";
+  const ms = Number(ban.until) - Date.now();
+  if (ms <= 0) return "Expired";
+  const min = Math.ceil(ms / 60000);
+  if (min < 60) return min + " min left";
+  if (min < 1440) {
+    const h = Math.floor(min / 60);
+    const r = min % 60;
+    return r ? h + " hr " + r + " min left" : h + " hr left";
+  }
+  const d = Math.floor(min / 1440);
+  const h = Math.floor((min % 1440) / 60);
+  return h ? d + "d " + h + " hr left" : d + "d left";
+}
+function refuseBanned(conn, ban) {
+  try { conn.send(removalPayload(ban)); } catch (e) { /* link is closing */ }
+  setTimeout(() => { try { conn.close(); } catch (e) { /* already closed */ } }, 250);
+}
+function dropGuest(m) {
+  if (!hosted || !m) return;
+  const conn = m.conn;
+  hosted.members.delete(m.id);
+  if (hosted.sim) hosted.sim.removeController(m.id);
+  if (conn) {
+    connMember.delete(conn);
+    setTimeout(() => { try { conn.close(); } catch (e) { /* already closed */ } }, 250);
+  }
+}
+function hostPlayers() {
+  if (!netIsHost() || !hosted) return [];
+  return [...hosted.members.values()]
+    .filter((m) => !m.local && m.id !== hosted.hostId)
+    .map((m) => ({ id: m.id, name: m.name, deviceId: m.deviceId || "", connected: !!m.connected }));
+}
+function hostRemove(memberId, opts) {
+  if (typeof netRole === "string" && netRole === "guest") return "Only the host can remove players.";
+  if (!netIsHost() || !hosted) return "Host a game to remove a guest.";
+  const m = hosted.members.get(memberId);
+  if (!m || m.local || m.id === hosted.hostId) return "You can't remove yourself.";
+  const message = String((opts && opts.message) || "").replace(/[<>]/g, "").trim().slice(0, 100);
+  if (typeof PlayerAccount !== "undefined" && PlayerAccount.filterText) {
+    const bad = PlayerAccount.filterText(message);
+    if (bad) return bad;
+  }
+  const permanent = !!(opts && opts.permanent);
+  let minutes = 0;
+  let until = null;
+  if (!permanent) {
+    minutes = Math.round(Number(opts && opts.minutes));
+    if (!isFinite(minutes) || minutes < 1 || minutes > 9999) return "Use 1 to 9999 minutes, or Permanent.";
+    until = Date.now() + minutes * 60 * 1000;
+  }
+  const ban = rememberBan({
+    deviceId: m.deviceId || "",
+    name: m.name,
+    until: until,
+    minutes: minutes,
+    message: message,
+    at: Date.now(),
+  });
+  try { if (m.conn && m.conn.open) m.conn.send(removalPayload(ban)); } catch (e) { /* guest is already gone */ }
+  dropGuest(m);
+  const note = until
+    ? m.name + " was removed for " + durationLabel(minutes) + "."
+    : m.name + " was banned.";
+  broadcastRoom(hosted, note);
+  showNotice(note, true);
+  return note;
+}
+function hostUnban(deviceId, name) {
+  if (typeof netRole === "string" && netRole === "guest") return "Only the host can remove players.";
+  const id = cleanDeviceId(deviceId);
+  const bans = listActiveBans().filter((b) => {
+    if (id && b.deviceId === id) return false;
+    if (!id && name && b.name === name) return false;
+    return true;
+  });
+  saveBans(bans);
+  return (name || "That player") + " can join again.";
 }
 
 function sendJoined(room, m) {
@@ -489,6 +648,9 @@ function onIncoming(conn) {
       return;
     }
     const name = cleanName(msg.name);
+    const deviceId = cleanDeviceId(msg.deviceId);
+    const ban = lookupBan(deviceId, name);
+    if (ban) { refuseBanned(conn, ban); return; }
     let m = attachReturning(hosted, name, typeof msg.token === "string" ? msg.token : null);
     if (m) {
       if (m.conn && m.conn !== conn) {
@@ -496,8 +658,9 @@ function onIncoming(conn) {
         try { m.conn.close(); } catch (e) { /* old link */ }
       }
       m.conn = conn; m.connected = true; m.local = false;
+      if (deviceId) m.deviceId = deviceId;
     } else {
-      m = addMember(hosted, name);
+      m = addMember(hosted, name, deviceId);
       m.conn = conn;
     }
     connMember.set(conn, m);
@@ -539,7 +702,7 @@ function hostReady(peer, code, name, mode, difficulty) {
     debug: DEBUG_NET,
     lastTickAt: Date.now(),
   };
-  const me = addMember(hosted, name);
+  const me = addMember(hosted, name, thisDeviceId());
   me.local = true;
   me.connected = true;
   hosted.hostId = me.id;
@@ -678,7 +841,8 @@ function openGuest(code, name, token, attempt) {
     conn.on("open", () => {
       if (gen !== generation) return;
       lastHeard = Date.now();
-      try { conn.send({ t: "join", code, name, token: token || undefined }); } catch (e) { giveUp(MSG.ice); }
+      const deviceId = thisDeviceId();
+      try { conn.send({ t: "join", code, name, token: token || undefined, deviceId: deviceId || undefined }); } catch (e) { giveUp(MSG.ice); }
     });
     conn.on("data", (raw) => {
       if (gen !== generation) return;
@@ -712,3 +876,15 @@ function openGuest(code, name, token, attempt) {
   });
   if (!watchdogTimer) watchdogTimer = setInterval(watchConnections, 2000);
 }
+
+window.hostModeration = {
+  isHost() { return netIsHost(); },
+  players: hostPlayers,
+  bans: listActiveBans,
+  remove: hostRemove,
+  unban: hostUnban,
+  lookup: lookupBan,
+  remember: rememberBan,
+  headline: removalHeadline,
+  timeLeft: banTimeLeft,
+};

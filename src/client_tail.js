@@ -149,6 +149,73 @@ function hideNotice() {
   clearTimeout(noticeTimer);
   el.classList.add("hidden");
 }
+let removalTimer = null;
+function formatRemovalLeft(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  if (h > 0) return h + ":" + String(m).padStart(2, "0") + ":" + String(r).padStart(2, "0");
+  return m + ":" + String(r).padStart(2, "0");
+}
+function showHostRemoval(info) {
+  let box = document.getElementById("hostRemoval");
+  if (!box) {
+    const style = document.createElement("style");
+    style.textContent = `
+      #hostRemoval {
+        position: fixed; inset: 0; z-index: 96; display: flex; align-items: center; justify-content: center;
+        background: rgba(4, 10, 18, .88); box-sizing: border-box;
+        padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+      }
+      #hostRemoval[hidden] { display: none !important; }
+      #hostRemovalCard {
+        width: min(440px, 100%); box-sizing: border-box; text-align: center;
+        background: rgba(8, 16, 28, .98); color: #fff; border: 2px solid #e8c547; border-radius: 16px;
+        padding: 18px 16px; font-family: "Trebuchet MS", Arial, sans-serif;
+      }
+      #hostRemovalTitle { margin: 0 0 10px; font-size: 26px; line-height: 1.25; }
+      #hostRemovalCount { margin: 0 0 14px; font-size: 22px; color: #ffe27a; font-variant-numeric: tabular-nums; }
+      #hostRemoval button {
+        font: inherit; font-weight: 700; min-height: 44px; min-width: 120px; padding: 8px 18px;
+        border-radius: 10px; border: 1px solid #ffe27a; background: #1d4e34; color: #fff;
+      }
+    `;
+    document.head.appendChild(style);
+    box = document.createElement("div");
+    box.id = "hostRemoval";
+    box.innerHTML = "<div id='hostRemovalCard'><h2 id='hostRemovalTitle'></h2><p id='hostRemovalCount'></p><button type='button' id='hostRemovalOk'>OK</button></div>";
+    document.body.appendChild(box);
+    document.getElementById("hostRemovalOk").addEventListener("click", () => {
+      box.hidden = true;
+      clearInterval(removalTimer);
+    });
+  }
+  const title = document.getElementById("hostRemovalTitle");
+  const count = document.getElementById("hostRemovalCount");
+  const headline = typeof removalHeadline === "function"
+    ? removalHeadline(info)
+    : "You were removed by the host.";
+  if (title) title.textContent = headline;
+  const permanent = !info || info.permanent || info.until == null;
+  function tick() {
+    if (permanent) {
+      if (count) count.textContent = "Permanent";
+      return;
+    }
+    const ms = Number(info.until) - Date.now();
+    if (ms <= 0) {
+      if (count) count.textContent = "You can try to join again.";
+      clearInterval(removalTimer);
+      return;
+    }
+    if (count) count.textContent = "You can rejoin in " + formatRemovalLeft(ms);
+  }
+  clearInterval(removalTimer);
+  tick();
+  if (!permanent) removalTimer = setInterval(tick, 250);
+  box.hidden = false;
+}
 function clearRoom() {
   room = null; myId = null; wantRoom = null; menuOpen = false;
   game.phase = "lobby"; snaps.length = 0; controllers = [];
