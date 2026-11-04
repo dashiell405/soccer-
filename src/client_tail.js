@@ -175,8 +175,10 @@ document.querySelectorAll("[data-cdiff]").forEach((b) => b.addEventListener("cli
   document.querySelectorAll("[data-cdiff]").forEach((x) => x.classList.toggle("selected", x === b));
 }));
 function myName() {
-  const n = $("nameInput").value.trim();
-  if (!n) { $("homeMsg").textContent = "Type your name first!"; $("nameInput").focus(); return null; }
+  const account = (typeof PlayerAccount !== "undefined" && PlayerAccount.name) ? PlayerAccount.name() : "";
+  const n = account || $("nameInput").value.trim();
+  if (!n) { $("homeMsg").textContent = "Create your player first."; return null; }
+  if ($("nameInput")) $("nameInput").value = n;
   try { localStorage.setItem("soccerName", n); } catch (e) { /* ignore */ }
   return n;
 }
@@ -248,7 +250,10 @@ if (isTouchDevice && $("matchHelp")) {
 
 // ---- Start up ----
 (function boot() {
-  try { $("nameInput").value = localStorage.getItem("soccerName") || ""; } catch (e) { /* ignore */ }
+  try {
+    const account = (typeof PlayerAccount !== "undefined" && PlayerAccount.name) ? PlayerAccount.name() : "";
+    $("nameInput").value = account || localStorage.getItem("soccerName") || "";
+  } catch (e) { /* ignore */ }
   const code = new URLSearchParams(location.search).get("room");
   if (code) $("codeInput").value = code.toUpperCase();
   // Reloaded the page in the middle of a game? Rejoin automatically.

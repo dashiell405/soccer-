@@ -68,9 +68,11 @@ const showHud = () => !!(room && room.state !== "lobby" && players.length);
 const localActives = () => { const a = myActive(); return a ? [a] : []; };
 const rosterList = () => players;
 function hudSubtitle() {
-  const info = describeMatchLength((game.timeLimit || MATCH_LENGTH) / 60);
   const half = game.timeLimit && game.clock >= game.timeLimit / 2 ? "2nd half" : "1st half";
-  const fmt = game.matchType === "shootout" ? "Penalty shootout" : info.minutes + " min \u2022 " + half;
+  const mins = game.timeLimit ? Math.round(game.timeLimit / 60) : 0;
+  const fmt = game.matchType === "shootout" ? "Penalty shootout"
+    : !game.timeLimit ? "No time limit"
+    : mins + " min \u2022 " + half;
   return fmt + "  \u2022  Room " + (room ? room.code : "") + "  \u2022  " + game.mode + " (CPU: " + game.difficulty + ")";
 }
 function keysHint(kind) {
@@ -354,6 +356,7 @@ function onSnapshot(s) {
   game.phase = s.ph;
   game.score.blue = s.sc[0]; game.score.red = s.sc[1];
   game.clock = s.cl; game.timer = s.tm;
+  if (typeof s.tl === "number") game.timeLimit = s.tl;
   game.lastScorer = s.ls; game.winner = s.w;
   if (s.cm) game.comment = { text: s.cm[0], color: s.cm[1], timer: s.cm[2] };
   else game.comment.timer = 0;
@@ -1292,7 +1295,7 @@ function paintSettings() {
     html += "</label>";
     if (f.help) html += "<p class='setHelp'>" + f.help + "</p>";
   }
-  html += "<div class='setReset'><button type='button' id='settingsReset'>Reset to defaults</button></div>";
+  html += "<div class='setReset'><button type='button' id='settingsEditPlayer'>Edit profile</button> <button type='button' id='settingsReset'>Reset to defaults</button></div>";
   body.innerHTML = html;
   tabs.querySelectorAll("[data-stab]").forEach((b) => b.addEventListener("click", () => {
     GameSettings.tab = b.dataset.stab;
@@ -1309,6 +1312,8 @@ function paintSettings() {
   });
   const reset = document.getElementById("settingsReset");
   if (reset) reset.addEventListener("click", () => GameSettings.resetTab(tab.id));
+  const edit = document.getElementById("settingsEditPlayer");
+  if (edit) edit.addEventListener("click", () => { if (typeof PlayerAccount !== "undefined") PlayerAccount.open(true); });
 }
 
 function mountSettings() {
@@ -4084,8 +4089,10 @@ document.querySelectorAll("[data-cdiff]").forEach((b) => b.addEventListener("cli
   document.querySelectorAll("[data-cdiff]").forEach((x) => x.classList.toggle("selected", x === b));
 }));
 function myName() {
-  const n = $("nameInput").value.trim();
-  if (!n) { $("homeMsg").textContent = "Type your name first!"; $("nameInput").focus(); return null; }
+  const account = (typeof PlayerAccount !== "undefined" && PlayerAccount.name) ? PlayerAccount.name() : "";
+  const n = account || $("nameInput").value.trim();
+  if (!n) { $("homeMsg").textContent = "Create your player first."; return null; }
+  if ($("nameInput")) $("nameInput").value = n;
   try { localStorage.setItem("soccerName", n); } catch (e) { /* ignore */ }
   return n;
 }
@@ -4157,7 +4164,10 @@ if (isTouchDevice && $("matchHelp")) {
 
 // ---- Start up ----
 (function boot() {
-  try { $("nameInput").value = localStorage.getItem("soccerName") || ""; } catch (e) { /* ignore */ }
+  try {
+    const account = (typeof PlayerAccount !== "undefined" && PlayerAccount.name) ? PlayerAccount.name() : "";
+    $("nameInput").value = account || localStorage.getItem("soccerName") || "";
+  } catch (e) { /* ignore */ }
   const code = new URLSearchParams(location.search).get("room");
   if (code) $("codeInput").value = code.toUpperCase();
   // Reloaded the page in the middle of a game? Rejoin automatically.
@@ -4221,6 +4231,208 @@ window.mpDebug = {
   send(m) { sendMsg(m); },
 };
 
+
+/* A player name for this device. No email, no password, no age, no server. */
+(function () {
+  const KEY = "soccerPlayer";
+  const COLORS = ["#e6b325", "#1f5fd6", "#d62828", "#0b6e4f", "#6b3e1e", "#7b2cbf", "#f4f4f4", "#111111"];
+  const SLURS = ["fuck", "shit", "bitch", "cunt", "nigger", "nigga", "faggot", "retard", "whore", "slut", "nazi"];
+  const MILD = ["damn", "hell", "crap", "dick", "piss", "ass"];
+
+  function read() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (raw && typeof raw.name === "string" && raw.name) return raw;
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+  function write(account) {
+    try { localStorage.setItem(KEY, JSON.stringify(account)); } catch (e) { /* private mode */ }
+  }
+  function hasOldSave() {
+    const keys = ["soccerSettings", "soccerName", "soccerCup", "soccerTrophies", "soccerMatchMinutes", "soccerAdminUnlock", "soccerPlayAsMe"];
+    try { return keys.some((k) => localStorage.getItem(k)); } catch (e) { return false; }
+  }
+  function prefill() {
+    let name = "";
+    let team = "blue";
+    try { name = localStorage.getItem("soccerName") || ""; } catch (e) { /* ignore */ }
+    if (!name) {
+      try {
+        const me = JSON.parse(localStorage.getItem("soccerPlayAsMe") || "null");
+        if (me && me.name && me.name !== "Dashiell G.") name = me.name;
+      } catch (e) { /* ignore */ }
+    }
+    try {
+      const s = JSON.parse(localStorage.getItem("soccerSettings") || "null");
+      if (s && s.blue) team = s.blue;
+    } catch (e) { /* ignore */ }
+    return { name: String(name).replace(/[<>]/g, "").trim().slice(0, 16), team: team, color: COLORS[0] };
+  }
+  function folded(name) { return String(name || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+  function badName(name) {
+    const flat = folded(name);
+    if (SLURS.some((w) => flat.indexOf(w) >= 0)) return true;
+    const words = String(name || "").toLowerCase().split(/[^a-z0-9]+/);
+    return words.some((w) => MILD.indexOf(w) >= 0);
+  }
+  function checkName(name) {
+    const n = String(name || "").replace(/[<>]/g, "").trim();
+    if (n.length < 3 || n.length > 16) return "Use 3 to 16 characters.";
+    if (!/^[A-Za-z0-9 ]+$/.test(n) || !/[A-Za-z]/.test(n)) return "Use letters and numbers only.";
+    if (badName(n)) return "Pick a different name.";
+    return "";
+  }
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #playerGate {
+      position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center;
+      background: rgba(4, 10, 18, .82); box-sizing: border-box;
+      padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+    }
+    #playerGate[hidden] { display: none !important; }
+    #playerCard {
+      width: min(440px, 100%); max-height: 100%; overflow: auto; box-sizing: border-box;
+      background: rgba(8, 16, 28, .97); color: #fff; border: 2px solid #e8c547; border-radius: 16px;
+      padding: 16px; font-family: "Trebuchet MS", Arial, sans-serif; text-align: center;
+    }
+    #playerCard h2 { margin: 0 0 6px; font-size: 26px; }
+    #playerCard p { margin: 0 0 10px; font-size: 14px; line-height: 1.4; }
+    #playerCard input, #playerCard select {
+      font: inherit; font-size: 16px; width: 100%; box-sizing: border-box;
+      min-height: 44px; padding: 8px 10px; border-radius: 10px; border: 1px solid #fff; color: #111; background: #fff;
+    }
+    #playerCard label { display: block; text-align: left; margin: 8px 0 4px; font-weight: 700; }
+    #playerColors { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 6px 0 10px; }
+    #playerColors button {
+      width: 44px; height: 44px; min-height: 44px; border-radius: 50%; border: 3px solid transparent; padding: 0;
+    }
+    #playerColors button.on { border-color: #fff; box-shadow: 0 0 0 2px #e6b325; }
+    #playerGateMsg { min-height: 1.2em; color: #ffb4b4; font-weight: 700; }
+    #playerCard .row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+    #playerCard .row button {
+      font: inherit; font-weight: 800; min-height: 44px; padding: 8px 16px; border-radius: 10px;
+      border: 0; background: #e6b325; color: #1a1404; cursor: pointer;
+    }
+    #playerCancel { background: #243044 !important; color: #fff !important; }
+    #playerChip {
+      position: fixed; z-index: 45; margin: 0;
+      top: calc(8px + env(safe-area-inset-top));
+      right: calc(86px + env(safe-area-inset-right));
+      min-height: 44px; max-width: min(46vw, 180px); padding: 6px 12px;
+      border-radius: 999px; border: 2px solid rgba(255,255,255,.7);
+      background: rgba(8, 16, 28, .88); color: #fff; font: 700 15px/1.2 "Trebuchet MS", Arial, sans-serif;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #playerChip[hidden] { display: none !important; }
+    #playerChip i { width: 18px; height: 18px; border-radius: 50%; display: block; flex: 0 0 auto; border: 2px solid #fff; }
+    #playerChip b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  `;
+  document.head.appendChild(style);
+
+  const gate = document.createElement("div");
+  gate.id = "playerGate";
+  gate.hidden = true;
+  gate.innerHTML = `
+    <form id="playerCard">
+      <h2 id="playerTitle">Create your player</h2>
+      <p id="playerBlurb">Pick a name for this device. No email and no password. It stays on this phone or computer.</p>
+      <label for="playerName">Player name</label>
+      <input id="playerName" maxlength="16" autocomplete="off" autocapitalize="words" placeholder="3 to 16 characters">
+      <label for="playerTeam">Favourite team</label>
+      <select id="playerTeam"></select>
+      <label>Avatar colour</label>
+      <div id="playerColors"></div>
+      <div id="playerGateMsg"></div>
+      <div class="row">
+        <button type="submit" id="playerSave">Start playing</button>
+        <button type="button" id="playerCancel" hidden>Cancel</button>
+      </div>
+    </form>`;
+  document.body.appendChild(gate);
+  const chip = document.createElement("div");
+  chip.id = "playerChip";
+  chip.hidden = true;
+  chip.innerHTML = "<i></i><b></b>";
+  document.body.appendChild(chip);
+
+  let color = COLORS[0];
+  let editing = false;
+
+  function fillTeams(selected) {
+    const sel = document.getElementById("playerTeam");
+    if (!sel || typeof TEAM_LIST === "undefined") return;
+    sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + String(t.name).replace(/</g, "") + "</option>").join("");
+    if (selected && [...sel.options].some((o) => o.value === selected)) sel.value = selected;
+  }
+  function paintColors() {
+    const box = document.getElementById("playerColors");
+    box.innerHTML = COLORS.map((c) => "<button type='button' data-color='" + c + "' style='background:" + c + "' aria-label='Colour " + c + "'></button>").join("");
+    box.querySelectorAll("button").forEach((b) => {
+      b.classList.toggle("on", b.dataset.color === color);
+      b.addEventListener("click", () => { color = b.dataset.color; paintColors(); });
+    });
+  }
+  function paintChip() {
+    const account = read();
+    const playing = (typeof inMatch === "function" && inMatch())
+      || (typeof room !== "undefined" && room && room.state === "playing" && !(typeof game !== "undefined" && game && game.phase === "win"));
+    if (!account || playing || !gate.hidden) { chip.hidden = true; return; }
+    chip.hidden = false;
+    chip.querySelector("i").style.background = account.color || COLORS[0];
+    chip.querySelector("b").textContent = account.name;
+    chip.setAttribute("aria-label", "Player " + account.name + ". Edit in Settings.");
+  }
+  function open(edit) {
+    editing = !!edit;
+    const current = read() || prefill();
+    color = COLORS.indexOf(current.color) >= 0 ? current.color : COLORS[0];
+    document.getElementById("playerTitle").textContent = editing ? "Edit profile" : "Create your player";
+    document.getElementById("playerBlurb").textContent = editing
+      ? "This name is what friends see online. It stays on this device."
+      : "Pick a name for this device. No email and no password. It stays on this phone or computer.";
+    document.getElementById("playerSave").textContent = editing ? "Save" : "Start playing";
+    document.getElementById("playerCancel").hidden = !editing;
+    document.getElementById("playerName").value = current.name || "";
+    document.getElementById("playerGateMsg").textContent = "";
+    fillTeams(current.team || "blue");
+    paintColors();
+    gate.hidden = false;
+    paintChip();
+  }
+  function close() {
+    gate.hidden = true;
+    paintChip();
+  }
+  function save(e) {
+    if (e) e.preventDefault();
+    const name = document.getElementById("playerName").value;
+    const msg = checkName(name);
+    const box = document.getElementById("playerGateMsg");
+    if (msg) { box.textContent = msg; return; }
+    const team = document.getElementById("playerTeam").value || "blue";
+    const account = { name: name.replace(/[<>]/g, "").trim(), team: team, color: color };
+    write(account);
+    try { localStorage.setItem("soccerName", account.name); } catch (err) { /* ignore */ }
+    const input = document.getElementById("nameInput");
+    if (input) input.value = account.name;
+    close();
+  }
+
+  document.getElementById("playerCard").addEventListener("submit", save);
+  document.getElementById("playerCancel").addEventListener("click", () => { if (read()) close(); });
+
+  window.PlayerAccount = {
+    load: read,
+    name() { const a = read(); return a ? a.name : ""; },
+    open: open,
+  };
+
+  if (!read()) open(false);
+  paintChip();
+  setInterval(paintChip, 700);
+})();
 
 /* Hidden helpers for this device. The passcode is never stored.
    Only a PBKDF2 check lives here. A wrong guess waits a moment. */
@@ -4391,6 +4603,9 @@ window.mpDebug = {
     #adminPanel .team100 select { min-height: 44px; width: 100%; max-width: 100%; }
     #adminPanel .team100 .keep, #adminPanel .hint { font-size: 14px; line-height: 1.3; }
     #adminPanel .hint { opacity: .85; flex: 1 0 100%; text-align: center; }
+    #adminWins, #adminLength { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .35); }
+    #adminWins h3, #adminLength h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
+    #adminLength input[type=number] { width: 72px; }
     #adminCup { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .45); }
     #adminCup[hidden] { display: none !important; }
     #adminCup h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
@@ -4475,6 +4690,33 @@ window.mpDebug = {
       <label>Blue <input id="adminBlue" type="number" min="0" max="99" value="0"></label>
       <label>Red <input id="adminRed" type="number" min="0" max="99" value="0"></label>
       <button type="button" id="adminSetScore">Set score</button>
+    </div>
+    <div id="adminWins">
+      <h3>Wins</h3>
+      <div class="grid">
+        <button type="button" id="adminWinBlue">Award win: Home</button>
+        <button type="button" id="adminWinRed">Award win: Away</button>
+      </div>
+      <div class="row">
+        <label>Trophies <select id="adminTrophyTeam" aria-label="Team for cup trophies"></select></label>
+        <button type="button" id="adminTrophyPlus">+1 cup</button>
+        <button type="button" id="adminTrophyMinus">−1 cup</button>
+      </div>
+    </div>
+    <div id="adminLength">
+      <h3>Match length</h3>
+      <div class="row">
+        <label>Minutes <input id="adminMinutes" type="number" min="1" max="999" value="5" aria-label="Match length in minutes"></label>
+        <button type="button" id="adminSetMinutes">Set length</button>
+        <button type="button" id="adminNoLimit">No time limit</button>
+      </div>
+      <div class="grid">
+        <button type="button" data-addmin="1">+1 min</button>
+        <button type="button" data-addmin="5">+5 min</button>
+        <button type="button" data-addmin="10">+10 min</button>
+        <button type="button" data-addmin="-1">−1 min</button>
+      </div>
+      <p class="hint">The menu still offers 1–90. No time limit ends only from here, or when you quit.</p>
     </div>
     <div class="grid">
       <button type="button" data-act="time" data-n="-30">More time</button>
@@ -5024,12 +5266,50 @@ window.mpDebug = {
     }
   }
 
+  function loadTrophyBook() {
+    try {
+      const raw = JSON.parse(localStorage.getItem("soccerTrophies") || "null");
+      if (raw && Array.isArray(raw.wins)) {
+        if (!raw.revoked || typeof raw.revoked !== "object") raw.revoked = {};
+        return raw;
+      }
+    } catch (e) { /* ignore */ }
+    return { wins: [], revoked: {} };
+  }
+  function fillTrophyTeams() {
+    const sel = document.getElementById("adminTrophyTeam");
+    if (!sel || typeof TEAM_LIST === "undefined") return;
+    const keep = sel.value;
+    sel.innerHTML = TEAM_LIST.map((t) => "<option value='" + t.id + "'>" + String(t.name).replace(/</g, "") + "</option>").join("");
+    if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
+  }
+  function adjustTrophies(teamId, delta) {
+    const team = (typeof findTeam === "function" && findTeam(teamId)) || null;
+    if (!team) return "Pick a team.";
+    const book = loadTrophyBook();
+    if (delta > 0) {
+      book.wins.push({ id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), teamId: team.id, name: team.name });
+    } else {
+      let i = -1;
+      for (let k = book.wins.length - 1; k >= 0; k--) if (book.wins[k] && book.wins[k].teamId === team.id) i = k;
+      if (i < 0) return team.name + " has no cup to take away.";
+      const removed = book.wins.splice(i, 1)[0];
+      if (removed && removed.id && removed.id.charAt(0) !== "m") book.revoked[removed.id] = true;
+    }
+    try { localStorage.setItem("soccerTrophies", JSON.stringify(book)); } catch (e) { return "Could not save on this device."; }
+    if (typeof paintTrophyBadge === "function") paintTrophyBadge();
+    if (typeof paintTrophyLines === "function") paintTrophyLines();
+    return team.name + (delta > 0 ? " +1 cup." : " −1 cup.") + " Total " + book.wins.length + ".";
+  }
+  function rememberAdminLength(spec) {
+    window.__adminLength = spec;
+  }
   function run(action, arg) {
     const s = liveSim();
     if (!canUse() || !s) {
       const note = document.getElementById("adminNote");
       if (note) note.textContent = guestBlocked()
-        ? "Only the host can use these in an online game."
+        ? "Only the host's helpers change this match. Trophy counts stay on your device."
         : "Start a match first.";
       return null;
     }
@@ -5044,14 +5324,15 @@ window.mpDebug = {
     const s = liveSim();
     const note = document.getElementById("adminNote");
     fillTeamSelect();
+    fillTrophyTeams();
     fillCupPanel();
     markAdminScroll();
     if (!s || !s.admin) {
-      if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "";
+      if (note) note.textContent = guestBlocked() ? "Only the host's helpers change this match. Trophy counts stay on your device." : "";
       return;
     }
     const a = s.admin("get");
-    if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "";
+    if (note) note.textContent = guestBlocked() ? "Only the host's helpers change this match. Trophy counts stay on your device." : "";
     document.getElementById("adminClock").textContent = a.clockPaused ? "Play clock" : "Pause clock";
     document.getElementById("adminClock").classList.toggle("on", !!a.clockPaused);
     panel.querySelectorAll("[data-flag]").forEach((btn) => {
@@ -5062,6 +5343,13 @@ window.mpDebug = {
       document.getElementById("adminBlue").value = g.score.blue;
       document.getElementById("adminRed").value = g.score.red;
     }
+    const blueName = (g && g.teams && g.teams.blue && g.teams.blue.name) || "Home";
+    const redName = (g && g.teams && g.teams.red && g.teams.red.name) || "Away";
+    const winBlue = document.getElementById("adminWinBlue");
+    const winRed = document.getElementById("adminWinRed");
+    if (winBlue) winBlue.textContent = "Award win: " + blueName;
+    if (winRed) winRed.textContent = "Award win: " + redName;
+    fillTrophyTeams();
     fillTeamSelect();
     const sel = document.getElementById("adminPlayer");
     const keep = sel.value;
@@ -5134,7 +5422,7 @@ window.mpDebug = {
       return false;
     }
     if (guestBlocked()) {
-      if (note) note.textContent = "Only the host can use these in an online game.";
+      if (note) note.textContent = "Only the host's helpers change this match. Trophy counts stay on your device.";
       return false;
     }
     if (typeof cupAdmin !== "function") {
@@ -5231,6 +5519,51 @@ window.mpDebug = {
       debug.hidden = true;
       return;
     }
+    if (btn.id === "adminWinBlue" || btn.id === "adminWinRed") {
+      run("award", { team: btn.id === "adminWinRed" ? "red" : "blue" });
+      const note = document.getElementById("adminNote");
+      if (note && !guestBlocked() && liveSim()) note.textContent = "That team wins. The usual result screen follows.";
+      return;
+    }
+    if (btn.id === "adminTrophyPlus" || btn.id === "adminTrophyMinus") {
+      const note = document.getElementById("adminNote");
+      if (!unlocked()) {
+        if (note) note.textContent = "Unlock the helpers first.";
+        return;
+      }
+      const msg = adjustTrophies(document.getElementById("adminTrophyTeam").value, btn.id === "adminTrophyPlus" ? 1 : -1);
+      if (note) note.textContent = msg;
+      return;
+    }
+    if (btn.id === "adminSetMinutes" || btn.id === "adminNoLimit") {
+      const note = document.getElementById("adminNote");
+      if (!unlocked() || guestBlocked()) {
+        if (note) note.textContent = guestBlocked() ? "Only the host's helpers change this match. Trophy counts stay on your device." : "Unlock the helpers first.";
+        return;
+      }
+      if (btn.id === "adminNoLimit") {
+        rememberAdminLength({ unlimited: true });
+        if (liveSim()) run("length", { unlimited: true });
+        if (note) note.textContent = "No time limit. The match ends from here, or when you quit.";
+      } else {
+        const mins = Math.round(Number(document.getElementById("adminMinutes").value));
+        if (!isFinite(mins) || mins < 1 || mins > 999) {
+          if (note) note.textContent = "Use 1 to 999 minutes, or No time limit.";
+          return;
+        }
+        rememberAdminLength({ minutes: mins });
+        if (liveSim()) run("length", { minutes: mins });
+        if (note) note.textContent = mins + " minute match from the helpers.";
+      }
+      return;
+    }
+    if (btn.dataset && btn.dataset.addmin != null) {
+      const n = Number(btn.dataset.addmin);
+      run("addmin", n);
+      const note = document.getElementById("adminNote");
+      if (note && !guestBlocked() && liveSim()) note.textContent = (n > 0 ? "+" : "") + n + " min on the clock.";
+      return;
+    }
     if (btn.id === "adminSetScore") {
       run("score", {
         blue: document.getElementById("adminBlue").value,
@@ -5251,7 +5584,7 @@ window.mpDebug = {
     if (btn.id === "adminTeam100" || btn.id === "adminTeamUndo") {
       const note = document.getElementById("adminNote");
       if (!unlocked() || guestBlocked()) {
-        if (note) note.textContent = guestBlocked() ? "Only the host can use these in an online game." : "Unlock the helpers first.";
+        if (note) note.textContent = guestBlocked() ? "Only the host's helpers change this match. Trophy counts stay on your device." : "Unlock the helpers first.";
         return;
       }
       const id = document.getElementById("adminTeam").value;

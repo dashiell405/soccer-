@@ -91,6 +91,7 @@ function onSnapshot(s) {
   game.phase = s.ph;
   game.score.blue = s.sc[0]; game.score.red = s.sc[1];
   game.clock = s.cl; game.timer = s.tm;
+  if (typeof s.tl === "number") game.timeLimit = s.tl;
   game.lastScorer = s.ls; game.winner = s.w;
   if (s.cm) game.comment = { text: s.cm[0], color: s.cm[1], timer: s.cm[2] };
   else game.comment.timer = 0;
