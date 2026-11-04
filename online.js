@@ -491,9 +491,17 @@ function broadcastRoom(room, note) {
   broadcast(room, info);
 }
 
-function addMember(room, name) {
+function cleanDeviceId(id) {
+  const s = String(id || "").toLowerCase().replace(/[^a-f0-9]/g, "").slice(0, 64);
+  return s.length >= 16 ? s : "";
+}
+function thisDeviceId() {
+  if (typeof PlayerAccount !== "undefined" && PlayerAccount.deviceId) return cleanDeviceId(PlayerAccount.deviceId());
+  return "";
+}
+function addMember(room, name, deviceId) {
   const m = {
-    id: randomId(6), token: randomId(12), name, team: autoTeam(room),
+    id: randomId(6), token: randomId(12), name, deviceId: cleanDeviceId(deviceId), team: autoTeam(room),
     conn: null, local: false, connected: true, ping: 0, lastHeard: Date.now(),
   };
   room.members.set(m.id, m);
@@ -506,6 +514,157 @@ function attachReturning(room, name, token) {
   if (token) m = [...room.members.values()].find((x) => x.token === token);
   if (!m) m = [...room.members.values()].find((x) => !x.connected && x.name.toLowerCase() === name.toLowerCase());
   return m;
+}
+
+const BAN_KEY = "soccerHostBans";
+function loadBans() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(BAN_KEY) || "null");
+    if (raw && Array.isArray(raw.bans)) return raw.bans.filter((b) => b && typeof b.name === "string");
+  } catch (e) { /* ignore */ }
+  return [];
+}
+function saveBans(bans) {
+  try { localStorage.setItem(BAN_KEY, JSON.stringify({ bans: bans })); } catch (e) { /* private mode */ }
+}
+function listActiveBans() {
+  const now = Date.now();
+  const all = loadBans();
+  const kept = all.filter((b) => b.until == null || Number(b.until) > now);
+  if (kept.length !== all.length) saveBans(kept);
+  return kept;
+}
+function lookupBan(deviceId, name) {
+  const bans = listActiveBans();
+  const id = cleanDeviceId(deviceId);
+  if (id) {
+    const hit = bans.find((b) => b.deviceId && b.deviceId === id);
+    if (hit) return hit;
+  }
+  if (!id && name) {
+    const want = String(name).toLowerCase();
+    return bans.find((b) => !b.deviceId && String(b.name).toLowerCase() === want) || null;
+  }
+  return null;
+}
+function rememberBan(entry) {
+  const bans = listActiveBans().filter((b) => {
+    if (entry.deviceId && b.deviceId === entry.deviceId) return false;
+    if (!entry.deviceId && entry.name && !b.deviceId && b.name === entry.name) return false;
+    return true;
+  });
+  bans.push(entry);
+  saveBans(bans);
+  return entry;
+}
+function durationLabel(minutes) {
+  const n = Math.round(Number(minutes) || 0);
+  if (n === 1) return "1 minute";
+  if (n === 60) return "1 hour";
+  if (n === 1440) return "1 day";
+  if (n > 0 && n % 1440 === 0) return (n / 1440) + (n === 1440 ? " day" : " days");
+  if (n > 0 && n % 60 === 0) return (n / 60) + (n === 60 ? " hour" : " hours");
+  return n + " minutes";
+}
+function removalHeadline(info) {
+  const message = String((info && info.message) || "").replace(/[<>]/g, "").trim().slice(0, 100);
+  const permanent = !info || info.permanent || info.until == null;
+  if (permanent) {
+    return message ? "You are banned from this host's games: " + message : "You are banned from this host's games.";
+  }
+  const mins = Number(info.minutes) || Math.max(1, Math.round((Number(info.until) - Date.now()) / 60000));
+  const label = durationLabel(mins);
+  return message ? "Removed by the host for " + label + ": " + message : "Removed by the host for " + label + ".";
+}
+function removalPayload(ban) {
+  return {
+    t: "removed",
+    until: ban.until,
+    message: ban.message || "",
+    permanent: ban.until == null,
+    minutes: ban.until == null ? 0 : (Number(ban.minutes) || 1),
+  };
+}
+function banTimeLeft(ban) {
+  if (!ban || ban.until == null) return "Permanent";
+  const ms = Number(ban.until) - Date.now();
+  if (ms <= 0) return "Expired";
+  const min = Math.ceil(ms / 60000);
+  if (min < 60) return min + " min left";
+  if (min < 1440) {
+    const h = Math.floor(min / 60);
+    const r = min % 60;
+    return r ? h + " hr " + r + " min left" : h + " hr left";
+  }
+  const d = Math.floor(min / 1440);
+  const h = Math.floor((min % 1440) / 60);
+  return h ? d + "d " + h + " hr left" : d + "d left";
+}
+function refuseBanned(conn, ban) {
+  try { conn.send(removalPayload(ban)); } catch (e) { /* link is closing */ }
+  setTimeout(() => { try { conn.close(); } catch (e) { /* already closed */ } }, 250);
+}
+function dropGuest(m) {
+  if (!hosted || !m) return;
+  const conn = m.conn;
+  hosted.members.delete(m.id);
+  if (hosted.sim) hosted.sim.removeController(m.id);
+  if (conn) {
+    connMember.delete(conn);
+    setTimeout(() => { try { conn.close(); } catch (e) { /* already closed */ } }, 250);
+  }
+}
+function hostPlayers() {
+  if (!netIsHost() || !hosted) return [];
+  return [...hosted.members.values()]
+    .filter((m) => !m.local && m.id !== hosted.hostId)
+    .map((m) => ({ id: m.id, name: m.name, deviceId: m.deviceId || "", connected: !!m.connected }));
+}
+function hostRemove(memberId, opts) {
+  if (typeof netRole === "string" && netRole === "guest") return "Only the host can remove players.";
+  if (!netIsHost() || !hosted) return "Host a game to remove a guest.";
+  const m = hosted.members.get(memberId);
+  if (!m || m.local || m.id === hosted.hostId) return "You can't remove yourself.";
+  const message = String((opts && opts.message) || "").replace(/[<>]/g, "").trim().slice(0, 100);
+  if (typeof PlayerAccount !== "undefined" && PlayerAccount.filterText) {
+    const bad = PlayerAccount.filterText(message);
+    if (bad) return bad;
+  }
+  const permanent = !!(opts && opts.permanent);
+  let minutes = 0;
+  let until = null;
+  if (!permanent) {
+    minutes = Math.round(Number(opts && opts.minutes));
+    if (!isFinite(minutes) || minutes < 1 || minutes > 9999) return "Use 1 to 9999 minutes, or Permanent.";
+    until = Date.now() + minutes * 60 * 1000;
+  }
+  const ban = rememberBan({
+    deviceId: m.deviceId || "",
+    name: m.name,
+    until: until,
+    minutes: minutes,
+    message: message,
+    at: Date.now(),
+  });
+  try { if (m.conn && m.conn.open) m.conn.send(removalPayload(ban)); } catch (e) { /* guest is already gone */ }
+  dropGuest(m);
+  const note = until
+    ? m.name + " was removed for " + durationLabel(minutes) + "."
+    : m.name + " was banned.";
+  broadcastRoom(hosted, note);
+  showNotice(note, true);
+  return note;
+}
+function hostUnban(deviceId, name) {
+  if (typeof netRole === "string" && netRole === "guest") return "Only the host can remove players.";
+  const id = cleanDeviceId(deviceId);
+  const bans = listActiveBans().filter((b) => {
+    if (id && b.deviceId === id) return false;
+    if (!id && name && b.name === name) return false;
+    return true;
+  });
+  saveBans(bans);
+  return (name || "That player") + " can join again.";
 }
 
 function sendJoined(room, m) {
@@ -712,6 +871,9 @@ function onIncoming(conn) {
       return;
     }
     const name = cleanName(msg.name);
+    const deviceId = cleanDeviceId(msg.deviceId);
+    const ban = lookupBan(deviceId, name);
+    if (ban) { refuseBanned(conn, ban); return; }
     let m = attachReturning(hosted, name, typeof msg.token === "string" ? msg.token : null);
     if (m) {
       if (m.conn && m.conn !== conn) {
@@ -719,8 +881,9 @@ function onIncoming(conn) {
         try { m.conn.close(); } catch (e) { /* old link */ }
       }
       m.conn = conn; m.connected = true; m.local = false;
+      if (deviceId) m.deviceId = deviceId;
     } else {
-      m = addMember(hosted, name);
+      m = addMember(hosted, name, deviceId);
       m.conn = conn;
     }
     connMember.set(conn, m);
@@ -762,7 +925,7 @@ function hostReady(peer, code, name, mode, difficulty) {
     debug: DEBUG_NET,
     lastTickAt: Date.now(),
   };
-  const me = addMember(hosted, name);
+  const me = addMember(hosted, name, thisDeviceId());
   me.local = true;
   me.connected = true;
   hosted.hostId = me.id;
@@ -901,7 +1064,8 @@ function openGuest(code, name, token, attempt) {
     conn.on("open", () => {
       if (gen !== generation) return;
       lastHeard = Date.now();
-      try { conn.send({ t: "join", code, name, token: token || undefined }); } catch (e) { giveUp(MSG.ice); }
+      const deviceId = thisDeviceId();
+      try { conn.send({ t: "join", code, name, token: token || undefined, deviceId: deviceId || undefined }); } catch (e) { giveUp(MSG.ice); }
     });
     conn.on("data", (raw) => {
       if (gen !== generation) return;
@@ -935,6 +1099,18 @@ function openGuest(code, name, token, attempt) {
   });
   if (!watchdogTimer) watchdogTimer = setInterval(watchConnections, 2000);
 }
+
+window.hostModeration = {
+  isHost() { return netIsHost(); },
+  players: hostPlayers,
+  bans: listActiveBans,
+  remove: hostRemove,
+  unban: hostUnban,
+  lookup: lookupBan,
+  remember: rememberBan,
+  headline: removalHeadline,
+  timeLeft: banTimeLeft,
+};
 
 // =====================================================================
 // C. MESSAGES FROM THE HOST
@@ -987,6 +1163,15 @@ function onMessage(m) {
         try { sessionStorage.removeItem("soccerRoom"); } catch (e) { /* ignore */ }
         if (typeof netFailJoin === "function") netFailJoin();
       }
+      break;
+    case "removed":
+      if (typeof netMarkLeaving === "function") netMarkLeaving();
+      wantRoom = null;
+      try { sessionStorage.removeItem("soccerRoom"); } catch (e) { /* ignore */ }
+      if (typeof showHostRemoval === "function") showHostRemoval(m);
+      if ($("homeMsg") && typeof removalHeadline === "function") $("homeMsg").textContent = removalHeadline(m);
+      if (typeof netReset === "function") netReset();
+      if (typeof clearRoom === "function") clearRoom();
       break;
   }
 }
@@ -4736,6 +4921,73 @@ function hideNotice() {
   clearTimeout(noticeTimer);
   el.classList.add("hidden");
 }
+let removalTimer = null;
+function formatRemovalLeft(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  if (h > 0) return h + ":" + String(m).padStart(2, "0") + ":" + String(r).padStart(2, "0");
+  return m + ":" + String(r).padStart(2, "0");
+}
+function showHostRemoval(info) {
+  let box = document.getElementById("hostRemoval");
+  if (!box) {
+    const style = document.createElement("style");
+    style.textContent = `
+      #hostRemoval {
+        position: fixed; inset: 0; z-index: 96; display: flex; align-items: center; justify-content: center;
+        background: rgba(4, 10, 18, .88); box-sizing: border-box;
+        padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+      }
+      #hostRemoval[hidden] { display: none !important; }
+      #hostRemovalCard {
+        width: min(440px, 100%); box-sizing: border-box; text-align: center;
+        background: rgba(8, 16, 28, .98); color: #fff; border: 2px solid #e8c547; border-radius: 16px;
+        padding: 18px 16px; font-family: "Trebuchet MS", Arial, sans-serif;
+      }
+      #hostRemovalTitle { margin: 0 0 10px; font-size: 26px; line-height: 1.25; }
+      #hostRemovalCount { margin: 0 0 14px; font-size: 22px; color: #ffe27a; font-variant-numeric: tabular-nums; }
+      #hostRemoval button {
+        font: inherit; font-weight: 700; min-height: 44px; min-width: 120px; padding: 8px 18px;
+        border-radius: 10px; border: 1px solid #ffe27a; background: #1d4e34; color: #fff;
+      }
+    `;
+    document.head.appendChild(style);
+    box = document.createElement("div");
+    box.id = "hostRemoval";
+    box.innerHTML = "<div id='hostRemovalCard'><h2 id='hostRemovalTitle'></h2><p id='hostRemovalCount'></p><button type='button' id='hostRemovalOk'>OK</button></div>";
+    document.body.appendChild(box);
+    document.getElementById("hostRemovalOk").addEventListener("click", () => {
+      box.hidden = true;
+      clearInterval(removalTimer);
+    });
+  }
+  const title = document.getElementById("hostRemovalTitle");
+  const count = document.getElementById("hostRemovalCount");
+  const headline = typeof removalHeadline === "function"
+    ? removalHeadline(info)
+    : "You were removed by the host.";
+  if (title) title.textContent = headline;
+  const permanent = !info || info.permanent || info.until == null;
+  function tick() {
+    if (permanent) {
+      if (count) count.textContent = "Permanent";
+      return;
+    }
+    const ms = Number(info.until) - Date.now();
+    if (ms <= 0) {
+      if (count) count.textContent = "You can try to join again.";
+      clearInterval(removalTimer);
+      return;
+    }
+    if (count) count.textContent = "You can rejoin in " + formatRemovalLeft(ms);
+  }
+  clearInterval(removalTimer);
+  tick();
+  if (!permanent) removalTimer = setInterval(tick, 250);
+  box.hidden = false;
+}
 function clearRoom() {
   room = null; myId = null; wantRoom = null; menuOpen = false;
   game.phase = "lobby"; snaps.length = 0; controllers = [];
@@ -4956,6 +5208,30 @@ window.mpDebug = {
     if (badName(n)) return "Pick a different name.";
     return "";
   }
+  function filterText(text) {
+    const raw = String(text || "");
+    if (raw.replace(/[<>]/g, "").trim().length > 100) return "Keep the message under 100 characters.";
+    const s = raw.replace(/[<>]/g, "").trim();
+    if (!s) return "";
+    if (badName(s)) return "Pick a different message.";
+    return "";
+  }
+  function deviceId() {
+    let id = "";
+    try { id = localStorage.getItem("soccerDeviceId") || ""; } catch (e) { /* ignore */ }
+    if (!/^[a-f0-9]{32}$/.test(id)) {
+      const saved = read();
+      if (saved && /^[a-f0-9]{32}$/.test(saved.deviceId || "")) id = saved.deviceId;
+    }
+    if (!/^[a-f0-9]{32}$/.test(id)) {
+      const bytes = new Uint8Array(16);
+      if (crypto && crypto.getRandomValues) crypto.getRandomValues(bytes);
+      else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+      id = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    }
+    try { localStorage.setItem("soccerDeviceId", id); } catch (e) { /* private mode */ }
+    return id;
+  }
 
   const style = document.createElement("style");
   style.textContent = `
@@ -5085,7 +5361,7 @@ window.mpDebug = {
     const box = document.getElementById("playerGateMsg");
     if (msg) { box.textContent = msg; return; }
     const team = document.getElementById("playerTeam").value || "blue";
-    const account = { name: name.replace(/[<>]/g, "").trim(), team: team, color: color };
+    const account = { name: name.replace(/[<>]/g, "").trim(), team: team, color: color, deviceId: deviceId() };
     write(account);
     try { localStorage.setItem("soccerName", account.name); } catch (err) { /* ignore */ }
     const input = document.getElementById("nameInput");
@@ -5100,7 +5376,10 @@ window.mpDebug = {
     load: read,
     name() { const a = read(); return a ? a.name : ""; },
     open: open,
+    deviceId: deviceId,
+    filterText: filterText,
   };
+  deviceId();
 
   if (!read()) open(false);
   paintChip();
@@ -5276,8 +5555,19 @@ window.mpDebug = {
     #adminPanel .team100 select { min-height: 44px; width: 100%; max-width: 100%; }
     #adminPanel .team100 .keep, #adminPanel .hint { font-size: 14px; line-height: 1.3; }
     #adminPanel .hint { opacity: .85; flex: 1 0 100%; text-align: center; }
-    #adminWins, #adminLength { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .35); }
-    #adminWins h3, #adminLength h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
+    #adminWins, #adminLength, #adminPeople { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .35); }
+    #adminWins h3, #adminLength h3, #adminPeople h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
+    #adminKickForm[hidden], #adminKickCustomWrap[hidden] { display: none !important; }
+    #adminKickFor button.on { background: #e6b325; color: #1a1404; border-color: #ffe27a; }
+    #adminPeople .playerRow, #adminPeople .banRow {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; margin: 4px 0;
+    }
+    #adminPeople .who { margin: 4px 0; text-align: center; font-weight: 700; }
+    #adminPeople .banMeta { font-size: 13px; line-height: 1.3; opacity: .9; flex: 1 0 100%; text-align: center; }
+    #adminPeople input[type=text], #adminPeople input:not([type]) {
+      font: inherit; font-size: 16px; width: min(100%, 220px); min-height: 44px; box-sizing: border-box;
+      padding: 8px; border-radius: 8px; border: 1px solid #fff; background: #fff; color: #111;
+    }
     #adminLength input[type=number] { width: 72px; }
     #adminCup { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .45); }
     #adminCup[hidden] { display: none !important; }
@@ -5456,6 +5746,36 @@ window.mpDebug = {
         <label>vs <select id="adminCupFinalB" aria-label="Second finalist"></select></label>
         <button type="button" id="adminCupFinal">Jump to Final</button>
       </div>
+    </div>
+    <div id="adminPeople">
+      <h3>Players</h3>
+      <p class="hint" id="adminPeopleNote">Host a game to remove a guest.</p>
+      <div id="adminPlayerList"></div>
+      <div id="adminKickForm" hidden>
+        <p class="who" id="adminKickWho"></p>
+        <div class="grid" id="adminKickFor" role="group" aria-label="How long they stay out">
+          <button type="button" data-mins="1">1 min</button>
+          <button type="button" data-mins="5">5 min</button>
+          <button type="button" data-mins="10">10 min</button>
+          <button type="button" data-mins="30">30 min</button>
+          <button type="button" data-mins="60">1 hour</button>
+          <button type="button" data-mins="1440">1 day</button>
+          <button type="button" data-mins="custom">Custom minutes</button>
+          <button type="button" data-mins="permanent">Permanent</button>
+        </div>
+        <label id="adminKickCustomWrap" hidden>Minutes
+          <input id="adminKickCustom" type="number" min="1" max="9999" value="15" aria-label="Custom minutes">
+        </label>
+        <label>Message
+          <input id="adminKickMsg" type="text" maxlength="100" placeholder="Optional" aria-label="Message for the player">
+        </label>
+        <div class="row">
+          <button type="button" id="adminKickGo">Confirm</button>
+          <button type="button" id="adminKickCancel">Cancel</button>
+        </div>
+      </div>
+      <h3>Banned players</h3>
+      <div id="adminBanList"></div>
     </div>
     <div class="row">
       <button type="button" id="adminReset">Put everything back</button>
@@ -5994,6 +6314,7 @@ window.mpDebug = {
     return out;
   }
   function refreshPanel() {
+    fillPeople();
     const s = liveSim();
     const note = document.getElementById("adminNote");
     fillTeamSelect();
@@ -6163,6 +6484,140 @@ window.mpDebug = {
     fillCupPanel();
     markAdminScroll();
   }
+  function peopleText(s) {
+    return String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  let kickTarget = null;
+  let peopleStamp = 0;
+  let kickChoice = "5";
+  function syncKickCustom() {
+    const wrap = document.getElementById("adminKickCustomWrap");
+    const box = document.getElementById("adminKickFor");
+    if (wrap) wrap.hidden = kickChoice !== "custom";
+    if (box) box.querySelectorAll("[data-mins]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-mins") === kickChoice));
+  }
+  function paintKickWho() {
+    const who = document.getElementById("adminKickWho");
+    if (!who || !kickTarget) return;
+    if (kickChoice === "permanent") who.textContent = "Ban " + kickTarget.name + "?";
+    else who.textContent = "Remove " + kickTarget.name + "?";
+  }
+  function readKickDuration() {
+    const v = kickChoice;
+    if (v === "permanent") return { permanent: true, minutes: 0 };
+    if (v === "custom") {
+      const n = Math.round(Number(document.getElementById("adminKickCustom").value));
+      if (!isFinite(n) || n < 1 || n > 9999) return { error: "Use 1 to 9999 minutes, or Permanent." };
+      return { permanent: false, minutes: n };
+    }
+    const n = Number(v);
+    if (!isFinite(n) || n < 1) return { error: "Pick how long." };
+    return { permanent: false, minutes: n };
+  }
+  function closeKickForm() {
+    kickTarget = null;
+    const form = document.getElementById("adminKickForm");
+    if (form) form.hidden = true;
+    const msg = document.getElementById("adminKickMsg");
+    if (msg) msg.value = "";
+  }
+  function openKickForm(id, permanent) {
+    const note = document.getElementById("adminNote");
+    if (!unlocked()) {
+      if (note) note.textContent = "Unlock the helpers first.";
+      return;
+    }
+    if (guestBlocked()) {
+      if (note) note.textContent = "Only the host can remove players.";
+      return;
+    }
+    const mod = window.hostModeration;
+    const people = mod && mod.players ? mod.players() : [];
+    const found = people.find((p) => p.id === id);
+    if (!found) {
+      if (note) note.textContent = "That player already left.";
+      return;
+    }
+    kickTarget = found;
+    const form = document.getElementById("adminKickForm");
+    kickChoice = permanent ? "permanent" : "5";
+    syncKickCustom();
+    paintKickWho();
+    if (form) form.hidden = false;
+    const input = document.getElementById("adminKickMsg");
+    if (input) input.focus();
+  }
+  function confirmKick() {
+    const note = document.getElementById("adminNote");
+    if (!unlocked() || guestBlocked()) {
+      if (note) note.textContent = guestBlocked() ? "Only the host can remove players." : "Unlock the helpers first.";
+      return;
+    }
+    if (!kickTarget) return;
+    const spec = readKickDuration();
+    if (spec.error) {
+      if (note) note.textContent = spec.error;
+      return;
+    }
+    const message = document.getElementById("adminKickMsg").value;
+    if (typeof PlayerAccount !== "undefined" && PlayerAccount.filterText) {
+      const bad = PlayerAccount.filterText(message);
+      if (bad) {
+        if (note) note.textContent = bad;
+        return;
+      }
+    }
+    const mod = window.hostModeration;
+    if (!mod || !mod.remove) {
+      if (note) note.textContent = "Host an online game to remove a guest.";
+      return;
+    }
+    const result = mod.remove(kickTarget.id, { permanent: spec.permanent, minutes: spec.minutes, message: message });
+    if (note) note.textContent = result;
+    closeKickForm();
+    fillPeople();
+  }
+  function fillPeople() {
+    const note = document.getElementById("adminPeopleNote");
+    const list = document.getElementById("adminPlayerList");
+    const bansEl = document.getElementById("adminBanList");
+    const form = document.getElementById("adminKickForm");
+    if (!note || !list || !bansEl) return;
+    if (guestBlocked()) {
+      note.textContent = "Only the host can remove players.";
+      list.innerHTML = "";
+      bansEl.innerHTML = "";
+      if (form) form.hidden = true;
+      kickTarget = null;
+      return;
+    }
+    const mod = window.hostModeration;
+    if (!mod) {
+      note.textContent = "Host an online game to remove a guest.";
+      list.innerHTML = "";
+      bansEl.innerHTML = "<p class='hint'>Nobody is banned.</p>";
+      return;
+    }
+    const players = mod.isHost() && mod.players ? mod.players() : [];
+    if (!mod.isHost()) note.textContent = "Host a game to remove a guest. Bans stay on this device.";
+    else if (!players.length) note.textContent = "No guests in this game.";
+    else note.textContent = "";
+    list.innerHTML = players.map((p) => {
+      const away = p.connected ? "" : " (away)";
+      return "<div class='playerRow'><span>" + peopleText(p.name) + away + "</span>"
+        + "<button type='button' data-kick='" + peopleText(p.id) + "'>Kick</button>"
+        + "<button type='button' data-ban='" + peopleText(p.id) + "'>Ban</button></div>";
+    }).join("");
+    const rows = mod.bans ? mod.bans() : [];
+    bansEl.innerHTML = rows.length ? rows.map((b) => {
+      const left = mod.timeLeft ? mod.timeLeft(b) : (b.until == null ? "Permanent" : "");
+      const msg = b.message ? "<span class='banMeta'>" + peopleText(b.message) + "</span>" : "";
+      return "<div class='banRow'><span>" + peopleText(b.name) + "</span><span>" + peopleText(left) + "</span>"
+        + msg
+        + "<button type='button' data-unban='" + peopleText(b.deviceId || "") + "' data-unname='" + peopleText(b.name) + "'>Unban</button></div>";
+    }).join("") : "<p class='hint'>Nobody is banned.</p>";
+    if (kickTarget && !players.some((p) => p.id === kickTarget.id)) closeKickForm();
+  }
   function teamOnPitch(id) {
     const s = liveSim();
     if (!s || !s.roster || !s.game || !s.game.teams) return false;
@@ -6179,6 +6634,30 @@ window.mpDebug = {
     const btn = e.target.closest("button");
     if (!btn || !panel.contains(btn)) return;
     if (btn.id === "adminMin") { collapsePanel(); return; }
+    if (btn.dataset && btn.dataset.mins) {
+      kickChoice = btn.dataset.mins;
+      syncKickCustom();
+      paintKickWho();
+      return;
+    }
+    if (btn.dataset && btn.dataset.kick) { openKickForm(btn.dataset.kick, false); return; }
+    if (btn.dataset && btn.dataset.ban) { openKickForm(btn.dataset.ban, true); return; }
+    if (btn.id === "adminKickCancel") { closeKickForm(); return; }
+    if (btn.id === "adminKickGo") { confirmKick(); return; }
+    if (btn.dataset && btn.dataset.unban != null && btn.id !== "adminKickGo") {
+      const note = document.getElementById("adminNote");
+      if (!unlocked() || guestBlocked()) {
+        if (note) note.textContent = guestBlocked() ? "Only the host can remove players." : "Unlock the helpers first.";
+        return;
+      }
+      const mod = window.hostModeration;
+      if (mod && mod.unban) {
+        const result = mod.unban(btn.dataset.unban, btn.dataset.unname || "");
+        if (note) note.textContent = result;
+      }
+      fillPeople();
+      return;
+    }
     if (btn.id === "adminResize") return;
     if (btn.dataset && btn.dataset.size) { applyPreset(btn.dataset.size); return; }
     if (btn.id === "adminPlace") { resetPlace(); return; }
@@ -6339,6 +6818,8 @@ window.mpDebug = {
       frames = 0;
       fpsStamp = now;
     }
+    const nowPeople = Date.now();
+    if (nowPeople - peopleStamp > 1000) { peopleStamp = nowPeople; fillPeople(); }
     const s = liveSim();
     const on = s && s.game && s.game.admin && s.game.admin.debug && unlocked();
     if (!on) { debug.hidden = true; }

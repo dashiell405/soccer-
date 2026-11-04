@@ -50,6 +50,15 @@ function onMessage(m) {
         if (typeof netFailJoin === "function") netFailJoin();
       }
       break;
+    case "removed":
+      if (typeof netMarkLeaving === "function") netMarkLeaving();
+      wantRoom = null;
+      try { sessionStorage.removeItem("soccerRoom"); } catch (e) { /* ignore */ }
+      if (typeof showHostRemoval === "function") showHostRemoval(m);
+      if ($("homeMsg") && typeof removalHeadline === "function") $("homeMsg").textContent = removalHeadline(m);
+      if (typeof netReset === "function") netReset();
+      if (typeof clearRoom === "function") clearRoom();
+      break;
   }
 }
 
