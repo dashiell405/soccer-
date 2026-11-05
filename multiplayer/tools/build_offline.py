@@ -16,8 +16,8 @@ def head_tags(title):
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Floodlight">
-<meta name="application-name" content="Floodlight Kickoff">
+<meta name="apple-mobile-web-app-title" content="Kickoff">
+<meta name="application-name" content="Kickoff">
 <meta name="format-detection" content="telephone=no">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
@@ -54,7 +54,7 @@ def patch_head(s, title, menu_id):
 # ---------- offline.html ----------
 s = open(SRC, encoding="utf-8").read()
 assert "<!-- Home Screen app" not in s, "soccer.html should stay the plain standalone file"
-s = patch_head(s, "Floodlight Kickoff", "pauseBtn")
+s = patch_head(s, "Kickoff", "pauseBtn")
 s = s.replace('<div class="row"><button id="startBtn" class="big">KICK OFF</button></div>',
               '<div class="row"><button id="startBtn" class="big">KICK OFF</button></div>\n'
               '    <div class="row"><a class="btnlink" href="./" id="onlineLink">&#127760; Play online with friends</a></div>', 1)
@@ -74,7 +74,7 @@ shutil.copy2(COVER, os.path.join(PUB, "assets", "cover.png"))
 p = os.path.join(PUB, "index.html")
 s = open(p, encoding="utf-8").read()
 if "<!-- Home Screen app" not in s:
-    s = patch_head(s, "Floodlight Kickoff", "menuBtn")
+    s = patch_head(s, "Kickoff", "menuBtn")
     s = s.replace('#pingBox {\n    position: fixed; top: 14px; right: 84px;',
                   '#pingBox {\n    position: fixed; top: calc(14px + env(safe-area-inset-top)); right: calc(84px + env(safe-area-inset-right));', 1)
     s = s.replace('''    <div class="row"><div class="label">Your name</div>''',

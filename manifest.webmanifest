@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Floodlight Kickoff",
-  "short_name": "Floodlight",
+  "name": "Kickoff",
+  "short_name": "Kickoff",
   "description": "Floodlight Kickoff. 11-a-side under the lights. Play the computer, 2 players on one device, or friends online with a room code. Cup, penalty shootout, and team picker. Works offline.",
   "start_url": "./",
   "scope": "./",
