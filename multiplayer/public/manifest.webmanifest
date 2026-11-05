@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Floodlight Kickoff",
-  "short_name": "Floodlight",
+  "name": "Kickoff",
+  "short_name": "Kickoff",
   "description": "Floodlight Kickoff. Play the computer offline, or 1v1 / 2v2 online with friends on other devices.",
   "start_url": "./",
   "scope": "./",
