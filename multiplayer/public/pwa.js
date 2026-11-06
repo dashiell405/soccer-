@@ -27,8 +27,12 @@
   document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
   document.addEventListener("gesturechange", function (e) { e.preventDefault(); });
   document.addEventListener("touchmove", function (e) {
-    // let the lobby/menu panels scroll if they're taller than the screen
-    if (e.touches.length > 1 || !(e.target.closest && e.target.closest(".panel"))) e.preventDefault();
+    // Two fingers would pinch-zoom the pitch. One finger may scroll a menu,
+    // Settings, or the create-player card when they are taller than the screen.
+    if (e.touches.length > 1) { e.preventDefault(); return; }
+    var t = e.target;
+    if (t && t.closest && t.closest(".panel, #settingsCard, #playerCard")) return;
+    e.preventDefault();
   }, { passive: false });
   // iOS zooms if you tap the pitch twice quickly. Don't do that to buttons:
   // a second tap within a third of a second would never become a click,

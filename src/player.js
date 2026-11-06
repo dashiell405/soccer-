@@ -79,17 +79,21 @@
   style.textContent = `
     #playerGate {
       position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center;
-      background: rgba(4, 10, 18, .82); box-sizing: border-box;
-      padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+      background: rgba(4, 10, 18, .82); box-sizing: border-box; overflow: hidden; overscroll-behavior: none;
+      padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     }
     #playerGate[hidden] { display: none !important; }
     #playerCard {
-      width: min(440px, 100%); max-height: 100%; overflow: auto; box-sizing: border-box;
+      width: min(440px, 100%); min-height: 0; box-sizing: border-box;
+      max-height: 100%;
+      max-height: calc(100svh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
+      overflow-x: hidden; overflow-y: auto;
+      -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain;
       background: rgba(8, 16, 28, .97); color: #fff; border: 2px solid #e8c547; border-radius: 16px;
       padding: 16px; font-family: "Trebuchet MS", Arial, sans-serif; text-align: center;
     }
-    #playerCard h2 { margin: 0 0 6px; font-size: 26px; }
-    #playerCard p { margin: 0 0 10px; font-size: 14px; line-height: 1.4; }
+    #playerCard h2 { margin: 0 0 6px; font-size: 26px; overflow-wrap: break-word; }
+    #playerCard p { margin: 0 0 10px; font-size: 14px; line-height: 1.4; overflow-wrap: break-word; }
     #playerCard input, #playerCard select {
       font: inherit; font-size: 16px; width: 100%; box-sizing: border-box;
       min-height: 44px; padding: 8px 10px; border-radius: 10px; border: 1px solid #fff; color: #111; background: #fff;
@@ -103,8 +107,8 @@
     #playerGateMsg { min-height: 1.2em; color: #ffb4b4; font-weight: 700; }
     #playerCard .row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
     #playerCard .row button {
-      font: inherit; font-weight: 800; min-height: 44px; padding: 8px 16px; border-radius: 10px;
-      border: 0; background: #e6b325; color: #1a1404; cursor: pointer;
+      font: inherit; font-weight: 800; min-height: 44px; max-width: 100%; padding: 8px 16px; border-radius: 10px;
+      border: 0; background: #e6b325; color: #1a1404; cursor: pointer; touch-action: manipulation;
     }
     #playerCancel, #playerSignIn { background: #243044 !important; color: #fff !important; }
     #playerChip {

@@ -266,10 +266,20 @@ function pushMatchTune() {
   };
 }
 
+function revealSettingsTab(scroller, btn) {
+  if (!scroller || !btn) return;
+  const s = scroller.getBoundingClientRect();
+  const b = btn.getBoundingClientRect();
+  if (b.left < s.left + 4) scroller.scrollLeft -= s.left - b.left + 8;
+  else if (b.right > s.right - 4) scroller.scrollLeft += b.right - s.right + 8;
+}
+
 function paintSettings() {
   const tabs = document.getElementById("settingsTabs");
   const body = document.getElementById("settingsBody");
+  const card = document.getElementById("settingsCard");
   if (!tabs || !body) return;
+  const tabChanged = body.dataset.tab !== GameSettings.tab;
   tabs.innerHTML = SETTINGS_TABS.map((t) =>
     "<button type='button' data-stab='" + t.id + "'" + (t.id === GameSettings.tab ? " class='on'" : "") + ">" + t.title + "</button>"
   ).join("");
@@ -296,6 +306,9 @@ function paintSettings() {
   if (tab.id !== "account") html += " <button type='button' id='settingsReset'>Reset to defaults</button>";
   html += "</div>";
   body.innerHTML = html;
+  body.dataset.tab = tab.id;
+  if (tabChanged && card) card.scrollTop = 0;
+  revealSettingsTab(tabs, tabs.querySelector("button.on"));
   tabs.querySelectorAll("[data-stab]").forEach((b) => b.addEventListener("click", () => {
     GameSettings.tab = b.dataset.stab;
     GameSettings.paint();
@@ -325,33 +338,47 @@ function mountSettings() {
     #settingsScreen.hidden { display: none !important; }
     #settingsScreen {
       position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
-      background: rgba(4, 8, 16, .72); padding: 12px;
+      box-sizing: border-box; background: rgba(4, 8, 16, .72);
       padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+      overflow: hidden; overscroll-behavior: none;
     }
+    /* min-height: 0 lets this flex child honour max-height, so a short phone
+       window can scroll. The card scrolls. The title, Close and tabs stay put. */
     #settingsCard {
-      width: min(860px, 100%); max-height: min(92dvh, 760px); display: flex; flex-direction: column;
+      width: min(860px, 100%); min-height: 0; box-sizing: border-box;
+      max-height: min(92vh, 760px);
+      max-height: min(760px, calc(100svh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))));
       background: linear-gradient(180deg, #121a2b, #0c121c); color: #fff;
-      border: 1px solid rgba(232, 197, 71, .45); border-radius: 18px; overflow: hidden;
+      border: 1px solid rgba(232, 197, 71, .45); border-radius: 18px;
+      overflow-x: hidden; overflow-y: auto;
+      -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain;
       box-shadow: 0 24px 60px rgba(0,0,0,.5); font-family: "Trebuchet MS", Arial, sans-serif;
     }
+    #settingsStick { position: sticky; top: 0; z-index: 2; background: #0e1626; }
     #settingsHead { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #0e1626; border-bottom: 1px solid rgba(255,255,255,.08); }
-    #settingsHead h2 { margin: 0; flex: 1; font-size: 22px; letter-spacing: .4px; }
+    #settingsHead h2 { margin: 0; flex: 1; min-width: 0; font-size: 22px; letter-spacing: .4px; }
     #settingsHead h2 span { color: #e8c547; margin-right: 8px; }
-    #settingsClose { min-width: 44px; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.3); background: #1d4e34; color: #fff; font: inherit; font-weight: 700; }
-    #settingsTabs { display: flex; gap: 6px; padding: 8px 10px; overflow-x: auto; background: #101826; }
-    #settingsTabs button { flex: 0 0 auto; min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.2); background: transparent; color: #d5dbe6; font: inherit; font-weight: 700; }
+    #settingsClose { flex: 0 0 auto; min-width: 44px; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.3); background: #1d4e34; color: #fff; font: inherit; font-weight: 700; touch-action: manipulation; }
+    #settingsTabs {
+      display: flex; gap: 6px; padding: 8px 10px; min-width: 0; max-width: 100%;
+      overflow-x: auto; overflow-y: hidden; background: #101826; scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
+      overscroll-behavior-x: contain; overscroll-behavior-y: auto;
+    }
+    #settingsTabs button { flex: 0 0 auto; min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.2); background: transparent; color: #d5dbe6; font: inherit; font-weight: 700; touch-action: manipulation; }
     #settingsTabs button.on { background: #e8c547; color: #1a1404; border-color: #e8c547; }
-    #settingsBody { overflow: auto; padding: 8px 16px 18px; -webkit-overflow-scrolling: touch; }
-    .setNote, .setHelp { margin: 4px 0 10px; color: #ffd27a; font-size: 14px; line-height: 1.4; }
-    .setRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 16px; }
-    .setRow span { flex: 1; }
+    #settingsBody { padding: 8px 16px 18px; box-sizing: border-box; max-width: 100%; }
+    .setNote, .setHelp { margin: 4px 0 10px; color: #ffd27a; font-size: 14px; line-height: 1.4; overflow-wrap: break-word; }
+    .setRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; min-height: 52px; max-width: 100%; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 16px; }
+    .setRow > span { flex: 1 1 10em; min-width: 0; }
     .setRow select, .setRange { font: inherit; }
-    .setRow select { min-height: 44px; min-width: 140px; border-radius: 10px; border: 1px solid rgba(255,255,255,.3); background: #0d2818; color: #fff; padding: 0 8px; }
-    .setRow input[type=checkbox] { width: 28px; height: 28px; accent-color: #e8c547; }
-    .setRange { display: flex; align-items: center; gap: 8px; min-width: min(240px, 46vw); }
-    .setRange input { flex: 1; min-height: 44px; }
+    .setRow select { min-height: 44px; min-width: min(140px, 100%); max-width: 100%; margin-left: auto; box-sizing: border-box; border-radius: 10px; border: 1px solid rgba(255,255,255,.3); background: #0d2818; color: #fff; padding: 0 8px; }
+    .setRow input[type=checkbox] { width: 28px; height: 28px; margin-left: auto; accent-color: #e8c547; }
+    .setRange { display: flex; align-items: center; gap: 8px; flex: 1 1 180px; min-width: min(180px, 100%); max-width: min(280px, 100%); margin-left: auto; box-sizing: border-box; }
+    .setRange input { flex: 1; min-width: 0; min-height: 44px; touch-action: manipulation; }
     .setRange b { min-width: 42px; text-align: right; color: #e8c547; }
-    .setReset { text-align: center; margin-top: 14px; }
+    .setReset { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; text-align: center; margin-top: 14px; }
+    .setReset button { max-width: 100%; }
     #settingsReset { min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,.3); background: #243044; color: #fff; font: inherit; font-weight: 700; }
     .gearBtn { min-height: 44px; }
     html.big-text, html.big-text button, html.big-text select { font-size: 18px; }
@@ -366,7 +393,7 @@ function mountSettings() {
   const screen = document.createElement("div");
   screen.id = "settingsScreen";
   screen.className = "hidden";
-  screen.innerHTML = "<div id='settingsCard'><div id='settingsHead'><h2><span>⚙</span>Settings</h2><button type='button' id='settingsClose' aria-label='Close'>Close</button></div><div id='settingsTabs'></div><div id='settingsBody'></div></div>";
+  screen.innerHTML = "<div id='settingsCard'><div id='settingsStick'><div id='settingsHead'><h2><span>⚙</span>Settings</h2><button type='button' id='settingsClose' aria-label='Close'>Close</button></div><div id='settingsTabs'></div></div><div id='settingsBody'></div></div>";
   document.body.appendChild(screen);
   document.getElementById("settingsClose").addEventListener("click", () => GameSettings.close());
   screen.addEventListener("pointerdown", (e) => { if (e.target === screen) GameSettings.close(); });
