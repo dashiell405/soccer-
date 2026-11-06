@@ -1,6 +1,6 @@
 # Floodlight Kickoff ⚽
 
-The free website is **https://dashiell405.github.io/soccer-/**. Friends can play online from that page with a room code. No account, and nobody has to run this folder. How to turn GitHub Pages on is in the README at the top of the repository.
+The free website is **https://dashiell405.github.io/soccer-/**. Friends can play online from that page with a room code. No account is required, and nobody has to run this folder. How to turn GitHub Pages on is in the README at the top of the repository.
 
 This folder is an **optional** home Wi-Fi server (a computer on the same network runs `npm start`). The website itself does not use it. On the website, the host's browser runs the match and the devices talk directly.
 
