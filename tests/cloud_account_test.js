@@ -176,7 +176,19 @@ assert.ok(cloudSrc.indexOf("signInWithOtp") >= 0);
 assert.ok(cloudSrc.indexOf("verifyOtp") >= 0);
 
 const sw = fs.readFileSync(path.join(root, "tools/build_pages.py"), "utf8");
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v36") >= 0);
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v35") < 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v37") >= 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v36") < 0);
+const settingsSrc = fs.readFileSync(path.join(root, "src/settings.js"), "utf8");
+assert.ok(settingsSrc.indexOf("touch-action: pan-y") >= 0);
+assert.ok(settingsSrc.indexOf("overscroll-behavior: contain") >= 0);
+assert.ok(settingsSrc.indexOf("min-height: 0") >= 0);
+assert.ok(settingsSrc.indexOf("settingsStick") >= 0);
+const playerSrc = fs.readFileSync(path.join(root, "src/player.js"), "utf8");
+assert.ok(playerSrc.indexOf("touch-action: pan-y") >= 0);
+assert.ok(playerSrc.indexOf("safe-area-inset-left") >= 0);
+const pwaSrc = fs.readFileSync(path.join(root, "multiplayer/public/pwa.js"), "utf8");
+assert.ok(pwaSrc.indexOf("#settingsCard") >= 0);
+assert.ok(pwaSrc.indexOf("#playerCard") >= 0);
+assert.ok(pwaSrc.indexOf("e.touches.length > 1") >= 0);
 
 console.log("cloud account sync checks passed");

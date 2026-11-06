@@ -11,7 +11,7 @@
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "floodlight-kickoff-pages-v36";
+const VERSION = "floodlight-kickoff-pages-v37";
 const APP_SHELL = [
   "./",
   "index.html",

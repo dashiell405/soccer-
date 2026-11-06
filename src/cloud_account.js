@@ -858,14 +858,14 @@
     state.booted = true;
     const style = document.createElement("style");
     style.textContent = ""
-      + "#accountPanel { text-align: left; margin: 8px 0 12px; }"
-      + "#accountPanel h3 { margin: 4px 0 8px; font-size: 18px; }"
-      + "#accountPanel p { margin: 0 0 8px; font-size: 15px; line-height: 1.4; color: #d5dbe6; }"
+      + "#accountPanel { text-align: left; margin: 8px 0 12px; max-width: 100%; }"
+      + "#accountPanel h3 { margin: 4px 0 8px; font-size: 18px; overflow-wrap: break-word; }"
+      + "#accountPanel p { margin: 0 0 8px; font-size: 15px; line-height: 1.4; color: #d5dbe6; overflow-wrap: break-word; }"
       + "#accountPanel .privacy { color: #ffd27a; }"
       + "#accountPanel label { display: block; font-weight: 700; margin: 8px 0 4px; }"
       + "#accountPanel input { width: 100%; box-sizing: border-box; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.35); background: #fff; color: #111; font: inherit; font-size: 16px; padding: 8px 10px; }"
       + "#accountPanel .accountRow { margin: 8px 0; }"
-      + "#accountPanel button { min-height: 44px; padding: 8px 14px; border-radius: 10px; border: 0; background: #e8c547; color: #1a1404; font: inherit; font-weight: 800; }"
+      + "#accountPanel button { min-height: 44px; max-width: 100%; padding: 8px 14px; border-radius: 10px; border: 0; background: #e8c547; color: #1a1404; font: inherit; font-weight: 800; white-space: normal; }"
       + "#accountSignOut, #accountUseCloud { background: #243044 !important; color: #fff !important; }"
       + "#accountStatus { font-weight: 700; color: #fff; }";
     document.head.appendChild(style);
