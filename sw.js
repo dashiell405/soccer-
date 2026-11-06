@@ -7,10 +7,11 @@
    https://dashiell405.github.io/soccer-/  and also at the domain root.
    Online play (online.html) uses PeerJS from a CDN and a saved copy in
    vendor/. The broker, STUN and TURN servers are OTHER websites.
+   Optional sign-in also talks to Supabase, which is another website.
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "floodlight-kickoff-pages-v35";
+const VERSION = "floodlight-kickoff-pages-v36";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -58,8 +59,8 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   let url;
   try { url = new URL(req.url); } catch (e) { return; }
-  // Leave cross-origin requests alone: the PeerJS CDN, the public broker
-  // (0.peerjs.com), STUN and TURN. Also skip anything that is not a normal
+  // Leave cross-origin requests alone: the PeerJS CDN, Supabase, the public
+  // broker (0.peerjs.com), STUN and TURN. Also skip anything that is not a normal
   // GET of our own files (websockets are not fetch, but be explicit).
   if (req.method !== "GET") return;
   if (url.origin !== self.location.origin) return;

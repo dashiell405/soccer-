@@ -16,7 +16,9 @@ Hold a phone sideways. The green **KICK OFF** button starts a match. Every match
 
 One player: left thumb on the stick, right thumb on **SHOOT**, **PASS**, **RUN** and **SKILL**. Two players on one phone each get a stick and those four buttons, P1 on the left and P2 on the right. The crowd starts after the first tap (phones block sound until then). Tap the **II** button to pause. You do not need a keyboard.
 
-**Play a friend online.** Tap **Play online**. One person taps **Host a game** and reads the short code (like `K7MP`). Friends tap **Join** and type it. 2 people (1 vs 1) or 4 people (2 vs 2) can play from different phones, iPads and computers. No account, and we don't run a game server.
+**Play a friend online.** Tap **Play online**. One person taps **Host a game** and reads the short code (like `K7MP`). Friends tap **Join** and type it. 2 people (1 vs 1) or 4 people (2 vs 2) can play from different phones, iPads and computers. You can play with no account, and we don't run a game server.
+
+**Same player on another device (optional).** Open **Settings**, then **Account**. A parent signs in with their email. Kickoff does not keep a password. The game emails a link (or a code). That saves the player name, team, trophies and settings. Friends in a room still see the player name, such as `Dashiell G.` when that is the saved name. With no account, or offline, the phone keeps using its own saved game.
 
 The host's screen has to stay open, because their device runs the match. If it can't connect, both of you need internet. Some school or shop Wi-Fi blocks this. Try again, or play on one device. After the first visit, the one-device game also works with no internet.
 

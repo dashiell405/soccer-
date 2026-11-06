@@ -1,4 +1,5 @@
-/* A player name for this device. No email, no password, no age, no server. */
+/* A player name for this device. No password is stored here.
+   An optional parent-email sign-in lives in Settings → Account. */
 (function () {
   const KEY = "soccerPlayer";
   const COLORS = ["#e6b325", "#1f5fd6", "#d62828", "#0b6e4f", "#6b3e1e", "#7b2cbf", "#f4f4f4", "#111111"];
@@ -105,7 +106,7 @@
       font: inherit; font-weight: 800; min-height: 44px; padding: 8px 16px; border-radius: 10px;
       border: 0; background: #e6b325; color: #1a1404; cursor: pointer;
     }
-    #playerCancel { background: #243044 !important; color: #fff !important; }
+    #playerCancel, #playerSignIn { background: #243044 !important; color: #fff !important; }
     #playerChip {
       position: fixed; z-index: 45; margin: 0;
       top: calc(8px + env(safe-area-inset-top));
@@ -127,7 +128,7 @@
   gate.innerHTML = `
     <form id="playerCard">
       <h2 id="playerTitle">Create your player</h2>
-      <p id="playerBlurb">Pick a name for this device. No email and no password. It stays on this phone or computer.</p>
+      <p id="playerBlurb">Pick a name friends will see. It stays on this phone. No password. A parent can sign in from Settings, then Account, to use the same player on another device.</p>
       <label for="playerName">Player name</label>
       <input id="playerName" maxlength="16" autocomplete="off" autocapitalize="words" placeholder="3 to 16 characters">
       <label for="playerTeam">Favourite team</label>
@@ -138,6 +139,7 @@
       <div class="row">
         <button type="submit" id="playerSave">Start playing</button>
         <button type="button" id="playerCancel" hidden>Cancel</button>
+        <button type="button" id="playerSignIn">Sign in with a parent email</button>
       </div>
     </form>`;
   document.body.appendChild(gate);
@@ -180,8 +182,8 @@
     color = COLORS.indexOf(current.color) >= 0 ? current.color : COLORS[0];
     document.getElementById("playerTitle").textContent = editing ? "Edit profile" : "Create your player";
     document.getElementById("playerBlurb").textContent = editing
-      ? "This name is what friends see online. It stays on this device."
-      : "Pick a name for this device. No email and no password. It stays on this phone or computer.";
+      ? "This name is what friends see in a room. It stays on this phone. Settings, then Account, can save it with a parent email."
+      : "Pick a name friends will see. It stays on this phone. No password. A parent can sign in from Settings, then Account, to use the same player on another device.";
     document.getElementById("playerSave").textContent = editing ? "Save" : "Start playing";
     document.getElementById("playerCancel").hidden = !editing;
     document.getElementById("playerName").value = current.name || "";
@@ -212,11 +214,34 @@
 
   document.getElementById("playerCard").addEventListener("submit", save);
   document.getElementById("playerCancel").addEventListener("click", () => { if (read()) close(); });
+  document.getElementById("playerSignIn").addEventListener("click", () => {
+    gate.hidden = true;
+    paintChip();
+    if (typeof GameSettings !== "undefined") GameSettings.open("account");
+  });
+
+  function ensure() {
+    if (!read()) open(false);
+    else paintChip();
+  }
+
+  function refresh() {
+    const account = read();
+    const nameEl = document.getElementById("playerName");
+    const typed = !gate.hidden && nameEl && nameEl.value.trim();
+    const typing = typed && (!account || nameEl.value.trim() !== account.name);
+    if (account && !typing) close();
+    else paintChip();
+    const input = document.getElementById("nameInput");
+    if (input && account && document.activeElement !== input) input.value = account.name;
+  }
 
   window.PlayerAccount = {
     load: read,
     name() { const a = read(); return a ? a.name : ""; },
     open: open,
+    refresh: refresh,
+    ensure: ensure,
     deviceId: deviceId,
     filterText: filterText,
   };

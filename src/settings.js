@@ -94,6 +94,10 @@ const SETTINGS_TABS = [
       { id: "contrast", label: "High contrast outlines", type: "toggle", def: false },
     ],
   },
+  {
+    id: "account", title: "Account",
+    fields: [],
+  },
 ];
 
 function settingsFields() {
@@ -168,6 +172,7 @@ const GameSettings = {
   close() {
     const root = document.getElementById("settingsScreen");
     if (root) root.classList.add("hidden");
+    if (typeof PlayerAccount !== "undefined" && PlayerAccount.ensure) PlayerAccount.ensure();
   },
   paint() { paintSettings(); },
 };
@@ -286,7 +291,10 @@ function paintSettings() {
     html += "</label>";
     if (f.help) html += "<p class='setHelp'>" + f.help + "</p>";
   }
-  html += "<div class='setReset'><button type='button' id='settingsEditPlayer'>Edit profile</button> <button type='button' id='settingsReset'>Reset to defaults</button></div>";
+  if (tab.id === "account") html += "<div id='accountPanel'></div>";
+  html += "<div class='setReset'><button type='button' id='settingsEditPlayer'>Edit profile</button>";
+  if (tab.id !== "account") html += " <button type='button' id='settingsReset'>Reset to defaults</button>";
+  html += "</div>";
   body.innerHTML = html;
   tabs.querySelectorAll("[data-stab]").forEach((b) => b.addEventListener("click", () => {
     GameSettings.tab = b.dataset.stab;
@@ -305,6 +313,9 @@ function paintSettings() {
   if (reset) reset.addEventListener("click", () => GameSettings.resetTab(tab.id));
   const edit = document.getElementById("settingsEditPlayer");
   if (edit) edit.addEventListener("click", () => { if (typeof PlayerAccount !== "undefined") PlayerAccount.open(true); });
+  if (tab.id === "account" && typeof CloudAccount !== "undefined" && CloudAccount.paint) {
+    CloudAccount.paint(document.getElementById("accountPanel"));
+  }
 }
 
 function mountSettings() {
