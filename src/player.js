@@ -17,7 +17,7 @@
     try { localStorage.setItem(KEY, JSON.stringify(account)); } catch (e) { /* private mode */ }
   }
   function hasOldSave() {
-    const keys = ["soccerSettings", "soccerName", "soccerCup", "soccerTrophies", "soccerMatchMinutes", "soccerAdminUnlock", "soccerPlayAsMe"];
+    const keys = ["soccerSettings", "soccerName", "soccerCup", "soccerTrophies", "soccerMatchMinutes", "soccerAdminUnlock2", "soccerPlayAsMe"];
     try { return keys.some((k) => localStorage.getItem(k)); } catch (e) { return false; }
   }
   function prefill() {

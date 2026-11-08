@@ -879,7 +879,7 @@ function remapMatch(m, from, to) {
 }
 function cupControlsOpen() {
   try {
-    if (localStorage.getItem("soccerAdminUnlock") !== "yes") return false;
+    if (localStorage.getItem("soccerAdminUnlock2") !== "yes") return false;
   } catch (e) { return false; }
   if (typeof netRole === "string" && netRole === "guest") return false;
   if (typeof netIsHost === "function" && typeof netRole === "string" && netRole && !netIsHost()) return false;
