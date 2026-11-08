@@ -168,7 +168,15 @@
     #adminPanel .team100 .keep, #adminPanel .hint { font-size: 14px; line-height: 1.3; }
     #adminPanel .hint { opacity: .85; flex: 1 0 100%; text-align: center; }
     #adminWins, #adminLength, #adminPeople { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .35); }
-    #adminWins h3, #adminLength h3, #adminPeople h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
+    #adminWins h3, #adminLength h3, #adminPeople h3, #adminCrowd h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
+    #adminCrowd {
+      margin: 0 0 8px; padding: 8px 8px 6px;
+      border: 1px solid rgba(232, 197, 71, .55); border-radius: 12px;
+      background: rgba(232, 197, 71, .1);
+    }
+    #adminCrowd p { margin: 2px 0; text-align: center; line-height: 1.35; }
+    #adminCrowd p:empty { display: none; }
+    #adminCrowd .big { font-weight: 800; font-size: 1.15em; }
     #adminKickForm[hidden], #adminKickCustomWrap[hidden] { display: none !important; }
     #adminKickFor button.on { background: #e6b325; color: #1a1404; border-color: #ffe27a; }
     #adminPeople .playerRow, #adminPeople .banRow {
@@ -254,6 +262,15 @@
     </div>
     <div id="adminScroll">
     <div id="adminBody">
+    <div id="adminCrowd">
+      <h3>Players</h3>
+      <p id="adminCrowdNow" class="big">Playing right now: …</p>
+      <p id="adminCrowdSplit"></p>
+      <p id="adminCrowdKind"></p>
+      <p id="adminCrowdPeak"></p>
+      <p id="adminCrowdRoom">In this online game: Not online</p>
+      <p id="adminCrowdHint" class="hint"></p>
+    </div>
     <p id="adminNote"></p>
     <div class="grid">
       <button type="button" data-act="goal" data-team="blue" data-n="1">Blue goal +</button>
@@ -360,7 +377,7 @@
       </div>
     </div>
     <div id="adminPeople">
-      <h3>Players</h3>
+      <h3>Guests</h3>
       <p class="hint" id="adminPeopleNote">Host a game to remove a guest.</p>
       <div id="adminPlayerList"></div>
       <div id="adminKickForm" hidden>
@@ -926,6 +943,7 @@
     return out;
   }
   function refreshPanel() {
+    if (typeof KickoffCrowd !== "undefined" && KickoffCrowd.paint) KickoffCrowd.paint();
     fillPeople();
     const s = liveSim();
     const note = document.getElementById("adminNote");

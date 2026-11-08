@@ -1008,6 +1008,10 @@
       setStatus("Sign-in needs the internet. You can keep playing on this phone.");
     });
   }
+  api.sharedClient = function () {
+    try { return clientOrNull(); }
+    catch (e) { return Promise.resolve(null); }
+  };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -50,7 +50,8 @@ scripts = ('"use strict";\n' + banner("SQUADS (original players, same list as ga
            + banner("PLAYER") + read("player.js")
            + banner("SUPABASE CONFIG") + read("supabase_config.js")
            + banner("OPTIONAL ACCOUNT") + read("cloud_account.js")
-           + banner("HIDDEN ADMIN") + read("admin.js"))
+           + banner("HIDDEN ADMIN") + read("admin.js")
+           + banner("WHO IS PLAYING") + read("crowd.js"))
 html = read("offline_template.html").replace("/*__SCRIPTS__*/", scripts)
 write(os.path.join(HERE, "soccer.html"), html)
 
@@ -63,7 +64,7 @@ def bundle(*names):
 game = read("squads.js") + "\n" + read("sim.js")
 write(os.path.join(MP, "public", "game.js"), game)
 write(os.path.join(HERE, "game.js"), game)
-parts = ("client_head.js", "sound.js", "client_net.js", "flags.js", "settings.js", "render.js", "client_tail.js", "player.js", "supabase_config.js", "cloud_account.js", "admin.js")
+parts = ("client_head.js", "sound.js", "client_net.js", "flags.js", "settings.js", "render.js", "client_tail.js", "player.js", "supabase_config.js", "cloud_account.js", "admin.js", "crowd.js")
 write(os.path.join(MP, "public", "client.js"), bundle("client_head.js", "sound.js", "client_ws.js", *parts[2:]))
 write(os.path.join(HERE, "online.js"), bundle("client_head.js", "sound.js", "p2p_net.js", *parts[2:]))
 
