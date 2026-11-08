@@ -1,10 +1,10 @@
 /* Hidden helpers for this device. The passcode is never stored.
    Only a PBKDF2 check lives here. A wrong guess waits a moment. */
 (function () {
-  const STORE = "soccerAdminUnlock";
-  const SALT_HEX = "6cd0e2744c3aee0074e44c5a8076a173";
+  const STORE = "soccerAdminUnlock2";
+  const SALT_HEX = "fe808f2b1f2e360cdd5f2ff64165b2cc";
   const ITERATIONS = 310000;
-  const KEY_HEX = "1cf7392fec330b8a7b071bf1793508f81b52ce4c54633cd934fc2f96aa40dedb";
+  const KEY_HEX = "8eea0e9cc49077e93cf3e7b6c95e26cfe00d92f335100dc61a9899b68ffcd56d";
   const EXPECT = hexToBytes(KEY_HEX);
   let taps = 0;
   let lastTap = 0;

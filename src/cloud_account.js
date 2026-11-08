@@ -1,6 +1,6 @@
 /* Optional parent-email account (Supabase Auth magic link / email code).
    Signed-out and offline play keep using localStorage, the same keys as today.
-   This file never reads or writes soccerAdminUnlock or soccerAdminPlace.
+   This file never reads or writes soccerAdminUnlock2 or soccerAdminPlace.
    Synced keys:
      soccerPlayer (name, team, colour only — device id stays on this phone)
      soccerName, soccerPlayAsMe, soccerTrophies, soccerCup, soccerSettings,

@@ -47,7 +47,7 @@ const store = mem({
   soccerTeam100: JSON.stringify(team100),
   soccerCamera: "fp",
   soccerHostBans: JSON.stringify(bans),
-  soccerAdminUnlock: "yes",
+  soccerAdminUnlock2: "yes",
   soccerAdminPlace: JSON.stringify({ secret: "nope" }),
   soccerDeviceId: deviceId,
 });
@@ -72,7 +72,7 @@ same(row.team_100, team100);
 assert.strictEqual(row.camera_choice, "fp");
 same(row.host_bans, bans);
 assert.ok(!packed.includes(deviceId), "device id must stay on the phone");
-assert.ok(!packed.includes("soccerAdminUnlock"), "admin unlock must not be synced");
+assert.ok(!packed.includes("soccerAdminUnlock2"), "admin unlock must not be synced");
 assert.ok(!packed.includes("soccerAdminPlace"));
 assert.ok(!packed.includes("nope"));
 assert.ok(!Object.prototype.hasOwnProperty.call(row, "email"));
@@ -93,7 +93,7 @@ same(back.renames, renames);
 same(back.team100, team100);
 assert.strictEqual(back.camera, "fp");
 same(back.bans, bans);
-assert.strictEqual(fresh.getItem("soccerAdminUnlock"), null);
+assert.strictEqual(fresh.getItem("soccerAdminUnlock2"), null);
 assert.strictEqual(fresh.dump().soccerCamera, "fp");
 assert.strictEqual(fresh.dump().soccerName, "Alex Kid");
 
@@ -174,8 +174,8 @@ assert.ok(cfg.indexOf("sb_secret") < 0);
 assert.ok(cfg.indexOf("eyJ") < 0);
 assert.ok(cloudSrc.indexOf("service_role") < 0);
 assert.ok(cloudSrc.indexOf("sb_secret") < 0);
-assert.ok(!/getItem\(\s*["']soccerAdminUnlock/.test(cloudSrc));
-assert.ok(!/setItem\(\s*["']soccerAdminUnlock/.test(cloudSrc));
+assert.ok(!/getItem\(\s*["']soccerAdminUnlock2/.test(cloudSrc));
+assert.ok(!/setItem\(\s*["']soccerAdminUnlock2/.test(cloudSrc));
 assert.ok(!/getItem\(\s*["']soccerAdminPlace/.test(cloudSrc));
 assert.ok(!/setItem\(\s*["']soccerAdminPlace/.test(cloudSrc));
 assert.ok(cloudSrc.indexOf("signInWithOtp") >= 0);
@@ -185,7 +185,7 @@ assert.ok(cloudSrc.indexOf("kickoff://login") >= 0);
 assert.ok(cfg.indexOf("kickoff://login") >= 0);
 
 const sw = fs.readFileSync(path.join(root, "tools/build_pages.py"), "utf8");
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v39") >= 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v40") >= 0);
 assert.ok(sw.indexOf("floodlight-kickoff-pages-v38") < 0);
 const settingsSrc = fs.readFileSync(path.join(root, "src/settings.js"), "utf8");
 assert.ok(settingsSrc.indexOf("touch-action: pan-y") >= 0);

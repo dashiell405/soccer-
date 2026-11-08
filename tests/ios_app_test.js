@@ -79,8 +79,8 @@ const pages = read("index.html");
 assert.ok(bundled.indexOf('<script src="native.js"></script>') >= 0);
 assert.ok(pages.indexOf("native.js") < 0, "GitHub Pages index must not load the native script");
 assert.ok(bundled.indexOf('src="https://dashiell405.github.io') < 0);
-assert.ok(read("ios/App/App/public/sw.js").indexOf("floodlight-kickoff-pages-v39") >= 0);
-assert.ok(read("sw.js").indexOf("floodlight-kickoff-pages-v39") >= 0);
+assert.ok(read("ios/App/App/public/sw.js").indexOf("floodlight-kickoff-pages-v40") >= 0);
+assert.ok(read("sw.js").indexOf("floodlight-kickoff-pages-v40") >= 0);
 assert.ok(read("ios/App/App/public/pwa.js").indexOf('location.protocol === "capacitor:"') >= 0);
 assert.ok(read("ios/App/App/capacitor.config.json").indexOf('"scrollEnabled": false') >= 0);
 
