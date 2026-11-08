@@ -154,6 +154,12 @@ assert.strictEqual(
   "https://dashiell405.github.io/soccer-/online.html"
 );
 assert.strictEqual(Cloud.emailRedirectTo({ origin: "http://127.0.0.1:8000", pathname: "/" }), "https://dashiell405.github.io/soccer-/");
+assert.strictEqual(
+  Cloud.emailRedirectTo({ protocol: "capacitor:", origin: "capacitor://localhost", pathname: "/" }),
+  "kickoff://login"
+);
+assert.strictEqual(Cloud.inNativeApp({ protocol: "capacitor:", origin: "capacitor://localhost" }), true);
+assert.strictEqual(Cloud.inNativeApp({ protocol: "https:", origin: "https://dashiell405.github.io" }), false);
 assert.ok(Cloud.askUploadMessage().indexOf("OK") >= 0 && Cloud.askUploadMessage().indexOf("Cancel") >= 0);
 assert.ok(Cloud.askMergeMessage().indexOf("Cancel") >= 0);
 assert.ok(Cloud.isMissingTable({ code: "PGRST205", message: "Could not find the table 'public.profiles' in the schema cache" }));
@@ -174,10 +180,13 @@ assert.ok(!/getItem\(\s*["']soccerAdminPlace/.test(cloudSrc));
 assert.ok(!/setItem\(\s*["']soccerAdminPlace/.test(cloudSrc));
 assert.ok(cloudSrc.indexOf("signInWithOtp") >= 0);
 assert.ok(cloudSrc.indexOf("verifyOtp") >= 0);
+assert.ok(cloudSrc.indexOf("exchangeCodeForSession") >= 0);
+assert.ok(cloudSrc.indexOf("kickoff://login") >= 0);
+assert.ok(cfg.indexOf("kickoff://login") >= 0);
 
 const sw = fs.readFileSync(path.join(root, "tools/build_pages.py"), "utf8");
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v37") >= 0);
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v36") < 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v38") >= 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v37") < 0);
 const settingsSrc = fs.readFileSync(path.join(root, "src/settings.js"), "utf8");
 assert.ok(settingsSrc.indexOf("touch-action: pan-y") >= 0);
 assert.ok(settingsSrc.indexOf("overscroll-behavior: contain") >= 0);
@@ -190,5 +199,9 @@ const pwaSrc = fs.readFileSync(path.join(root, "multiplayer/public/pwa.js"), "ut
 assert.ok(pwaSrc.indexOf("#settingsCard") >= 0);
 assert.ok(pwaSrc.indexOf("#playerCard") >= 0);
 assert.ok(pwaSrc.indexOf("e.touches.length > 1") >= 0);
+assert.ok(pwaSrc.indexOf('location.protocol === "capacitor:"') >= 0);
+const settingsHaptic = fs.readFileSync(path.join(root, "src/settings.js"), "utf8");
+assert.ok(settingsHaptic.indexOf("Capacitor.Plugins.Haptics") >= 0);
+assert.ok(settingsHaptic.indexOf("nativeAppShell") >= 0);
 
 console.log("cloud account sync checks passed");

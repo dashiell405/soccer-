@@ -29,7 +29,11 @@ The host's screen has to stay open, because their device runs the match. If it c
 3. Scroll down and tap **Add to Home Screen**.
 4. Tap **Add**.
 
-An icon named **Floodlight** shows up on your Home Screen. Tap it. The game opens full screen, like an app. Open it once while you have internet. After that it still opens when you are offline.
+An icon named **Kickoff** shows up on your Home Screen. Tap it. The game opens full screen, like an app. Open it once while you have internet. After that it still opens when you are offline.
+
+## iPhone app
+
+The same game can also be a real iPhone app, with the files saved inside the app. The website link above does not change. The steps for a Mac are in [IOS_APP.md](IOS_APP.md). A parent does the App Store part later.
 
 ## Turn GitHub Pages on (only if the link does not work yet)
 
@@ -55,6 +59,7 @@ The repository is **public**, which is what the free GitHub Pages plan needs. Do
 | `vendor/peerjs.min.js` | A saved copy of PeerJS, used if the CDN is blocked. |
 | `manifest.webmanifest`, `sw.js`, `pwa.js`, `icons/` | The Home Screen app pieces (name, icon, and offline saving). |
 | `src/` and `build.py` | The source. After you edit those, run `python3 build.py`. |
+| `IOS_APP.md`, `ios/`, `capacitor.config.json` | The iPhone app. `npm run ios:sync` copies the website game into it. |
 | `soccer.html` | The same offline game as one file you can double-click. |
 | `multiplayer/` | An optional Node.js server for the same game on a home Wi-Fi. The website does not need it. See `multiplayer/README.md`. |
 

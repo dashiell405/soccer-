@@ -6,7 +6,15 @@
    ===================================================================== */
 (function () {
   window.pwaStatus = { sw: "unsupported", error: null };
-  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+  var nativeApp = false;
+  try {
+    nativeApp = location.protocol === "capacitor:" || location.protocol === "ionic:" ||
+      (window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
+  } catch (e) { nativeApp = false; }
+  // The iPhone app already contains the game files, so it works with no
+  // internet. A service worker on capacitor://localhost is skipped: it is
+  // not needed offline, and it must not intercept Supabase or PeerJS.
+  if (!nativeApp && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
     window.pwaStatus.sw = "registering";
     window.addEventListener("load", function () {
       navigator.serviceWorker.register("sw.js").then(function (reg) {
@@ -46,7 +54,8 @@
     lastTouchEnd = now;
   }, { passive: false });
 
-  var standalone = window.navigator.standalone === true ||
+  var standalone = nativeApp || window.navigator.standalone === true ||
     (window.matchMedia && window.matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches);
   if (standalone) document.documentElement.classList.add("standalone");
+  if (nativeApp) document.documentElement.classList.add("native-app");
 })();

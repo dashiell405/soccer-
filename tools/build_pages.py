@@ -109,7 +109,8 @@ SW_JS = r'''/* =================================================================
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "floodlight-kickoff-pages-v37";
+const VERSION = "floodlight-kickoff-pages-v38";
+const NATIVE_APP = self.location && (self.location.protocol === "capacitor:" || self.location.protocol === "ionic:");
 const APP_SHELL = [
   "./",
   "index.html",
@@ -130,10 +131,15 @@ const APP_SHELL = [
 const NETWORK_TIMEOUT_MS = 4000;
 
 self.addEventListener("install", (event) => {
+  if (NATIVE_APP) { self.skipWaiting(); return; }
   event.waitUntil(caches.open(VERSION).then((c) => c.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
+  if (NATIVE_APP) {
+    event.waitUntil(self.registration.unregister());
+    return;
+  }
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => {
@@ -154,6 +160,7 @@ function withTimeout(promise, ms) {
 }
 
 self.addEventListener("fetch", (event) => {
+  if (NATIVE_APP) return;
   const req = event.request;
   let url;
   try { url = new URL(req.url); } catch (e) { return; }
@@ -358,7 +365,7 @@ def main():
         if re.search(r'''(?:href|src|register)\s*[\(=]\s*["']/(?!/)''', text):
             raise SystemExit(rel + " has a root-absolute URL; Pages needs relative paths")
     sw = open(os.path.join(ROOT, "sw.js"), encoding="utf-8").read()
-    if "floodlight-kickoff-pages-v37" not in sw or "stadium-soccer-pages-" not in sw or "assets/cover.png" not in sw or "url.origin !== self.location.origin" not in sw:
+    if sw.count("floodlight-kickoff-pages-v38") != 1 or "stadium-soccer-pages-" not in sw or "assets/cover.png" not in sw or "url.origin !== self.location.origin" not in sw or "capacitor:" not in sw:
         raise SystemExit("service worker is missing the cache bump or the cross-origin bypass")
     online_js = open(os.path.join(ROOT, "online.js"), encoding="utf-8").read()
     if "new WebSocket" in online_js or "peer.connect" not in online_js or "stun:stun.l.google.com:19302" not in online_js:
