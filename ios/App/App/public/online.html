@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Kickoff</title>
+<!-- Home Screen app ("PWA") settings -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0c2816">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kickoff">
+<meta name="application-name" content="Kickoff">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+<meta property="og:site_name" content="Kickoff">
+<meta property="og:title" content="Kickoff">
+<meta property="og:description" content="Floodlight Kickoff. Pick your team. Own the pitch.">
+<meta property="og:image" content="https://dashiell405.github.io/soccer-/assets/cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Kickoff">
+<meta name="twitter:description" content="Floodlight Kickoff. Pick your team. Own the pitch.">
+<meta name="twitter:image" content="https://dashiell405.github.io/soccer-/assets/cover.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"Kickoff","url":"https://dashiell405.github.io/soccer-/"}
+</script>
+<!--
+  FLOODLIGHT KICKOFF - ONLINE (the page every player opens)
+  On the Node server this loads client.js (WebSocket).
+  On GitHub Pages, build_pages.py swaps in online.js (peer-to-peer).
+  game.js is the shared rules. The lobby, controls, drawing and sound
+  live in the client script.
+-->
+<style>
+  html, body {
+    margin: 0; height: 100%; height: 100dvh; overflow: hidden; background: #111;
+    color: #fff; font-family: "Trebuchet MS", Arial, sans-serif;
+    position: fixed; inset: 0; width: 100%; overscroll-behavior: none;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
+  }
+  html.standalone, html.standalone body { min-height: 100dvh; min-height: -webkit-fill-available; background: #0c2816; }
+  canvas { position: fixed; left: 0; top: 0; display: block; }
+  #safeProbe {
+    position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+    border-style: solid; border-color: transparent;
+    border-width: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 20; display: flex;
+    align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 30%, rgba(20,40,70,.35), rgba(0,0,0,.62));
+  }
+  .hidden { display: none !important; }
+  .panel {
+    background: linear-gradient(180deg, rgba(18,28,46,.94), rgba(8,16,18,.96));
+    border: 1px solid rgba(255,255,255,.16);
+    border-top: 3px solid #e8c547;
+    border-radius: 18px;
+    padding: 16px 24px; text-align: center; max-width: 94vw;
+    max-height: 94vh;
+    min-height: 0;
+    max-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
+    overflow: auto; box-sizing: border-box;
+    box-shadow: 0 18px 50px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
+  }
+  .eyebrow { margin: 0 0 2px; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #e8c547; font-weight: bold; }
+  h1 { margin: 0 0 2px; font-size: clamp(26px, 5vw, 46px); letter-spacing: 1px; font-family: Impact, "Arial Black", Arial, sans-serif; font-weight: normal; }
+  h1 .b { color: #7eb6ff; } h1 .r { color: #ff6b6b; }
+  .sub { margin: 0 0 6px; opacity: .85; }
+  .row { margin: 7px 0; }
+  .label { font-size: 12px; opacity: .8; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; }
+  button, a.btnlink {
+    font: inherit; font-size: 16px; font-weight: 700; padding: 10px 15px; margin: 3px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.35); background: #1d4e34; color: #fff; cursor: pointer;
+    min-height: 44px; touch-action: manipulation;
+    transition: filter .12s ease, transform .12s ease, background .12s ease;
+  }
+  button:hover, a.btnlink:hover { filter: brightness(1.12); }
+  button:active { transform: translateY(1px); }
+  button.selected { background: linear-gradient(180deg, #ffe27a, #e6b325); color: #1a1404; border-color: #ffe27a; }
+  button.big, a.btnlink.big {
+    font-size: 22px; padding: 10px 36px; letter-spacing: 0.5px;
+    background: linear-gradient(180deg, #ff7a3c, #e23b16);
+    border: 0; box-shadow: 0 4px 0 #8a220c;
+  }
+  .controls { font-size: 13px; line-height: 1.55; text-align: left; display: inline-block; margin-top: 4px; }
+  kbd { background: #fff; color: #123; border-radius: 4px; padding: 0 5px; font-family: monospace; font-size: 12px; }
+  #winTitle { font-size: clamp(30px, 6vw, 54px); margin: 0; }
+  #winScore { font-size: 24px; margin: 6px 0 4px; }
+  #winStats { font-size: 14px; opacity: .85; margin: 0 0 10px; }
+  #squadScreen { z-index: 30; }
+  #squadList { text-align: left; max-height: min(46vh, 480px); overflow: auto; touch-action: pan-y; margin-top: 8px; }
+  .sqhead { font-size: 14px; margin-bottom: 6px; color: #ffd33d; }
+  .sqrow { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .sqrow .who { min-width: 140px; max-width: 48%; }
+  .sqrow .pos { color: #e8c547; font-weight: bold; }
+  .sqrow .num { opacity: .8; }
+  .sqrow .star { color: #ffd33d; }
+  .sqrow .trait, .sqrow .official { font-size: 12px; opacity: .85; }
+  .sqrow .bars { flex: 1; min-width: 120px; }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 11px; margin: 1px 0; }
+  .stat span { width: 64px; opacity: .85; }
+  .stat i { flex: 1; height: 6px; background: #223; border-radius: 4px; display: block; min-width: 36px; }
+  .stat b { display: block; height: 100%; background: linear-gradient(90deg, #3dde5a, #ffd33d); border-radius: 4px; }
+  .stat em { font-style: normal; width: 22px; text-align: right; }
+  .renameBtn { font-size: 13px; padding: 4px 8px; min-height: 32px; margin-top: 4px; }
+  #squadRename { margin-top: 8px; }
+  #squadRename input, #squadTeam { font: inherit; font-size: 16px; padding: 8px; border-radius: 8px; border: 1px solid #fff; max-width: 92%; color: #111; background: #fff; }
+  #squadScreen input, #squadTeam { user-select: text; -webkit-user-select: text; }
+  #squadNote { font-size: 13px; opacity: .85; }
+  .scorers { text-align: left; margin: 8px auto 10px; max-width: 360px; }
+  .scline { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; font-size: 15px; }
+  .scorers.empty { text-align: center; opacity: .7; }
+  @media (max-width: 640px) {
+    .sqrow { flex-direction: column; }
+    .sqrow .who, .sqrow .bars { max-width: 100%; width: 100%; }
+  }
+
+  #pauseBtn {
+    position: fixed; top: 8px; right: 8px; z-index: 15; width: 44px; height: 44px;
+    padding: 0; font-size: 18px; font-weight: bold; background: rgba(0,0,0,.45);
+  }
+  #viewBtn {
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); left: calc(8px + env(safe-area-inset-left));
+    z-index: 15; width: 56px; height: 44px; min-height: 44px; padding: 0;
+    font-size: 15px; font-weight: bold; letter-spacing: 0.5px;
+    background: rgba(0,0,0,.55); color: #fff; border: 2px solid #fff; border-radius: 10px;
+    touch-action: manipulation;
+  }
+  #viewBtn.on { background: #ffd33d; color: #1a1404; border-color: #ffe27a; }
+
+  /* ---- Touch controls. The stick only lives in the bottom corner. ---- */
+  #joyZone { position: fixed; left: 0; top: auto; bottom: 0; width: min(42vw, 220px); height: min(46vh, 240px); z-index: 5; }
+  #joyBase {
+    position: fixed; left: 20px; bottom: 20px; width: 130px; height: 130px; z-index: 6;
+    border-radius: 50%; background: rgba(255,255,255,.10); border: 3px solid rgba(255,255,255,.5);
+    pointer-events: none;
+  }
+  #joyKnob {
+    position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px;
+    border-radius: 50%; background: rgba(255,255,255,.55); pointer-events: none;
+  }
+  .tbtn {
+    position: fixed; z-index: 7; border-radius: 50%; border: 3px solid #fff;
+    display: flex; align-items: center; justify-content: center; touch-action: none;
+    font-weight: bold; letter-spacing: 1px; color: #fff; padding: 0; min-height: 0;
+  }
+  #shootBtn { right: 18px; bottom: 22px; width: min(96px, 24vh); height: min(96px, 24vh); background: rgba(232,86,42,.6); font-size: 17px; }
+  #passBtn  { right: calc(28px + min(96px, 24vh)); bottom: 14px; width: min(72px, 18vh); height: min(72px, 18vh); background: rgba(47,123,255,.6); font-size: 14px; }
+  #sprintBtn{ right: 30px; bottom: calc(34px + min(96px, 24vh)); width: min(66px, 17vh); height: min(66px, 17vh); background: rgba(46,204,64,.55); font-size: 12px; }
+  #skillBtn { right: calc(40px + min(96px, 24vh) + min(72px, 18vh)); bottom: 18px; width: min(62px, 16vh); height: min(62px, 16vh); background: rgba(155,89,182,.6); font-size: 12px; }
+  .tbtn.pressed { background: rgba(255,211,61,.9) !important; color: #123; }
+  #rotateHint {
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    z-index: 40; pointer-events: none; max-width: min(68vw, 260px); text-align: center;
+    background: rgba(0,0,0,.75); padding: 6px 12px; border-radius: 10px; font-size: 15px;
+    border: 2px solid #ffd33d;
+  }
+
+  /* ---- Online lobby ---- */
+  input, select, textarea { touch-action: manipulation; font-size: 16px; }
+  input[type=text] {
+    font: inherit; font-size: 16px; padding: 8px 12px; border-radius: 10px; border: 2px solid #fff;
+    background: #0d2a17; color: #fff; width: 200px; text-align: center; margin: 3px;
+  }
+  #codeInput { width: 120px; text-transform: uppercase; letter-spacing: 4px; font-weight: bold; }
+  .box { border: 1px solid rgba(255,255,255,.35); border-radius: 12px; padding: 8px 12px; margin: 8px 0; }
+  .msg { color: #ffd33d; min-height: 20px; font-weight: bold; }
+  .help { font-size: 13px; opacity: .85; line-height: 1.5; }
+  #roomCode { font-size: clamp(40px, 9vw, 64px); font-weight: bold; letter-spacing: 10px; color: #ffd33d; line-height: 1.1; }
+  #shareUrl { font-family: monospace; font-size: 14px; background: rgba(0,0,0,.35); padding: 2px 8px; border-radius: 6px; }
+  .teams { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 8px 0; }
+  .team { flex: 1 1 200px; max-width: 280px; border-radius: 12px; padding: 8px; }
+  .team.blue { background: rgba(31,95,214,.35); border: 2px solid #5aa0ff; }
+  .team.red { background: rgba(214,40,40,.35); border: 2px solid #ff6b6b; }
+  .team h3 { margin: 2px 0 6px; }
+  .slot { background: rgba(0,0,0,.3); border-radius: 8px; padding: 6px; margin: 4px 0; font-size: 15px; }
+  .slot.me { outline: 2px solid #ffd33d; }
+  .slot.off { opacity: .55; }
+  .slot.empty { opacity: .6; font-style: italic; font-size: 13px; }
+  .tag { font-size: 11px; background: rgba(255,255,255,.2); padding: 0 5px; border-radius: 5px; }
+  .ping { font-size: 11px; opacity: .8; }
+  button:disabled { opacity: .45; cursor: default; filter: none; }
+  /* lobby: team + rules pickers (new) */
+  .team select { font: inherit; font-size: 15px; padding: 4px 6px; border-radius: 8px; max-width: 100%; margin: 2px 0 6px; }
+  .kitDot { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,.4); vertical-align: middle; margin-right: 4px; }
+  .flagBadge {
+    display: inline-block; position: relative; vertical-align: middle; flex: 0 0 auto;
+    border-radius: 5px; overflow: hidden; line-height: 0; margin-right: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,.4), 0 0 0 1px rgba(0,0,0,.55);
+  }
+  .flagBadge img { display: block; width: 100%; height: 100%; object-fit: fill; }
+  .flagBadge .shine {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 32%, rgba(255,255,255,.42) 50%, transparent 68%);
+    background-size: 220% 100%; animation: flagShine 3.4s ease-in-out infinite;
+  }
+  .flagBadge.wave { animation: flagWave 2.8s ease-in-out infinite; transform-origin: 0% 50%; }
+  @keyframes flagShine { 0% { background-position: 130% 0; } 100% { background-position: -50% 0; } }
+  @keyframes flagWave {
+    0%, 100% { transform: skewY(0deg); }
+    50% { transform: skewY(1.3deg) scaleY(0.985); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .flagBadge.wave, .flagBadge .shine { animation: none; }
+  }
+  .team { min-width: 0; max-width: 100%; }
+  .team h3, #winScore { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+  .team h3 .teamName, #winScore span { min-width: 0; overflow-wrap: anywhere; }
+  .rules label { margin: 0 8px; font-size: 15px; cursor: pointer; }
+  .rules input { transform: scale(1.25); margin-right: 4px; vertical-align: middle; }
+  .lengthRow { margin: 6px 0 2px; }
+  .lenChips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+  .lenChips button { min-width: 44px; min-height: 44px; padding: 8px 10px; margin: 0; }
+  .lenStep { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px; }
+  .lenStep button { min-width: 44px; min-height: 44px; padding: 8px 14px; margin: 0; font-size: 22px; line-height: 1; }
+  .lenStep input[type=number] {
+    width: 72px; font: inherit; font-size: 18px; font-weight: 700; text-align: center;
+    min-height: 44px; border-radius: 10px; border: 2px solid rgba(255,255,255,.45);
+    background: #0d2a17; color: #fff; touch-action: manipulation;
+    user-select: text; -webkit-user-select: text;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  .lenStep input[type=number]::-webkit-outer-spin-button,
+  .lenStep input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .lenUnit { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; opacity: .85; }
+  button.selected:disabled, .lenStep input:disabled { opacity: 1; color: #1a1404; }
+  .lenStep input:disabled { color: #fff; }
+  #lobbyLengthLine { margin-top: 4px; }
+  @media (max-width: 520px) {
+    .lenChips button { min-width: 40px; padding: 8px 6px; }
+  }
+  @media (max-height: 500px) {
+    #lobby .help { font-size: 12px; } #roomCode { font-size: 36px; } .team { padding: 4px 8px; }
+    .lenChips button, .lenStep button, .lenStep input[type=number] { min-height: 36px; padding: 4px 8px; }
+    .lenStep { margin-top: 2px; }
+  }
+  #menuBtn {
+    position: fixed; top: 8px; right: 8px; z-index: 15; height: 40px; padding: 0 12px; font-size: 15px;
+    background: rgba(0,0,0,.45);
+  }
+  #pingBox {
+    position: fixed; top: calc(14px + env(safe-area-inset-top)); right: calc(84px + env(safe-area-inset-right)); z-index: 15; font: bold 13px monospace;
+    background: rgba(0,0,0,.5); padding: 4px 8px; border-radius: 8px; color: #7CFC8A;
+  }
+  #connBanner {
+    position: fixed; top: calc(60px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 30;
+    background: #b71c1c; color: #fff; padding: 8px 16px; border-radius: 10px; font-weight: bold;
+    max-width: min(520px, 92vw); text-align: center;
+  }
+  #connBanner.soft { background: #8a5a00; }
+
+  /* ---- Home Screen app: no bounce, keep clear of the iPhone notch ---- */
+  html, body {
+    position: fixed; inset: 0; width: 100%; overscroll-behavior: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
+  }
+  .overlay {
+    box-sizing: border-box;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .panel { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+  #joyBase   { left: calc(20px + env(safe-area-inset-left)); bottom: calc(20px + env(safe-area-inset-bottom)); }
+  #shootBtn  { right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
+  #passBtn   { right: calc(28px + min(96px, 24vh) + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); }
+  #sprintBtn { right: calc(30px + env(safe-area-inset-right)); bottom: calc(34px + min(96px, 24vh) + env(safe-area-inset-bottom)); }
+  #skillBtn  { right: calc(40px + min(96px, 24vh) + min(72px, 18vh) + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); }
+  #menuBtn { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
+  #joyZone, #pauseBtn, #menuBtn { touch-action: none; }
+  a.btnlink {
+    display: inline-block; text-decoration: none; font-size: 16px; padding: 8px 15px; margin: 3px;
+    border-radius: 10px; border: 2px solid #fff; background: #245c38; color: #fff;
+  }
+  a.btnlink.big { font-size: 20px; padding: 10px 28px; background: #1f5fd6; }
+
+  /* ---- Home screen layout (fits an iPhone held sideways) ---- */
+  .homepanel { max-width: min(900px, 96vw); }
+  .homegrid { display: flex; gap: 10px; justify-content: center; align-items: stretch; flex-wrap: wrap; }
+  .homegrid .box { margin: 4px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .offlinebox { flex: 1 1 220px; max-width: 300px; }
+  .onlinebox { flex: 2 1 400px; }
+  .or { opacity: .7; margin: 0 4px; }
+  #joinBtn { font-size: 18px; }
+  @media (max-width: 520px) {
+    .panel { padding: 8px 10px; }
+    h1 { font-size: 26px; }
+    #home .sub, #home .help { display: none; }
+    #joyBase { width: 116px; height: 116px; }
+    #joyZone { width: min(46vw, 200px); height: min(34vh, 260px); }
+    #shootBtn, #passBtn, #sprintBtn, #skillBtn {
+      right: calc(10px + env(safe-area-inset-right)); left: auto;
+      width: 64px; height: 64px; font-size: 11px;
+    }
+    #shootBtn { bottom: calc(12px + env(safe-area-inset-bottom)); }
+    #passBtn { bottom: calc(84px + env(safe-area-inset-bottom)); }
+    #sprintBtn { bottom: calc(156px + env(safe-area-inset-bottom)); }
+    #skillBtn { bottom: calc(228px + env(safe-area-inset-bottom)); }
+  }
+  @media (max-height: 500px) {
+    .panel { padding: 8px 14px; }
+    h1 { font-size: 26px; }
+    .sub, .homehelp, #home .help { display: none; }
+    button, a.btnlink { font-size: 14px; padding: 6px 11px; margin: 2px; min-height: 36px; }
+    button.big, a.btnlink.big { font-size: 18px; padding: 8px 20px; }
+    input[type=text] { font-size: 16px; padding: 6px 10px; }
+    .row { margin: 4px 0; }
+    .box { padding: 6px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+<div id="safeProbe"></div>
+
+<!-- HOME: type your name, then create a room or join one -->
+<div id="home" class="overlay">
+  <div class="panel homepanel">
+    <p class="eyebrow">Play a friend</p>
+    <h1><span class="b">FLOODLIGHT</span> <span class="r">KICKOFF</span></h1>
+    <p class="sub">11-a-side &bull; play the computer, or 1v1 / 2v2 with friends on other devices &bull; the host picks the match length</p>
+    <div class="homegrid">
+      <div class="box offlinebox">
+        <div class="label">On this device</div>
+        <a id="offlineBtn" class="btnlink big" href="./">Play on this device</a>
+        <div class="help">1 player, 2 players, cup and penalties on this device.<br>Works with no internet.</div>
+      </div>
+      <div class="box onlinebox">
+        <div class="label">Online with friends</div>
+        <input id="nameInput" type="text" maxlength="14" placeholder="Your name" autocomplete="off">
+        <div class="row">
+          <button data-cmode="1v1" class="selected">1 vs 1</button><button data-cmode="2v2">2 vs 2</button>
+          <span class="label">&nbsp;CPU:</span><button data-cdiff="easy">Easy</button><button data-cdiff="normal" class="selected">Normal</button><button data-cdiff="hard">Hard</button>
+        </div>
+        <div class="row">
+          <button id="createBtn" class="big">Host a game</button>
+          <span class="or">or</span>
+          <input id="codeInput" type="text" maxlength="6" placeholder="CODE" autocomplete="off" inputmode="text" autocapitalize="characters"><button id="joinBtn">Join</button>
+        </div>
+      </div>
+    </div>
+    <div class="row"><button type="button" id="onlineSettingsBtn" class="gearBtn" aria-label="Settings">⚙ Settings</button> <button type="button" class="js-squad-open">Squads</button></div>
+    <div id="homeMsg" class="msg"></div>
+    <div class="help homehelp">One person taps <b>Host a game</b> and reads the code out loud. Friends type that code and tap <b>Join</b>. Phones, iPads and computers can play together. No account needed.</div>
+  </div>
+</div>
+
+<!-- LOBBY: room code, teams, start button -->
+<div id="lobby" class="overlay hidden">
+  <div class="panel">
+    <div class="label">Room code</div>
+    <div id="roomCode">----</div>
+    <div class="help">Tell your friend this code. They tap <b>Join</b> and type it.<br>Or send this link: <span id="shareUrl"></span> <button id="copyBtn">Copy link</button></div>
+    <div class="row">
+      <button data-lmode="1v1">1 vs 1</button><button data-lmode="2v2">2 vs 2</button>
+      &nbsp; <span class="label">CPU:</span>
+      <button data-ldiff="easy">Easy</button><button data-ldiff="normal">Normal</button><button data-ldiff="hard">Hard</button>
+    </div>
+    <div class="row rules">
+      <button data-lmatch="match">Timed game</button><button data-lmatch="shootout">Penalty shootout</button>
+      <label><input type="checkbox" id="lobbyOffside">Offside</label>
+      <label><input type="checkbox" id="lobbyCards">Fouls &amp; cards</label>
+    </div>
+    <div class="row lengthRow" id="lobbyLength">
+      <div class="label">Match length</div>
+      <div class="lenChips" id="lobbyLenChips">
+        <button type="button" data-lmins="1">1</button>
+        <button type="button" data-lmins="2">2</button>
+        <button type="button" data-lmins="3">3</button>
+        <button type="button" data-lmins="5">5</button>
+        <button type="button" data-lmins="10">10</button>
+        <button type="button" data-lmins="15">15</button>
+        <button type="button" data-lmins="20">20</button>
+        <button type="button" data-lmins="custom" id="lobbyLenCustom">Custom</button>
+      </div>
+      <div class="lenStep hidden" id="lobbyLenStep">
+        <button type="button" id="lobbyMinsDown" aria-label="One minute shorter">−</button>
+        <input id="lobbyMins" type="number" min="1" max="90" step="1" inputmode="numeric" value="5" aria-label="Minutes">
+        <button type="button" id="lobbyMinsUp" aria-label="One minute longer">+</button>
+        <span class="lenUnit">min</span>
+      </div>
+      <div id="lobbyLengthLine" class="help"></div>
+    </div>
+    <div class="teams">
+      <div class="team blue"><h3 id="blueTitle">Blue</h3><select id="blueTeamSel"></select><div id="blueSlots"></div><button id="blueJoin">Join</button></div>
+      <div class="team red"><h3 id="redTitle">Red</h3><select id="redTeamSel"></select><div id="redSlots"></div><button id="redJoin">Join</button></div>
+    </div>
+    <div class="help" id="specList"></div>
+    <div class="row">
+      <button id="startBtn" class="big">Start match</button>
+      <div id="waitHost" class="msg">Waiting for the host to start the match...</div>
+    </div>
+    <div class="row"><button id="specJoin">Just watch</button> <button id="leaveBtn">Leave room</button></div>
+    <div class="help">Goalies and empty spots are played by the computer. The host picks the teams and the rules. Keep the host's screen open &mdash; their device runs the game.</div>
+  </div>
+</div>
+
+<!-- In-game menu (online games don't pause) -->
+<div id="menuScreen" class="overlay hidden">
+  <div class="panel">
+    <h1>Menu</h1>
+    <p class="help">The match keeps going for everybody else!</p>
+    <div class="row"><button id="menuCloseBtn" class="big">Back to the game</button></div>
+    <div class="row"><button type="button" id="menuSettingsBtn" class="gearBtn" aria-label="Settings">⚙ Settings</button></div>
+    <div class="row"><button id="soundBtn">Sound: ON</button> <button id="menuLeaveBtn">Leave match</button></div>
+    <div class="help" id="matchHelp">Move WASD / Arrows &bull; Sprint Shift &bull; Shoot Space (hold) / slide<br>Pass E (tap / hold to lob) / switch &bull; Q switch &bull; M sound<br>
+      R skill move (sideways = spin, back = flick, +Shift = burst) &bull; F rainbow flick<br>Penalty: up/down aim, hold Space &bull; in goal: up/down picks a side &bull; any key skips a celebration</div>
+  </div>
+</div>
+
+<!-- Winner screen -->
+<div id="winScreen" class="overlay hidden">
+  <div class="panel">
+    <p id="winTitle">Blue wins!</p>
+    <div id="winSub" class="help"></div>
+    <p id="winScore">2 - 1</p>
+    <p id="winStats"></p>
+    <div id="winScorers"></div>
+    <button id="rematchBtn" class="big">Rematch</button>
+    <div class="row"><button id="lobbyBtn">Back to lobby (change teams)</button></div>
+    <div id="waitHost2" class="msg">Waiting for the host to start a rematch...</div>
+    <div class="row"><button id="winLeaveBtn">Leave room</button></div>
+  </div>
+</div>
+
+<button id="menuBtn" class="hidden">Menu</button>
+<button id="viewBtn" class="hidden" type="button">TV</button>
+<div id="pingBox" class="hidden">-- ms</div>
+<div id="connBanner" class="hidden" role="status">Connection trouble. Trying again...</div>
+
+<!-- Touch controls -->
+<div id="touchControls" class="hidden">
+  <div id="joyZone"></div>
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div id="shootBtn" class="tbtn">SHOOT</div>
+  <div id="passBtn" class="tbtn">PASS</div>
+  <div id="sprintBtn" class="tbtn">RUN</div>
+  <div id="skillBtn" class="tbtn">SKILL</div>
+</div>
+<div id="rotateHint" class="hidden">Turn your phone sideways — it's easier to play</div>
+
+<div id="squadScreen" class="overlay hidden">
+  <div class="panel">
+    <h1 style="font-size:28px">Squads</h1>
+    <p id="squadNote">Made-up players. A star plays better. A name you type stays on this device. Friends in an online game still see the team list.</p>
+    <div class="row"><select id="squadTeam"></select></div>
+    <div id="squadList"></div>
+    <div id="squadRename" class="hidden">
+      <input id="squadRenameInput" type="text" maxlength="18" placeholder="Name on this device" autocomplete="off">
+      <div class="row"><button type="button" id="squadRenameSave">Save name</button> <button type="button" id="squadRenameClear">Use team list</button></div>
+    </div>
+    <div class="row"><button type="button" id="squadBack">Back</button></div>
+  </div>
+</div>
+
+<script>
+window.soccerPeerReady = new Promise(function (resolve) {
+  if (window.Peer) { window.soccerPeerFrom = "already"; resolve(true); return; }
+  var done = false, fallbackStarted = false;
+  function finish(from) {
+    if (done) return;
+    if (window.Peer) { done = true; window.soccerPeerFrom = from; resolve(true); return; }
+    if (from === "local") { done = true; window.soccerPeerFrom = "failed"; resolve(false); return; }
+    if (fallbackStarted) return;
+    fallbackStarted = true;
+    var local = document.createElement("script");
+    local.src = "vendor/peerjs.min.js";
+    local.onload = function () { finish("local"); };
+    local.onerror = function () { finish("local"); };
+    document.head.appendChild(local);
+  }
+  var s = document.createElement("script");
+  s.src = "https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js";
+  s.async = true;
+  s.onload = function () { finish("cdn"); };
+  s.onerror = function () { finish("cdn-error"); };
+  setTimeout(function () { if (!window.Peer) finish("cdn-timeout"); }, 5000);
+  document.head.appendChild(s);
+});
+</script>
+<script src="game.js"></script>
+<script src="online.js"></script>
+<script src="pwa.js"></script>
+<script src="native.js"></script>
+</body>
+</html>

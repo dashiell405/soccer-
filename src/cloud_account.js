@@ -318,13 +318,28 @@
     if (code === "PGRST205" || code === "42P01") return true;
     return msg.indexOf("profiles") >= 0 && (msg.indexOf("schema cache") >= 0 || msg.indexOf("does not exist") >= 0 || msg.indexOf("could not find the table") >= 0);
   }
+  function inNativeApp(loc) {
+    try {
+      if (loc && (loc.protocol === "capacitor:" || loc.protocol === "ionic:")) return true;
+      if (typeof Capacitor !== "undefined" && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return true;
+    } catch (e) { /* a normal browser */ }
+    return false;
+  }
+  function appRedirect() {
+    return (typeof KICKOFF_APP_REDIRECT === "string" && KICKOFF_APP_REDIRECT) || "kickoff://login";
+  }
   function emailRedirectTo(loc) {
+    if (inNativeApp(loc)) return appRedirect();
     try {
       if (loc && loc.origin === "https://dashiell405.github.io" && String(loc.pathname || "").indexOf("/soccer-") === 0) {
         return loc.origin + loc.pathname;
       }
     } catch (e) { /* use the live site */ }
     return SITE;
+  }
+  function redirectBlocked(error) {
+    const low = String((error && (error.message || error.error_description)) || "").toLowerCase();
+    return low.indexOf("redirect") >= 0 || low.indexOf("not allowed") >= 0;
   }
   function askUploadMessage() {
     return "This phone already has a saved Kickoff game. Save it to the parent email so another phone can use it?\n\nOK = save this phone's game to the account\nCancel = not now. This phone keeps the game, and nothing is uploaded.";
@@ -356,6 +371,7 @@
     hashSnap: hashSnap,
     isMissingTable: isMissingTable,
     emailRedirectTo: emailRedirectTo,
+    inNativeApp: inNativeApp,
     askUploadMessage: askUploadMessage,
     askMergeMessage: askMergeMessage,
     friendlyAuthError: friendlyAuthError,
@@ -685,16 +701,35 @@
         setStatus("Sign-in needs the internet. You can keep playing on this phone.");
         return;
       }
-      const result = await client.auth.signInWithOtp({
+      const native = inNativeApp(window.location);
+      let redirect = emailRedirectTo(window.location);
+      let result = await client.auth.signInWithOtp({
         email: email,
         options: {
-          emailRedirectTo: emailRedirectTo(window.location),
+          emailRedirectTo: redirect,
           shouldCreateUser: true,
         },
       });
+      // The code works as soon as the email sends. If kickoff://login is not
+      // on the Supabase allow list yet, ask again with the website address
+      // so the email (and the code) still arrive.
+      if (result.error && native && redirect !== SITE && redirectBlocked(result.error)) {
+        redirect = SITE;
+        result = await client.auth.signInWithOtp({
+          email: email,
+          options: { emailRedirectTo: SITE, shouldCreateUser: true },
+        });
+        if (!result.error) {
+          state.mode = "code";
+          setStatus("Check the parent email and type the code here. The link opens the website, not this app, until a parent allows kickoff://login in Supabase.");
+          return;
+        }
+      }
       if (result.error) { setStatus(friendlyAuthError(result.error)); return; }
       state.mode = "code";
-      setStatus("Check the parent email. Open the link on this phone, or type the code from the email.");
+      setStatus(native
+        ? "Check the parent email. Type the code here. Tapping the link should open Kickoff."
+        : "Check the parent email. Open the link on this phone, or type the code from the email.");
     } catch (e) {
       setStatus("Sign-in needs the internet. You can keep playing on this phone.");
     } finally {
@@ -780,14 +815,22 @@
       const signedIn = !!(state.session && state.session.user);
       const email = signedIn && state.session.user.email ? state.session.user.email : "";
       const shown = playerLabel();
+      const native = inNativeApp(typeof location !== "undefined" ? location : null);
       let html = "<h3>Account (optional)</h3>";
       if (!signedIn) {
-        html += "<p>Sign in with a parent email to keep this player on another phone or tablet. Kickoff does not save a password. We email a link. If the email has a code, type it here.</p>";
-        html += "<p>You can skip this. With no account, or when you are offline, this phone keeps the game it already saved.</p>";
+        if (native) {
+          html += "<p>Sign in with a parent email to keep this player on another phone or tablet. Kickoff does not save a password. We email a code. Type that code here.</p>";
+          html += "<p>The email also has a link. Tapping it should open this app. If it opens the website instead, type the code. You can skip this. With no account, this phone keeps the game it already saved.</p>";
+        } else {
+          html += "<p>Sign in with a parent email to keep this player on another phone or tablet. Kickoff does not save a password. We email a link. If the email has a code, type it here.</p>";
+          html += "<p>You can skip this. With no account, or when you are offline, this phone keeps the game it already saved.</p>";
+        }
         html += "<p class='privacy'>What is saved: your player name, favourite team, colour, play-as-me name, trophies, cup, settings, match length, renamed players, star teams, camera, and bans from games you host. Friends in a room see your player name. If you saved \"Dashiell G.\", that is the name they see. A parent can delete the account in Supabase.</p>";
         html += "<label for='accountEmail'>Parent email</label>";
         html += "<input id='accountEmail' type='email' autocomplete='email' inputmode='email' placeholder='name@email.com'>";
-        html += "<div class='accountRow'><button type='button' id='accountSend'>Email me a sign-in link</button></div>";
+        html += native
+          ? "<div class='accountRow'><button type='button' id='accountSend'>Email me a code</button></div>"
+          : "<div class='accountRow'><button type='button' id='accountSend'>Email me a sign-in link</button></div>";
         html += "<label for='accountCode'>Code from the email</label>";
         html += "<input id='accountCode' inputmode='numeric' autocomplete='one-time-code' maxlength='12' placeholder='6 digit code'>";
         html += "<div class='accountRow'><button type='button' id='accountUseCode'>Use this code</button></div>";
@@ -853,6 +896,61 @@
       if (msg) setStatus(friendlyAuthError({ message: msg }));
     } catch (e) { /* ignore */ }
   }
+  function finishNativeLogin(url) {
+    if (!url || String(url).indexOf("kickoff://") !== 0) return;
+    let code = "";
+    let access = "";
+    let refresh = "";
+    let err = "";
+    try {
+      const parsed = new URL(url);
+      const hash = new URLSearchParams(String(parsed.hash || "").replace(/^#/, ""));
+      code = parsed.searchParams.get("code") || hash.get("code") || "";
+      access = parsed.searchParams.get("access_token") || hash.get("access_token") || "";
+      refresh = parsed.searchParams.get("refresh_token") || hash.get("refresh_token") || "";
+      err = parsed.searchParams.get("error_description") || hash.get("error_description") || "";
+    } catch (e) {
+      setStatus("That sign-in link did not work. Type the code from the email.");
+      return;
+    }
+    if (err) { setStatus(friendlyAuthError({ message: err })); return; }
+    if (!code && !(access && refresh)) return;
+    clientOrNull().then(function (client) {
+      if (!client || !client.auth) {
+        setStatus("Sign-in needs the internet. You can keep playing on this phone.");
+        return;
+      }
+      const done = function (result) {
+        if (result && result.error) setStatus(friendlyAuthError(result.error));
+        else setStatus("Signed in. Checking the saved game...");
+      };
+      const fail = function () { setStatus("That sign-in link did not work. Type the code from the email."); };
+      if (code && client.auth.exchangeCodeForSession) {
+        Promise.resolve(client.auth.exchangeCodeForSession(code)).then(done).catch(fail);
+        return;
+      }
+      if (access && refresh && client.auth.setSession) {
+        Promise.resolve(client.auth.setSession({ access_token: access, refresh_token: refresh })).then(done).catch(fail);
+      }
+    }).catch(function () {
+      setStatus("Sign-in needs the internet. You can keep playing on this phone.");
+    });
+  }
+  function listenForAppLinks() {
+    let AppPlugin = null;
+    try { AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App; } catch (e) { AppPlugin = null; }
+    if (!AppPlugin) return;
+    if (typeof AppPlugin.addListener === "function") {
+      try {
+        AppPlugin.addListener("appUrlOpen", function (data) { finishNativeLogin(data && data.url); });
+      } catch (e) { /* the code box still works */ }
+    }
+    if (typeof AppPlugin.getLaunchUrl === "function") {
+      Promise.resolve(AppPlugin.getLaunchUrl()).then(function (res) {
+        if (res && res.url) finishNativeLogin(res.url);
+      }).catch(function () {});
+    }
+  }
   function boot() {
     if (state.booted) return;
     state.booted = true;
@@ -863,7 +961,7 @@
       + "#accountPanel p { margin: 0 0 8px; font-size: 15px; line-height: 1.4; color: #d5dbe6; overflow-wrap: break-word; }"
       + "#accountPanel .privacy { color: #ffd27a; }"
       + "#accountPanel label { display: block; font-weight: 700; margin: 8px 0 4px; }"
-      + "#accountPanel input { width: 100%; box-sizing: border-box; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.35); background: #fff; color: #111; font: inherit; font-size: 16px; padding: 8px 10px; }"
+      + "#accountPanel input { width: 100%; box-sizing: border-box; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.35); background: #fff; color: #111; font: inherit; font-size: 16px; padding: 8px 10px; user-select: text; -webkit-user-select: text; }"
       + "#accountPanel .accountRow { margin: 8px 0; }"
       + "#accountPanel button { min-height: 44px; max-width: 100%; padding: 8px 14px; border-radius: 10px; border: 0; background: #e8c547; color: #1a1404; font: inherit; font-weight: 800; white-space: normal; }"
       + "#accountSignOut, #accountUseCloud { background: #243044 !important; color: #fff !important; }"
@@ -872,6 +970,7 @@
     loadBook();
     watchStorage();
     showUrlError();
+    listenForAppLinks();
     api.paint = paint;
     api.signOut = signOut;
     setInterval(function () {

@@ -1,0 +1,27 @@
+{
+  "name": "kickoff",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Floodlight Kickoff iPhone app. The website files stay at the repo root for GitHub Pages.",
+  "scripts": {
+    "pages": "python3 build.py",
+    "www": "node scripts/collect-www.js",
+    "ios:sync": "node scripts/collect-www.js && cap sync ios && node scripts/patch-ios.js",
+    "ios:open": "cap open ios"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "@capacitor/splash-screen": "^8.0.0",
+    "@capacitor/status-bar": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.0.0"
+  }
+}

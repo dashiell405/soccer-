@@ -22,7 +22,7 @@ const SETTINGS_TABS = [
       { id: "btnSize", label: "Touch button size", type: "range", min: 0.7, max: 1.4, step: 0.05, def: 1 },
       { id: "btnOpacity", label: "Touch button opacity", type: "range", min: 0.35, max: 1, step: 0.05, def: 0.85 },
       { id: "leftHand", label: "Left-handed layout", type: "toggle", def: false },
-      { id: "haptics", label: "Vibration", type: "toggle", def: false, help: "Only on phones that support it." },
+      { id: "haptics", label: "Vibration", type: "toggle", def: false, help: "A small buzz on kicks and goals. On iPhone this works in the Kickoff app." },
       { id: "autoSwitch", label: "Auto-switch player", type: "select", def: "assisted", options: [
         { v: "off", label: "Off" }, { v: "assisted", label: "Assisted" }, { v: "auto", label: "Auto" } ] },
       { id: "assist", label: "Pass and shot help", type: "select", def: "medium", options: [
@@ -131,6 +131,9 @@ const GameSettings = {
     if (saved.matchLength == null && typeof loadSavedMinutes === "function") {
       this.values.matchLength = loadSavedMinutes().minutes;
     }
+    // Safari on iPhone cannot buzz. The Kickoff app can, so a new install
+    // turns vibration on. A saved choice (on or off) always wins.
+    if (saved.haptics == null && nativeAppShell()) this.values.haptics = true;
   },
   save() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.values)); } catch (e) { /* private mode */ }
@@ -201,8 +204,24 @@ function joyFiltered(dx, dy, max) {
   if (len > 1) { x /= len; y /= len; }
   return { x: x, y: y };
 }
+function nativeAppShell() {
+  try {
+    if (typeof location !== "undefined" && (location.protocol === "capacitor:" || location.protocol === "ionic:")) return true;
+    if (typeof Capacitor !== "undefined" && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return true;
+  } catch (e) { /* a normal browser */ }
+  return false;
+}
 function haptic(ms) {
-  if (!opt("haptics") || !navigator.vibrate) return;
+  if (!opt("haptics")) return;
+  try {
+    const cap = typeof Capacitor !== "undefined" && Capacitor.Plugins && Capacitor.Plugins.Haptics;
+    if (cap && cap.impact) {
+      const ret = cap.impact({ style: ms >= 24 ? "MEDIUM" : "LIGHT" });
+      if (ret && typeof ret.catch === "function") ret.catch(function () {});
+      return;
+    }
+  } catch (e) { /* use the browser buzz below */ }
+  if (!navigator.vibrate) return;
   try { navigator.vibrate(ms); } catch (e) { /* not allowed */ }
 }
 

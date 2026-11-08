@@ -1,0 +1,41 @@
+{
+	"appId": "com.dashiellgreen.kickoff",
+	"appName": "Kickoff",
+	"webDir": "www",
+	"backgroundColor": "#0c2816",
+	"zoomEnabled": false,
+	"ios": {
+		"contentInset": "never",
+		"scrollEnabled": false,
+		"backgroundColor": "#0c2816",
+		"allowsLinkPreview": false,
+		"preferredContentMode": "mobile",
+		"zoomEnabled": false
+	},
+	"server": {
+		"iosScheme": "capacitor",
+		"hostname": "localhost"
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 1500,
+			"launchAutoHide": true,
+			"launchFadeOutDuration": 250,
+			"backgroundColor": "#0c2816",
+			"showSpinner": false,
+			"splashFullScreen": true,
+			"splashImmersive": false
+		},
+		"StatusBar": {
+			"style": "DARK",
+			"backgroundColor": "#0c2816",
+			"overlaysWebView": true
+		}
+	},
+	"packageClassList": [
+		"AppPlugin",
+		"HapticsPlugin",
+		"SplashScreenPlugin",
+		"StatusBarPlugin"
+	]
+}

@@ -11,7 +11,8 @@
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "floodlight-kickoff-pages-v37";
+const VERSION = "floodlight-kickoff-pages-v38";
+const NATIVE_APP = self.location && (self.location.protocol === "capacitor:" || self.location.protocol === "ionic:");
 const APP_SHELL = [
   "./",
   "index.html",
@@ -32,10 +33,15 @@ const APP_SHELL = [
 const NETWORK_TIMEOUT_MS = 4000;
 
 self.addEventListener("install", (event) => {
+  if (NATIVE_APP) { self.skipWaiting(); return; }
   event.waitUntil(caches.open(VERSION).then((c) => c.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
+  if (NATIVE_APP) {
+    event.waitUntil(self.registration.unregister());
+    return;
+  }
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => {
@@ -56,6 +62,7 @@ function withTimeout(promise, ms) {
 }
 
 self.addEventListener("fetch", (event) => {
+  if (NATIVE_APP) return;
   const req = event.request;
   let url;
   try { url = new URL(req.url); } catch (e) { return; }

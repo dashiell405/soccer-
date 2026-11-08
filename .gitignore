@@ -1,2 +1,9 @@
 node_modules/
+www/
 .DS_Store
+ios/App/build/
+ios/App/Pods/
+ios/App/output/
+ios/DerivedData/
+*.xcuserstate
+xcuserdata/
