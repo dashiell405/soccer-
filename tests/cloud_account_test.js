@@ -185,8 +185,8 @@ assert.ok(cloudSrc.indexOf("kickoff://login") >= 0);
 assert.ok(cfg.indexOf("kickoff://login") >= 0);
 
 const sw = fs.readFileSync(path.join(root, "tools/build_pages.py"), "utf8");
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v38") >= 0);
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v37") < 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v39") >= 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v38") < 0);
 const settingsSrc = fs.readFileSync(path.join(root, "src/settings.js"), "utf8");
 assert.ok(settingsSrc.indexOf("touch-action: pan-y") >= 0);
 assert.ok(settingsSrc.indexOf("overscroll-behavior: contain") >= 0);
