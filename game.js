@@ -802,10 +802,155 @@ const SHOOTOUT_KICKS = 5;          // kicks each in a shootout (then sudden deat
 
 // Skill moves (R / F keys, SKILL button)
 const SKILL_COOLDOWN = 0.9;        // seconds before you can do another trick
-const SKILL_TIME = { stepover: 0.45, spin: 0.45, flick: 0.55, burst: 0.7 };
-const SKILL_NAMES = { stepover: "Step-over!", spin: "Roulette!", flick: "Rainbow flick!", burst: "Burst!" };
+const SKILL_TIME = { stepover: 0.45, spin: 0.45, flick: 0.55, burst: 0.7, finesse: 0.42 };
+const SKILL_NAMES = { stepover: "Step-over!", spin: "Roulette!", flick: "Rainbow flick!", burst: "Burst!", finesse: "Finesse!" };
 // How often the computer does tricks when a defender is close (per decision)
 const AI_SKILL_CHANCE = { easy: 0, normal: 0.18, hard: 0.45, legendary: 0.62 };
+
+// Weather is chosen before kickoff. "random" becomes one of the four
+// real kinds once, so a match does not change weather every frame.
+const WEATHER_KINDS = ["clear", "rain", "snow", "wind"];
+function rollWeather(raw) {
+  if (raw === "random") return WEATHER_KINDS[Math.floor(Math.random() * WEATHER_KINDS.length)];
+  return WEATHER_KINDS.indexOf(raw) >= 0 ? raw : "clear";
+}
+function setMatchAtmosphere(game, raw, night) {
+  if (!game) return;
+  const pick = raw || "clear";
+  if (game._weatherPick !== pick) {
+    game._weatherPick = pick;
+    game.weather = rollWeather(pick);
+    if (game.weather === "wind") {
+      const side = Math.random() < 0.5 ? 1 : -1;
+      game.windX = side * 32;
+      game.windY = (Math.random() < 0.5 ? 1 : -1) * 58;
+    } else {
+      game.windX = 0;
+      game.windY = 0;
+    }
+  }
+  game.night = !!night;
+}
+
+// Short commentary. Placeholders are filled with team names and the
+// made-up names already on the squad. Never a real footballer's name.
+const CALLS = {
+  goal: [
+    "GOAL! {name} scores for {team}!",
+    "GOAL! {name} finds the net for {team}!",
+    "GOAL! {name} makes it {score}!",
+    "GOAL! What a finish by {name}!",
+    "GOAL! {name} of {team} hits the net!",
+    "GOAL! {name} with a lovely finish!",
+    "GOAL! {team} are singing for {name}!",
+    "GOAL! {name} wheels away. What a moment!",
+  ],
+  og: [
+    "GOAL! Own goal, unlucky {name}!",
+    "GOAL! That one goes in off {name}!",
+    "GOAL! Into their own net. {other} take it!",
+  ],
+  chip: [
+    "GOAL! A cheeky chip from {name}!",
+    "GOAL! {name} dinks it over the keeper!",
+    "GOAL! What a little lob by {name}!",
+  ],
+  long: [
+    "GOAL! From way out, {name} catches them!",
+    "GOAL! {name} lets fly for {team}!",
+    "GOAL! What a hit from distance by {name}!",
+  ],
+  power: [
+    "GOAL! What a strike by {name}!",
+    "GOAL! {name} absolutely hammers it!",
+    "GOAL! {name} rifles it home!",
+  ],
+  penGoal: [
+    "GOAL! Penalty scored by {name}!",
+    "GOAL! {name} sends the keeper the wrong way!",
+    "GOAL! {name} scores coolly from the spot!",
+  ],
+  save: [
+    "What a save by {name}!",
+    "{name} keeps it out. Super stop!",
+    "Safe hands from {name}!",
+    "{team} keeper {name} says no!",
+    "Brilliant save! {name} to the rescue!",
+    "{name} gets down well to keep it out!",
+  ],
+  punch: [
+    "Great save! {name} punches it clear!",
+    "{name} gets a strong hand to that one!",
+    "Tipped away by {name}!",
+    "{name} palms it off the line!",
+  ],
+  post: [
+    "Off the post! So close for {team}!",
+    "The woodwork saves them. {team} groan!",
+    "Clang! {team} hit the post!",
+    "Inches away. {team} were so close!",
+  ],
+  bar: [
+    "Off the crossbar! {team} so close!",
+    "It hits the bar! Nearly for {team}!",
+    "Rattling the woodwork for {team}!",
+  ],
+  wide: [
+    "Just wide! {team} were close!",
+    "Past the post. A near miss for {team}!",
+    "Ooh, that one misses by a whisker!",
+    "Inches wide of the post for {team}!",
+  ],
+  over: [
+    "Over the bar! {team} had a chance!",
+    "Too high from {team}. So close though!",
+    "It sails over. Nearly a goal for {team}!",
+  ],
+  yellow: [
+    "Yellow card for {name} of {team}!",
+    "{name} is booked. One more and they walk!",
+    "The referee shows {name} a yellow!",
+    "Into the book goes {name}!",
+  ],
+  second: [
+    "Second yellow! {name} is off!",
+    "{name} sees red after two yellows!",
+    "That's a sending off. {name} walks!",
+  ],
+  red: [
+    "RED CARD! {name} is sent off!",
+    "{name} is off! {team} play a player down!",
+    "A straight red for {name}!",
+  ],
+  kickoff: [
+    "Coin toss: {name} wins it for {team}!",
+    "Coin toss: {name} gets {team} started!",
+    "Coin toss: {name} leads {team} out!",
+    "Coin toss: {name} will kick off for {team}!",
+    "Coin toss: {name} calls it. {team} start!",
+    "Coin toss: {name} sends {team} on their way!",
+  ],
+  half: [
+    "Half time. It's {score}.",
+    "That's the break. {score} at the half.",
+    "Peep peep! Half time, {score}.",
+    "Time for a drink. {score} so far.",
+    "The first half ends, {score}.",
+    "Oranges at the ready. {score}.",
+  ],
+  fullWin: [
+    "Full time! {team} win {score}!",
+    "The whistle goes. {team} take it {score}!",
+    "That's the game! {team} win {score}!",
+    "Full time. {team} finish on top, {score}.",
+  ],
+  fullDraw: [
+    "Full time! A draw, {score}.",
+    "They share it. Full time, {score}.",
+    "All square at the end, {score}.",
+    "Honours even. Full time, {score}.",
+  ],
+};
 
 // Difficulty settings for the COMPUTER team
 //   speed      - fraction of RUN_SPEED
@@ -965,7 +1110,7 @@ function formatClock(s) {
 // Player states are sent as small numbers to keep messages short
 const STATE_NAMES = ["run", "slide", "dive", "down"];
 const STATE_CODES = { run: 0, slide: 1, dive: 2, down: 3 };
-const SKILL_LIST = [null, "stepover", "spin", "flick", "burst"];
+const SKILL_LIST = [null, "stepover", "spin", "flick", "burst", "finesse"];
 const CELEBRATIONS = ["slide", "spin", "plane", "pile"];   // knee slide, spin, airplane arms, pile-on
 // Shared by the offline game, the server and the browser: the default rules
 const DEFAULT_RULES = { offside: true, cards: true };
@@ -1025,7 +1170,13 @@ function createSim(opts = {}) {
     stats: newStats(),
     events: [],             // sounds etc. that happened since the last snapshot
     lastKick: null,
+    weather: "clear",
+    windX: 0,
+    windY: 0,
+    night: false,
+    halfSaid: false,
   };
+  setMatchAtmosphere(game, opts.weather || "clear", !!opts.night);
   let roster = [];   // both teams (including anyone sent off)
   let players = [];  // players still on the pitch
   // The referee and two assistant referees. They never touch the ball.
@@ -1094,6 +1245,27 @@ function createSim(opts = {}) {
   function say(text, color = "#fff", seconds = 2) {
     game.comment = { text, color, timer: seconds };
   }
+  function pickCall(kind, extra) {
+    const list = CALLS[kind] || ["Play on!"];
+    const line = list[Math.floor(Math.random() * list.length)];
+    const b = game.score.blue, r = game.score.red;
+    const info = { team: "", other: "", name: "a player", score: b + "\u2013" + r };
+    if (extra) for (const k in extra) if (extra[k] != null && extra[k] !== "") info[k] = extra[k];
+    return line.replace(/\{(\w+)\}/g, (m, key) => (info[key] == null ? "" : String(info[key])));
+  }
+  function weatherName() { return game.weather || "clear"; }
+  function groundKeep() {
+    const w = weatherName();
+    if (w === "rain") return 0.8;
+    if (w === "snow") return 0.38;
+    return GROUND_FRICTION;
+  }
+  function airKeep() { return weatherName() === "snow" ? 0.7 : AIR_DRAG; }
+  function applyWindTo(vx, vy, z, dt) {
+    if (weatherName() !== "wind" || z <= 11) return { vx: vx, vy: vy };
+    const lift = clamp((z - 11) / 34, 0, 1);
+    return { vx: vx + (game.windX || 0) * lift * dt, vy: vy + (game.windY || 0) * lift * dt };
+  }
   // Record a sound for the browsers to play
   function emit(name, arg) {
     if (game.events.length < 100) game.events.push(arg === undefined ? [name] : [name, typeof arg === "number" ? Math.round(arg) : arg]);
@@ -1153,8 +1325,8 @@ function canKick(p) {
   function humanPress(c, action) {
     const p = c.active;
     if (!p || action === "skip") return;
-    if (action === "skill" || action === "flick") {     // tricks (only with the ball)
-      if (ball.owner === p && game.phase === "play") humanSkill(p, c, action);
+    if (action === "skill" || action === "stepover" || action === "flick" || action === "finesse") {
+      if (game.phase === "play") humanSkill(p, c, action);
       return;
     }
     if (action === "swap") { manualSwitch(c); return; }
@@ -1424,24 +1596,15 @@ function humanThrow(p, action, charge) {
 }
 
 // ---------------------------------------------------------------------
-// 8. SKILL MOVES  (R = step-over / roulette, F = rainbow flick,
-//    Shift + R = knock-on burst; SKILL button on phones)
+// 8. SKILL MOVES
+//    R / STEP  = step-over     F / FLICK = rainbow flick
+//    G / CURL  = finesse curl shot
+//    The computer still mixes in a spin now and then.
 // ---------------------------------------------------------------------
-// Which trick? It depends on the direction you are pushing:
-//   holding sprint      -> BURST   (knock it ahead and sprint after it)
-//   pulling backwards   -> RAINBOW FLICK (pop it over the defender's head)
-//   pushing sideways    -> ROULETTE (spin away from the defender)
-//   nothing / forwards  -> STEP-OVER (fake: nearby defenders go the wrong way)
 function humanSkill(p, c, action) {
   if (action === "flick") { doSkill(p, "flick"); return; }
-  if (c.input.sprint) { doSkill(p, "burst"); return; }
-  const m = humanMove(c);
-  if (!m.x && !m.y) { doSkill(p, "stepover"); return; }
-  const n = normalize(m.x, m.y);
-  const dot = n.x * p.fx + n.y * p.fy;
-  if (dot < -0.4) doSkill(p, "flick");
-  else if (dot < 0.6) doSkill(p, "spin", n);
-  else doSkill(p, "stepover");
+  if (action === "finesse") { doFinesse(p); return; }
+  doSkill(p, "stepover");
 }
 
 function doSkill(p, type, dir) {
@@ -1475,16 +1638,52 @@ function doSkill(p, type, dir) {
   return true;
 }
 
-// Computer players sometimes try a trick when a defender is close in front
+// A placed shot that bends toward the goal. The ball has to be in play
+// and the player has to be facing the attack.
+function doFinesse(p) {
+  if (!p || p.skillCD > 0 || p.state !== "run" || game.phase !== "play") return false;
+  if (ball.owner !== p && !canKick(p)) return false;
+  const T = TEAMS[p.team];
+  const gx = T.targetGoalX - ball.x;
+  if (gx * T.dir < 40) return false;
+  const distGoal = Math.hypot(T.targetGoalX - ball.x, PITCH.cy - ball.y);
+  if (distGoal > 540 * FIELD) return false;
+  const side = ball.y < PITCH.cy ? 1 : -1;
+  const aimY = clamp(PITCH.cy + side * GOAL_W * 0.22, GOAL_TOP + 10, GOAL_BOTTOM - 10);
+  const dir = normalize(T.targetGoalX - ball.x, aimY - ball.y);
+  kickBall(p, dir, 760 * FIELD, 165, "shot");
+  const sign = dir.x >= 0 ? 1 : -1;
+  let curl = (PITCH.cy - ball.y) * sign * 1.35;
+  if (Math.abs(curl) < 90) curl = side * sign * 150;
+  ball.curl = clamp(curl, -240, 240);
+  if (ball.shot) ball.shot.finesse = true;
+  p.skill = "finesse";
+  p.skillT = SKILL_TIME.finesse;
+  p.skillCD = SKILL_COOLDOWN;
+  game.stats.skills++;
+  emit("skill");
+  say(SKILL_NAMES.finesse, "#7ee0ff", 0.9);
+  return true;
+}
+
+// Computer players sometimes try a trick when a defender is close in front,
+// and a finesse shot when they are in range of goal.
 function aiMaybeSkill(p, presser, pressure) {
   const chance = AI_SKILL_CHANCE[game.difficulty] || 0;
-  if (!chance || isHumanTeam(p.team) || p.skillCD > 0 || !presser || pressure > 75) return false;
+  if (!chance || isHumanTeam(p.team) || p.skillCD > 0) return false;
+  const T = TEAMS[p.team];
+  const distGoal = Math.hypot(T.targetGoalX - p.x, PITCH.cy - p.y);
+  if (distGoal < aiSettings(p.team).shootRange && Math.random() < chance * 0.85) {
+    if (doFinesse(p)) return true;
+  }
+  if (!presser || pressure > 75) return false;
   const to = normalize(presser.x - p.x, presser.y - p.y);
   if (to.x * p.fx + to.y * p.fy < 0.3 || Math.random() > chance) return false;
   const r = Math.random();
-  if (r < 0.4) return doSkill(p, "stepover");
-  if (r < 0.75) { const side = Math.random() < 0.5 ? 1 : -1; return doSkill(p, "spin", { x: -p.fy * side, y: p.fx * side }); }
-  return pressure > 30 ? doSkill(p, "flick") : doSkill(p, "stepover");
+  if (r < 0.42) return doSkill(p, "stepover");
+  if (r < 0.78) return doSkill(p, "flick");
+  const side = Math.random() < 0.5 ? 1 : -1;
+  return doSkill(p, "spin", { x: -p.fy * side, y: p.fx * side });
 }
 
   // ===================================================================
@@ -1603,6 +1802,7 @@ function parkForKickoff(taker) {
     game.clock = 0; game.winner = null; game.lastScorer = null;
     game.penalty = null; game.shootout = null; game.celebration = null; game.cardPopup = null; game.flag = null;
     game.stats = newStats();
+    game.halfSaid = false;
     createPlayers();
     resetToHome();
     for (const c of controllers) { c.active = null; c.charging = null; }
@@ -1809,7 +2009,9 @@ function updateBall(dt) {
     const holding = o.role === "GK" && inOwnBox(o.team, o);
     const ahead = holding ? 4 : PLAYER_R + BALL_R + 2 + (o.sprinting ? 5 : 0) + Math.sin(o.anim * 2) * 1.5;
     const tx = o.x + o.fx * ahead, ty = o.y + o.fy * ahead;
-    const k = Math.min(1, dt * 14);
+    // Rain: the ball sits a little looser at the feet.
+    const stick = weatherName() === "rain" ? 8.5 : 14;
+    const k = Math.min(1, dt * stick);
     ball.x += (tx - ball.x) * k;
     ball.y += (ty - ball.y) * k;
     ball.z = holding ? 14 : 0; ball.vz = 0;   // a goalie holds it in his hands
@@ -1841,15 +2043,21 @@ function updateBall(dt) {
   }
   if (ball.curl) ball.curl *= Math.pow(ball.z > 1 ? 0.5 : 0.12, dt);
 
+  // Wind only nudges the ball while it is up. Ground passes stay honest.
+  const blown = applyWindTo(ball.vx, ball.vy, ball.z, dt);
+  ball.vx = blown.vx; ball.vy = blown.vy;
+
   // --- Friction: rolling on grass slows it much more than flying ---
-  const f = Math.pow(ball.z > 0.5 ? AIR_DRAG : GROUND_FRICTION, dt);
+  // Rain skids (less friction). Snow is heavier and dies sooner.
+  const f = Math.pow(ball.z > 0.5 ? airKeep() : groundKeep(), dt);
   ball.vx *= f; ball.vy *= f;
   if (game.phase === "dead") { ball.vx *= 0.97; ball.vy *= 0.97; } // out of play: stops quickly
   if (ball.z === 0 && ballSpeed() < 8) { ball.vx = 0; ball.vy = 0; }
 
   const ballMul = (game.tune && game.tune.ball) || 1;
-  ball.x += ball.vx * dt * ballMul;
-  ball.y += ball.vy * dt * ballMul;
+  const snow = weatherName() === "snow" ? 0.86 : 1;
+  ball.x += ball.vx * dt * ballMul * snow;
+  ball.y += ball.vy * dt * ballMul * snow;
   ball.spin += ballSpeed() * dt / BALL_R;
 
   // --- Goal posts (only if the ball is lower than the crossbar) ---
@@ -1863,7 +2071,11 @@ function updateBall(dt) {
         const along = ball.vx * nx + ball.vy * ny;
         if (along < 0) {
           ball.vx -= 1.6 * along * nx; ball.vy -= 1.6 * along * ny;
-          if (game.phase === "play" && -along > 250) { say("Off the post!", "#ffd33d"); emit("post"); emit("ooh"); }
+          if (game.phase === "play" && -along > 250) {
+            const atk = ball.lastTeam || "blue";
+            say(pickCall("post", { team: teamName(atk), other: teamName(other(atk)) }), "#ffd33d", 1.8);
+            emit("post"); emit("ooh");
+          }
         }
       }
     }
@@ -1914,8 +2126,12 @@ function predictBall() {
       vy = oy + (ox / cspd) * curl * air * h;
     }
     if (curl) curl *= Math.pow(z > 1 ? 0.5 : 0.12, h);
-    const f = Math.pow(z > 0.5 ? AIR_DRAG : GROUND_FRICTION, h);
-    vx *= f; vy *= f; x += vx * h; y += vy * h;
+    const blown = applyWindTo(vx, vy, z, h);
+    vx = blown.vx; vy = blown.vy;
+    const f = Math.pow(z > 0.5 ? airKeep() : groundKeep(), h);
+    vx *= f; vy *= f;
+    const snow = weatherName() === "snow" ? 0.86 : 1;
+    x += vx * h * snow; y += vy * h * snow;
     trajectory.push({ x, y, z, t: i * h });
   }
 }
@@ -1985,11 +2201,14 @@ function ballContacts(dt) {
     }
     if (game.admin && game.admin.perfect && adminMine(p) && p.state === "run") { takePossession(p); return; }
     const rel = Math.hypot(ball.vx - p.vx, ball.vy - p.vy);
-    const limit = CONTROL_SPEED + (isHumanControlled(p) ? 120 : 0);
+    let limit = CONTROL_SPEED + (isHumanControlled(p) ? 120 : 0);
+    if (weatherName() === "rain") limit *= 0.86;
     if (rel < limit && p.state === "run") {
       // A heavy ball doesn't glue to the foot. The first touch pops it
       // into the stride, and the player settles it a moment later.
-      if (rel > 280 && p.touchSettle !== 1) {
+      // Rain makes that first touch a little less sticky.
+      const heavy = weatherName() === "rain" ? 220 : 280;
+      if (rel > heavy && p.touchSettle !== 1) {
         const face = normalize((p.fx || 0) + 1e-4, p.fy || 0);
         const keep = Math.min(150, rel * 0.22);
         ball.vx = p.vx * 0.45 + face.x * keep;
@@ -2044,7 +2263,10 @@ function goalieTouch(g) {
   const catchChance = s < 480 ? clamp(0.92 + extra, 0.7, 0.99) : clamp((ai.gkCatch + extra) * clamp(1 - (s - 480) / 1300, 0.2, 1), 0.12, 0.95);
   if (Math.random() < catchChance) {
     takePossession(g);
-    if (dangerous) { say(g.state === "dive" ? "What a save!" : "Safe hands!", "#9fffa0"); game.stats.saves++; emit("ooh"); }
+    if (dangerous) {
+      say(pickCall("save", { name: shownName(g), team: teamName(g.team) }), "#9fffa0", 1.8);
+      game.stats.saves++; emit("ooh");
+    }
   } else {
     // Parry: punch the ball away from goal (often out for a corner!)
     const T = TEAMS[g.team];
@@ -2060,7 +2282,10 @@ function goalieTouch(g) {
     ball.vz = 160;
     ball.lastTouch = g; ball.lastTeam = g.team; ball.intended = null;
     g.controlCD = 0.45;
-    if (dangerous) { say("Great save!", "#9fffa0"); game.stats.saves++; emit("ooh"); }
+    if (dangerous) {
+      say(pickCall("punch", { name: shownName(g), team: teamName(g.team) }), "#9fffa0", 1.8);
+      game.stats.saves++; emit("ooh");
+    }
     ball.shot = null;
   }
 }
@@ -2411,7 +2636,10 @@ function ownerAI(p, dt) {
     p.thinkTimer = ai.think + rand(0.05, 0.15);
     if (aiMaybeSkill(p, presser, pressure)) return { x: p.x + p.fx * 50, y: p.y + p.fy * 50, sprint: false };
     const angleOK = Math.abs(ball.y - PITCH.cy) < distGoal * 0.85;
-    if (distGoal < ai.shootRange && angleOK) { aiShoot(p); return { x: p.x, y: p.y, sprint: false }; }
+    if (distGoal < ai.shootRange && angleOK) {
+      if (game.difficulty !== "easy" && Math.random() < 0.3 && doFinesse(p)) return { x: p.x, y: p.y, sprint: false };
+      aiShoot(p); return { x: p.x, y: p.y, sprint: false };
+    }
     const best = bestPass(p);
     const mine = attackValue(p, p.team) + Math.min(pressure, 120) * 0.4;
     if (best && (best.score > mine + 10 || (pressure < 40 && best.score > mine - 30))) {
@@ -2716,7 +2944,9 @@ function checkOutOfPlay() {
     if (inMouth && past > 0 && past < 3 * r && Math.abs(ball.z - CROSSBAR) < r + 1 && ball.vx * s > 0) {
       ball.vx = -ball.vx * 0.5; ball.x = L - s * 1;
       ball.vz = ball.z > CROSSBAR ? Math.abs(ball.vz) * 0.5 + 60 : -Math.abs(ball.vz) * 0.5;
-      say("Off the crossbar!", "#ffd33d"); emit("post"); emit("ooh");
+      const atkBar = ball.lastTeam || "blue";
+      say(pickCall("bar", { team: teamName(atkBar), other: teamName(other(atkBar)) }), "#ffd33d", 1.8);
+      emit("post"); emit("ooh");
       return;
     }
   }
@@ -2748,7 +2978,11 @@ function checkOutOfPlay() {
       goDead("corner", other(defending), { x: T.ownGoalX + T.dir * 4, y: top ? PITCH.top + 4 : PITCH.bottom - 4 });
     } else {
       goDead("goalkick", defending, { x: T.ownGoalX + T.dir * SIX.depth, y: PITCH.cy + (top ? -60 : 60) });
-      if (wasShot) { say(inMouth ? "Over the bar!" : "Just wide!", "#ffd33d"); emit("ooh"); }
+      if (wasShot) {
+        const atk = (ball.shot && ball.shot.team) || ball.lastTeam || other(defending);
+        say(pickCall(inMouth ? "over" : "wide", { team: teamName(atk), other: teamName(defending) }), "#ffd33d", 1.8);
+        emit("ooh");
+      }
     }
     return;
   }
@@ -2775,12 +3009,6 @@ function scoreGoal(team, side) {
   game.phase = "goal";
   game.timer = GOAL_CELEBRATION_TIME;
   const shot = ball.shot;
-  let text = "GOAL!";
-  if (ball.lastTeam && ball.lastTeam !== team) text = "Own goal!";
-  else if (shot && shot.penalty) text = "Penalty scored!";
-  else if (shot && shot.chip) text = "What a chip!";
-  else if (shot && Math.hypot(shot.x - ball.x, shot.y - ball.y) > 450) text = "From long range!";
-  else if (shot && shot.power >= 1050) text = "What a strike!";
   emit("cheer");
   emit("whistle");
   // ---- celebration: the scorer runs to the corner flag, teammates join ----
@@ -2790,8 +3018,14 @@ function scoreGoal(team, side) {
     for (const p of teamPlayers(team)) { if (p.role === "GK") continue; const d = dist(p, ball); if (d < bd) { bd = d; scorer = p; } }
   }
   const who = (ball.lastTeam && ball.lastTeam !== team && ball.lastTouch) ? ball.lastTouch : scorer;
-  if (who) text += " " + shownName(who);
-  say(text, teamUi(team), 3);
+  const name = who ? shownName(who) : "a player";
+  let call = "goal";
+  if (ball.lastTeam && ball.lastTeam !== team) call = "og";
+  else if (shot && shot.penalty) call = "penGoal";
+  else if (shot && shot.chip) call = "chip";
+  else if (shot && Math.hypot(shot.x - ball.x, shot.y - ball.y) > 450) call = "long";
+  else if (shot && shot.power >= 1050) call = "power";
+  say(pickCall(call, { name: name, team: teamName(team), other: teamName(other(team)) }), teamUi(team), 3.2);
   if (who) game.stats.scorers.push({ team, name: shownName(who), num: who.num, og: !!(ball.lastTeam && ball.lastTeam !== team) });
   const T = TEAMS[team];
   const top = scorer ? scorer.y < PITCH.cy : true;
@@ -2806,9 +3040,18 @@ function scoreGoal(team, side) {
 // is a cup match, which goes to a penalty shootout.
 function fullTime() {
   emit("whistleLong");
-  if (game.score.blue !== game.score.red) endGame(game.score.blue > game.score.red ? "blue" : "red");
-  else if (game.knockout) { say("It's a draw - PENALTIES!", "#ffd33d", 3); startShootout(); }
-  else endGame(null);
+  const b = game.score.blue, r = game.score.red;
+  if (b !== r) {
+    const winner = b > r ? "blue" : "red";
+    say(pickCall("fullWin", { team: teamName(winner) }), teamUi(winner), 3.2);
+    endGame(winner);
+  } else if (game.knockout) {
+    say("It's a draw, " + b + "\u2013" + r + ". Penalties!", "#ffd33d", 3);
+    startShootout();
+  } else {
+    say(pickCall("fullDraw"), "#fff", 3.2);
+    endGame(null);
+  }
 }
 
 // Restart the game with a set piece: the taker waits with the ball
@@ -2868,8 +3111,8 @@ function beginSetpiece(type, team, x, y, taker = null, indirect = false) {
     if (type === "throw") holdThrowBall(taker, 0);   // ball is already over the head, not at the feet
     if (type === "kickoff") {
       parkForKickoff(taker);
-      const who = taker && taker.captain ? shownName(taker) : "";
-      say(who ? "Coin toss: " + who + " wins it" : "Kick off!", "#ffd33d", 2.2);
+      const who = taker ? shownName(taker) : "";
+      say(pickCall("kickoff", { team: teamName(team), name: who || "The captain" }), "#ffd33d", 2.4);
       emit("whistle");
     } else {
       keepAwayFromSetpiece();
@@ -2973,7 +3216,8 @@ function giveCard(p, kind) {
   }
   game.cardPopup = { team: p.team, idx: pIndex(p), num: p.num, kind: shown, timer: 3 };
   emit("card", shown === "yellow" ? 1 : 2);
-  say(shown === "yellow" ? "Yellow card!" : shown === "second" ? "Second yellow - RED CARD!" : "RED CARD!", shown === "yellow" ? "#ffd33d" : "#ff4d4d", 2.2);
+  const callKind = shown === "yellow" ? "yellow" : shown === "second" ? "second" : "red";
+  say(pickCall(callKind, { name: shownName(p), team: teamName(p.team) }), shown === "yellow" ? "#ffd33d" : "#ff4d4d", 2.6);
 }
 
 function sendOff(p) {
@@ -3511,6 +3755,10 @@ function update(dt) {
     }
   } else if (game.phase === "play") {
     if (!(game.admin && game.admin.clockPaused)) game.clock += dt;
+    if (game.timeLimit && !game.halfSaid && game.clock >= game.timeLimit / 2 && game.clock < game.timeLimit) {
+      game.halfSaid = true;
+      say(pickCall("half"), "#ffe14a", 2.6);
+    }
     assignActive("blue", dt); assignActive("red", dt);
     computePlans();
     updatePlayers(dt);
@@ -3594,7 +3842,7 @@ function update(dt) {
   }
   function press(id, action) {
     const c = findController(id);
-    if (c && ["shoot", "pass", "swap", "skill", "flick", "skip"].includes(action) && c.presses.length < 10) c.presses.push(action);
+    if (c && ["shoot", "pass", "swap", "skill", "stepover", "flick", "finesse", "skip"].includes(action) && c.presses.length < 10) c.presses.push(action);
   }
 
   // A compact picture of the match, sent to every browser ~30x a second
@@ -3632,7 +3880,10 @@ function update(dt) {
   }
   // Everything else a browser needs to know about this match
   function matchInfo() {
-    return { teams: game.teams, rules: game.rules, timeLimit: game.timeLimit, knockout: game.knockout, matchType: game.matchType };
+    return {
+      teams: game.teams, rules: game.rules, timeLimit: game.timeLimit, knockout: game.knockout, matchType: game.matchType,
+      weather: game.weather || "clear", wind: [game.windX || 0, game.windY || 0], night: !!game.night,
+    };
   }
 
   // ---------------- debug / test helpers ----------------
@@ -3682,15 +3933,21 @@ function update(dt) {
     kickBall(mid, { x: fwd.x - ball.x, y: fwd.y - ball.y }, 700, 0, "pass", fwd);
     return { offside: ball.offside ? ball.offside.players.map(pIndex) : [] };
   }
-  // Make a player do a trick (type: stepover | spin | flick | burst)
+  // Make a player do a trick (type: stepover | spin | flick | burst | finesse)
   function debugSkill(team = "blue", type = "stepover") {
     let p = ball.owner && ball.owner.team === team ? ball.owner : teamPlayers(team).find((q) => q.role !== "GK");
     if (!p) return { ok: false };
     game.phase = "play"; game.setpiece = null;
     p.state = "run"; p.skillCD = 0;
+    if (type === "finesse") {
+      const T = TEAMS[team];
+      p.x = T.targetGoalX - T.dir * 280;
+      p.y = PITCH.cy - 36;
+      p.fx = T.dir; p.fy = 0;
+    }
     Object.assign(ball, { x: p.x + p.fx * 14, y: p.y + p.fy * 14, z: 0, vx: 0, vy: 0, owner: p });
-    const ok = doSkill(p, type, { x: -p.fy, y: p.fx });
-    return { ok, player: pIndex(p), skill: p.skill };
+    const ok = type === "finesse" ? doFinesse(p) : doSkill(p, type, { x: -p.fy, y: p.fx });
+    return { ok, player: pIndex(p), skill: p.skill, curl: ball.curl || 0 };
   }
 
   function restoreSquadStats(p, snap) {

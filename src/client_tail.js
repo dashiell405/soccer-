@@ -312,7 +312,7 @@ $("copyBtn").addEventListener("click", () => {
 // Sound can only start after a tap / key press (browser rule)
 window.addEventListener("pointerdown", () => Sound.init());
 if (isTouchDevice && $("matchHelp")) {
-  $("matchHelp").innerHTML = "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob). <b>RUN</b> sprints. <b>SKILL</b> does a trick.<br>Tap a teammate to control him. <b>TV</b> / <b>1ST</b> changes the camera.<br>Penalty: slide up or down, then hold SHOOT. In goal: slide up or down. Tap the picture to skip a celebration.";
+  $("matchHelp").innerHTML = "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob). <b>RUN</b> sprints.<br><b>STEP</b> is a step-over. <b>FLICK</b> is a rainbow. <b>CURL</b> bends a finesse shot.<br>Tap a teammate to control him. Tap the picture to skip a replay.";
 }
 
 // ---- Start up ----

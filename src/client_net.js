@@ -89,6 +89,15 @@ function applyMatchInfo(info) {
   game.knockout = !!info.knockout;
   // The host's chosen length. A shootout has no clock. 0 must not fall back to 5:00.
   game.timeLimit = game.matchType === "shootout" ? 0 : (Number(info.timeLimit) > 0 ? Number(info.timeLimit) : MATCH_LENGTH);
+  if (info.weather) {
+    game.weather = info.weather;
+    game._weatherPick = info.weather;
+  }
+  if (Array.isArray(info.wind)) {
+    game.windX = Number(info.wind[0]) || 0;
+    game.windY = Number(info.wind[1]) || 0;
+  }
+  if (info.night != null) game.night = !!info.night;
   if (info.teams) { applyTeamKits(info.teams); renderBackground(); }
 }
 
@@ -195,7 +204,7 @@ const keys = {};
 const KEYMAP = {
   up: ["KeyW", "ArrowUp"], down: ["KeyS", "ArrowDown"], left: ["KeyA", "ArrowLeft"], right: ["KeyD", "ArrowRight"],
   sprint: ["ShiftLeft", "ShiftRight"], shoot: ["Space"], pass: ["KeyE"], swap: ["KeyQ"],
-  skill: ["KeyR"], flick: ["KeyF"],
+  skill: ["KeyR"], flick: ["KeyF"], finesse: ["KeyG"],
 };
 const held = (a) => KEYMAP[a].some((k) => keys[k]) || !!touch[a];
 
@@ -208,22 +217,29 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyM") { toggleSound(); return; }
   if (e.code === "Escape" || e.code === "KeyP") { toggleMenu(); return; }
   if (e.code === "KeyC" || e.code === "KeyV") { toggleCamera(); return; }
-  if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight", "Space", "KeyE", "KeyQ", "KeyR", "KeyF"].includes(e.code)) noteFpFollow(myId);
-  if (game.phase === "goal") { sendMsg({ t: "press", a: "skip" }); return; }   // skip the celebration
-  for (const a of ["shoot", "pass", "swap", "skill", "flick"]) if (KEYMAP[a].includes(e.code)) sendMsg({ t: "press", a });
+  if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight", "Space", "KeyE", "KeyQ", "KeyR", "KeyF", "KeyG"].includes(e.code)) noteFpFollow(myId);
+  if (game.phase === "goal") {
+    if (typeof skipReplayVisual === "function") skipReplayVisual();
+    sendMsg({ t: "press", a: "skip" });
+    return;
+  }
+  for (const a of ["shoot", "pass", "swap", "skill", "flick", "finesse"]) if (KEYMAP[a].includes(e.code)) sendMsg({ t: "press", a });
   sendInput(true);
 });
 window.addEventListener("keyup", (e) => { keys[e.code] = false; if (inMatch()) sendInput(true); });
 window.addEventListener("blur", () => { for (const k in keys) keys[k] = false; sendInput(true); });
 
 // Touch joystick + buttons (same as the offline game)
-const touch = { x: 0, y: 0, pointerId: null, baseX: 0, baseY: 0, shoot: false, pass: false, sprint: false, skill: false };
+const touch = { x: 0, y: 0, pointerId: null, baseX: 0, baseY: 0, shoot: false, pass: false, sprint: false, skill: false, flick: false, finesse: false };
 const joyZone = $("joyZone"), joyBase = $("joyBase"), joyKnob = $("joyKnob");
 const JOY_MAX = 50;
 joyZone.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   noteFpFollow(myId);
-  if (game.phase === "goal") sendMsg({ t: "press", a: "skip" });
+  if (game.phase === "goal") {
+    if (typeof skipReplayVisual === "function") skipReplayVisual();
+    sendMsg({ t: "press", a: "skip" });
+  }
   touch.pointerId = e.pointerId;
   const fixed = typeof opt === "function" && opt("joyMode") === "fixed";
   if (fixed) {
@@ -253,8 +269,9 @@ function updateJoystick(e) {
   touch.x = filtered.x; touch.y = filtered.y;
   joyKnob.style.transform = "translate(" + dx + "px," + dy + "px)";
 }
-for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprintBtn", "sprint"], ["skillBtn", "skill"]]) {
+for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprintBtn", "sprint"], ["skillBtn", "skill"], ["flickBtn", "flick"], ["curlBtn", "finesse"]]) {
   const el = $(id);
+  if (!el) continue;
   el.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     if (action === "sprint" && typeof opt === "function" && opt("sprintMode") === "toggle") {
@@ -266,7 +283,10 @@ for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprint
     touch[action] = true; el.classList.add("pressed");
     try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
     noteFpFollow(myId);
-    if (game.phase === "goal") sendMsg({ t: "press", a: "skip" });
+    if (game.phase === "goal") {
+      if (typeof skipReplayVisual === "function") skipReplayVisual();
+      sendMsg({ t: "press", a: "skip" });
+    }
     else if (action !== "sprint") sendMsg({ t: "press", a: action });
     sendInput(true);
   });
@@ -282,7 +302,10 @@ for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprint
   if (!el) return;
   let down = null;
   el.addEventListener("pointerdown", (e) => {
-    if (inMatch() && game.phase === "goal") sendMsg({ t: "press", a: "skip" });
+    if (inMatch() && game.phase === "goal") {
+      if (typeof skipReplayVisual === "function") skipReplayVisual();
+      sendMsg({ t: "press", a: "skip" });
+    }
     down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
   });
   el.addEventListener("pointerup", (e) => {

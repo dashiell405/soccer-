@@ -42,7 +42,7 @@ const SETTINGS_TABS = [
       { id: "fpFov", label: "First-person view angle", type: "range", min: 75, max: 90, step: 1, def: 84, suffix: "°" },
       { id: "headBob", label: "Head bob", type: "toggle", def: true },
       { id: "shake", label: "Screen shake", type: "toggle", def: true },
-      { id: "replays", label: "Goal replays", type: "toggle", def: true },
+      { id: "replays", label: "Goal replays", type: "toggle", def: true, help: "After a goal, a slow-motion replay plays on your screen. Tap to skip it. In an online game it never pauses the match." },
     ],
   },
   {
@@ -59,6 +59,10 @@ const SETTINGS_TABS = [
       { id: "stoppage", label: "Injury and stoppage time", type: "toggle", def: false },
       { id: "ballSpeed", label: "Ball speed", type: "range", min: 0.85, max: 1.25, step: 0.05, def: 1 },
       { id: "gameSpeed", label: "Game speed", type: "range", min: 0.7, max: 1.3, step: 0.05, def: 1 },
+      { id: "weather", label: "Weather", type: "select", def: "clear", help: "Pick this before kickoff. Rain is slippery, snow slows the ball, and wind nudges high balls. Random chooses one for you.", options: [
+        { v: "clear", label: "Clear" }, { v: "rain", label: "Rain" }, { v: "snow", label: "Snow" },
+        { v: "wind", label: "Wind" }, { v: "random", label: "Random" } ] },
+      { id: "night", label: "Night game", type: "toggle", def: false, help: "A darker sky and a floodlight glow." },
     ],
   },
   {
@@ -84,6 +88,8 @@ const SETTINGS_TABS = [
       { id: "sfx", label: "Sound effects", type: "range", min: 0, max: 1, step: 0.05, def: 1 },
       { id: "whistle", label: "Whistle", type: "range", min: 0, max: 1, step: 0.05, def: 1 },
       { id: "mute", label: "Mute", type: "toggle", def: false },
+      { id: "commentary", label: "Commentary", type: "toggle", def: true, help: "Short lines about goals, saves, near misses, cards, kickoff, half-time and full-time." },
+      { id: "commentaryVoice", label: "Commentary voice", type: "toggle", def: false, help: "Reads those lines out loud with this device's voice. Off unless you turn it on." },
     ],
   },
   {
@@ -91,6 +97,7 @@ const SETTINGS_TABS = [
     fields: [
       { id: "bigText", label: "Bigger text", type: "toggle", def: false },
       { id: "reduceMotion", label: "Reduce motion", type: "toggle", def: false, help: "Turns off shake, head bob and speed blur." },
+      { id: "reduceEffects", label: "Reduce effects", type: "toggle", def: false, help: "Fewer raindrops and snowflakes, and a simpler night glow. Handy on a phone." },
       { id: "contrast", label: "High contrast outlines", type: "toggle", def: false },
     ],
   },
@@ -247,6 +254,7 @@ function applySettings() {
   }
 
   if (typeof Sound !== "undefined" && Sound.applyMix) Sound.applyMix(g);
+  if (!g.commentaryVoice || g.commentary === false || g.mute) stopCommentaryVoice();
 
   if (!onlineMatch() && typeof settings !== "undefined" && settings) {
     settings.difficulty = g.difficulty || settings.difficulty;
@@ -283,6 +291,10 @@ function pushMatchTune() {
     ball: Number(g.ballSpeed) || 1,
     stoppage: !!g.stoppage,
   };
+  if (typeof setMatchAtmosphere === "function") setMatchAtmosphere(sim.game, g.weather || "clear", !!g.night);
+}
+function stopCommentaryVoice() {
+  try { if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel(); } catch (e) { /* no voice */ }
 }
 
 function revealSettingsTab(scroller, btn) {
