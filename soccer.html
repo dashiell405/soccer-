@@ -8992,15 +8992,40 @@ if (window.visualViewport) {
     if (v > 10000000) return 10000000;
     return v;
   }
-  function loadCoins(storage) {
-    const raw = readRaw(storage, KEY_COINS);
-    return clampCoins(raw && raw.coins);
+  function clampEarned(n) {
+    const v = Math.round(Number(n) || 0);
+    if (v < 0) return 0;
+    if (v > 20000000) return 20000000;
+    return v;
   }
-  function saveCoins(n, storage) { writeRaw(storage, KEY_COINS, { coins: clampCoins(n) }); }
+  function coinBag(storage) {
+    const raw = readRaw(storage, KEY_COINS) || {};
+    const coins = clampCoins(raw.coins);
+    let earned = clampEarned(raw.earned);
+    if (earned < coins) earned = clampEarned(coins);
+    return { coins: coins, earned: earned };
+  }
+  function writeCoins(bag, storage) {
+    const coins = clampCoins(bag.coins);
+    let earned = clampEarned(bag.earned);
+    if (earned < coins) earned = clampEarned(coins);
+    writeRaw(storage, KEY_COINS, { coins: coins, earned: earned });
+  }
+  function loadCoins(storage) { return coinBag(storage).coins; }
+  function loadCoinsEarned(storage) { return coinBag(storage).earned; }
+  function saveCoins(n, storage) {
+    const bag = coinBag(storage);
+    bag.coins = clampCoins(n);
+    writeCoins(bag, storage);
+  }
   function addCoins(n, storage) {
-    const next = clampCoins(loadCoins(storage) + (Number(n) || 0));
-    saveCoins(next, storage);
-    return next;
+    const bag = coinBag(storage);
+    const delta = Math.round(Number(n) || 0);
+    bag.coins = clampCoins(bag.coins + delta);
+    if (delta > 0) bag.earned = clampEarned(bag.earned + delta);
+    writeCoins(bag, storage);
+    if (delta > 0 && typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.schedulePush) KickoffLeaderboard.schedulePush();
+    return bag.coins;
   }
   function normalizeUpgrades(raw) {
     const src = raw && typeof raw === "object" ? raw : {};
@@ -9261,6 +9286,9 @@ if (window.visualViewport) {
     if (!matchSerial || settledSerial === matchSerial) return;
     settledSerial = matchSerial;
     const report = reportFromGame(game);
+    if (report.won && (typeof settings === "undefined" || settings.mode !== "2p")) {
+      if (typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.noteWin) KickoffLeaderboard.noteWin();
+    }
     const parts = [];
     let gained = 0;
     const purse = matchCoins(report);
@@ -9556,6 +9584,7 @@ if (window.visualViewport) {
     simScore: simScore,
     summaryText: summaryText,
     loadCoins: loadCoins,
+    loadCoinsEarned: loadCoinsEarned,
     saveCoins: saveCoins,
     addCoins: addCoins,
     loadUpgrades: loadUpgrades,
@@ -10106,9 +10135,12 @@ function idleSim() {
 // =====================================================================
 // E. MENU + TEAM PICKER
 // =====================================================================
-const SCREENS = ["menu", "pauseScreen", "winScreen", "teamPicker", "cupScreen", "trophyScreen", "careerScreen", "shopScreen", "challengeScreen", "kitScreen"];
+const SCREENS = ["menu", "pauseScreen", "winScreen", "teamPicker", "cupScreen", "trophyScreen", "careerScreen", "shopScreen", "challengeScreen", "kitScreen", "leaderboardScreen"];
 function showScreen(id) {
-  for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
+  for (const s of SCREENS) {
+    const el = $(s);
+    if (el) el.classList.toggle("hidden", s !== id);
+  }
   updateHud();
 }
 function updateHud() {
@@ -10340,6 +10372,7 @@ function loadTrophies() {
 }
 function saveTrophies(book) {
   try { localStorage.setItem(TROPHY_KEY, JSON.stringify(book)); } catch (e) { /* ignore */ }
+  if (typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.schedulePush) KickoffLeaderboard.schedulePush();
 }
 function trophyTotal(book) {
   return (book && book.wins && book.wins.length) || 0;
@@ -11505,7 +11538,8 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
      soccerName, soccerPlayAsMe, soccerTrophies, soccerCup, soccerSettings,
      soccerOptions, soccerMatchMinutes, soccerRenames, soccerTeam100,
      soccerCamera, soccerHostBans,
-     soccerCareer, soccerCoins, soccerUpgrades, soccerChallenges, soccerKit
+     soccerCareer, soccerCoins, soccerUpgrades, soccerChallenges, soccerKit,
+     soccerRecord
    Those objects are stored as-is inside public.profiles.
    Career, coins, upgrades, challenges and the kit ride along inside the
    settings object on the player's own row. No new secret and no service key. */
@@ -11518,15 +11552,15 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     soccerPlayer: 1, soccerName: 1, soccerPlayAsMe: 1, soccerTrophies: 1, soccerCup: 1,
     soccerSettings: 1, soccerOptions: 1, soccerMatchMinutes: 1, soccerRenames: 1,
     soccerTeam100: 1, soccerCamera: 1, soccerHostBans: 1,
-    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1,
+    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1, soccerRecord: 1,
   };
   const WATCH = {
     soccerPlayer: 1, soccerName: 1, soccerPlayAsMe: 1, soccerTrophies: 1, soccerCup: 1,
     soccerSettings: 1, soccerOptions: 1, soccerMatchMinutes: 1, soccerRenames: 1,
     soccerTeam100: 1, soccerCamera: 1, soccerHostBans: 1,
-    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1,
+    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1, soccerRecord: 1,
   };
-  const PROGRESS_FIELDS = ["soccerCareer", "soccerCoins", "soccerUpgrades", "soccerChallenges", "soccerKit"];
+  const PROGRESS_FIELDS = ["soccerCareer", "soccerCoins", "soccerUpgrades", "soccerChallenges", "soccerKit", "soccerRecord"];
 
   function storageOf(storage) {
     if (storage) return storage;
@@ -11574,7 +11608,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     const empty = {
       player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null,
       options: null, minutes: null, renames: null, team100: null, camera: null, bans: null,
-      career: null, coins: null, upgrades: null, challenges: null, kit: null,
+      career: null, coins: null, upgrades: null, challenges: null, kit: null, record: null,
     };
     if (!storage) return empty;
     return {
@@ -11595,19 +11629,21 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
       upgrades: parseObj(getRaw(storage, "soccerUpgrades")),
       challenges: parseObj(getRaw(storage, "soccerChallenges")),
       kit: parseObj(getRaw(storage, "soccerKit")),
+      record: parseObj(getRaw(storage, "soccerRecord")),
     };
   }
   function progressObject(value) {
     return value && typeof value === "object" && !Array.isArray(value) ? value : null;
   }
   function progressFromBag(bag) {
-    const out = { career: null, coins: null, upgrades: null, challenges: null, kit: null };
+    const out = { career: null, coins: null, upgrades: null, challenges: null, kit: null, record: null };
     if (!bag || typeof bag !== "object" || Array.isArray(bag)) return out;
     out.career = progressObject(bag.soccerCareer);
     out.coins = progressObject(bag.soccerCoins);
     out.upgrades = progressObject(bag.soccerUpgrades);
     out.challenges = progressObject(bag.soccerChallenges);
     out.kit = progressObject(bag.soccerKit);
+    out.record = progressObject(bag.soccerRecord);
     return out;
   }
   function progressWrites(bag) {
@@ -11650,6 +11686,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     }
     if (snap.challenges && Array.isArray(snap.challenges.badges) && snap.challenges.badges.length) n += snap.challenges.badges.length;
     if (snap.kit && snap.kit.touched) n += 1;
+    if (snap.record && Number(snap.record.wins) > 0) n += 1;
     return n;
   }
   function unwrapSettings(raw) {
@@ -11667,7 +11704,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
   }
   function snapFromRow(row) {
     if (!row || typeof row !== "object") {
-      return { player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null, options: null, minutes: null, renames: null, team100: null, camera: null, bans: null, career: null, coins: null, upgrades: null, challenges: null, kit: null };
+      return { player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null, options: null, minutes: null, renames: null, team100: null, camera: null, bans: null, career: null, coins: null, upgrades: null, challenges: null, kit: null, record: null };
     }
     const bag = unwrapSettings(row.settings);
     const display = clipName(row.display_name, 16);
@@ -11706,6 +11743,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
       upgrades: progressFromBag(row.settings).upgrades,
       challenges: progressFromBag(row.settings).challenges,
       kit: progressFromBag(row.settings).kit,
+      record: progressFromBag(row.settings).record,
     };
   }
   function profileSnap(snap) {
@@ -11732,6 +11770,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
       upgrades: (snap && snap.upgrades) || null,
       challenges: (snap && snap.challenges) || null,
       kit: (snap && snap.kit) || null,
+      record: (snap && snap.record) || null,
     });
   }
   function hashSnap(snap) {
@@ -11766,6 +11805,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
         soccerUpgrades: progressObject(snap && snap.upgrades),
         soccerChallenges: progressObject(snap && snap.challenges),
         soccerKit: progressObject(snap && snap.kit),
+        soccerRecord: progressObject(snap && snap.record),
       },
       renames: snap && snap.renames && typeof snap.renames === "object" && !Array.isArray(snap.renames) ? snap.renames : null,
       team_100: snap && snap.team100 && typeof snap.team100 === "object" && !Array.isArray(snap.team100) ? snap.team100 : null,
@@ -12434,6 +12474,9 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
       if (out) out.addEventListener("click", function () { signOut(); });
       if (save) save.addEventListener("click", function () { savePhone(); });
       if (cloud) cloud.addEventListener("click", function () { useAccount(); });
+      if (typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.mountAccount) {
+        KickoffLeaderboard.mountAccount(box, { signedIn: signedIn });
+      }
     } catch (e) { /* the game keeps running */ }
   }
   function watchStorage() {
@@ -12575,6 +12618,688 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+// =====================================================================
+// LEADERBOARD
+// =====================================================================
+/* Leaderboard for signed-in players.
+   The public list shows a nickname and a favourite colour. It does not
+   show an email. "Show me on the leaderboard" stays off until the player
+   turns it on in Settings, then Account.
+   If the database functions are not there yet, the screen says coming soon. */
+(function (root) {
+  const OPT_KEY = "soccerBoardOptIn";
+  const RECORD_KEY = "soccerRecord";
+  const COLORS = ["#e6b325", "#1f5fd6", "#d62828", "#0b6e4f", "#6b3e1e", "#7b2cbf", "#f4f4f4", "#111111"];
+  const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const CAPS = { wins: 20000, cups: 5000, coins: 20000000 };
+  let optTouched = false;
+
+  function storageOf(storage) {
+    if (storage) return storage;
+    try { if (typeof localStorage !== "undefined") return localStorage; } catch (e) { /* private */ }
+    return null;
+  }
+  function readRaw(storage, key) {
+    const box = storageOf(storage);
+    try { return box ? box.getItem(key) : null; } catch (e) { return null; }
+  }
+  function readObj(storage, key) {
+    const raw = readRaw(storage, key);
+    if (raw == null || raw === "") return null;
+    try {
+      const v = JSON.parse(raw);
+      if (v && typeof v === "object") return v;
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+  function writeObj(storage, key, value) {
+    const box = storageOf(storage);
+    if (!box) return;
+    try { box.setItem(key, JSON.stringify(value)); } catch (e) { /* private mode */ }
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function clampStat(kind, n) {
+    const cap = CAPS[kind] || CAPS.wins;
+    let v = Math.round(Number(n) || 0);
+    if (v < 0) v = 0;
+    if (v > cap) v = cap;
+    return v;
+  }
+  function nickname(name) {
+    let s = String(name || "").replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
+    if (!s || s.indexOf("@") >= 0 || /https?:\/\//i.test(s)) return "Player";
+    s = s.replace(/[^A-Za-z0-9 ]/g, "").replace(/\s+/g, " ").trim().slice(0, 16);
+    if (!s || !/[A-Za-z]/.test(s)) return "Player";
+    return s;
+  }
+  function normalizeColor(c) {
+    const v = String(c || "").trim().toLowerCase();
+    return COLORS.indexOf(v) >= 0 ? v : COLORS[1];
+  }
+  function cleanCode(raw) {
+    const s = String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    let out = "";
+    for (let i = 0; i < s.length && out.length < 8; i++) {
+      if (CODE_ALPHABET.indexOf(s.charAt(i)) >= 0) out += s.charAt(i);
+    }
+    return out;
+  }
+  function formatCode(code) {
+    const c = cleanCode(code);
+    if (c.length !== 8) return c;
+    return c.slice(0, 4) + "-" + c.slice(4);
+  }
+  function boardKey(board) {
+    if (board === "cups" || board === "coins" || board === "friends") return board;
+    return "wins";
+  }
+  function readOpt(storage) {
+    return readRaw(storage, OPT_KEY) === "yes";
+  }
+  function writeOpt(on, storage) {
+    const box = storageOf(storage);
+    if (!box) return;
+    try {
+      if (on) box.setItem(OPT_KEY, "yes");
+      else box.removeItem(OPT_KEY);
+    } catch (e) { /* private mode */ }
+  }
+  function loadWins(storage) {
+    const raw = readObj(storage, RECORD_KEY);
+    return clampStat("wins", raw && raw.wins);
+  }
+  function cupCount(storage) {
+    const book = readObj(storage, "soccerTrophies");
+    const wins = book && Array.isArray(book.wins) ? book.wins.length : 0;
+    return clampStat("cups", wins);
+  }
+  function coinsEarned(storage) {
+    if (typeof KickoffProgress !== "undefined" && KickoffProgress.loadCoinsEarned) {
+      return clampStat("coins", KickoffProgress.loadCoinsEarned(storage));
+    }
+    const bag = readObj(storage, "soccerCoins") || {};
+    const earned = bag.earned != null ? bag.earned : bag.coins;
+    return clampStat("coins", earned);
+  }
+  function localStats(storage) {
+    const player = readObj(storage, "soccerPlayer") || {};
+    const loose = readRaw(storage, "soccerName") || "";
+    return {
+      name: nickname(player.name || loose),
+      color: normalizeColor(player.color),
+      wins: loadWins(storage),
+      cups: cupCount(storage),
+      coins: coinsEarned(storage),
+      show: readOpt(storage),
+    };
+  }
+  function noteWin(storage) {
+    const n = clampStat("wins", loadWins(storage) + 1);
+    writeObj(storage, RECORD_KEY, { wins: n });
+    schedulePush(false);
+    return n;
+  }
+  function statHash(s) {
+    return [s.name, s.color, s.wins, s.cups, s.coins, s.show ? 1 : 0].join("|");
+  }
+  function isMissingRpc(error) {
+    if (!error) return false;
+    const code = String(error.code || "");
+    const msg = String(error.message || error.details || error.hint || "").toLowerCase();
+    if (code === "PGRST202" || code === "42883" || code === "PGRST205") return true;
+    return msg.indexOf("could not find the function") >= 0 || msg.indexOf("does not exist") >= 0 || msg.indexOf("schema cache") >= 0;
+  }
+  function gateMessage(kind) {
+    if (kind === "offline") return "The leaderboard needs the internet. You can keep playing on this phone.";
+    if (kind === "signed-out") return "Sign in from Settings, then Account, to see the leaderboard. You can keep playing with no account.";
+    if (kind === "soon") return "The leaderboard is coming soon. You can keep playing.";
+    return "";
+  }
+  function friendMessage(status) {
+    if (status === "added") return "Added. This list is just you and your friends.";
+    if (status === "already") return "That friend is already on your list.";
+    if (status === "missing") return "That code did not match a player. Check it and try again.";
+    if (status === "self") return "That is your own code. Share it with a friend.";
+    if (status === "full") return "You can add up to 40 friends.";
+    if (status === "bad") return "Type the 8 character code.";
+    if (status === "need-save") return "Open this screen once, then try the code again.";
+    if (status === "signed-out") return gateMessage("signed-out");
+    if (status === "removed") return "Removed from your friends.";
+    return "That did not work. Try again in a moment.";
+  }
+  function rowsOf(data) {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object") return [data];
+    return [];
+  }
+  function prepareRows(rows) {
+    return (rows || []).slice(0, 51).map(function (r) {
+      r = r || {};
+      return {
+        rank: Math.max(0, Math.round(Number(r.rank) || 0)),
+        name: nickname(r.display_name || r.name),
+        color: normalizeColor(r.favorite_color || r.color),
+        wins: clampStat("wins", r.wins),
+        cups: clampStat("cups", r.cups),
+        coins: clampStat("coins", r.coins_earned != null ? r.coins_earned : r.coins),
+        is_me: !!r.is_me,
+        code: r.friend_code ? formatCode(r.friend_code) : "",
+      };
+    });
+  }
+  function splitTop(rows) {
+    const top = [];
+    let mine = null;
+    (rows || []).forEach(function (r) {
+      if (r.rank > 50 && r.is_me) mine = r;
+      else top.push(r);
+    });
+    return { top: top.slice(0, 50), mine: mine };
+  }
+  function emptyMessage(board) {
+    if (board === "friends") return "Add a friend's code to see the two of you here.";
+    return "Nobody is on this list yet. Turn on Show me on the leaderboard in Settings, then Account, if you want to appear.";
+  }
+  function tableHtml(rows, board) {
+    const friends = board === "friends";
+    let html = "<table class='boardTable'><thead><tr><th></th><th class='who'>Player</th>";
+    if (friends) html += "<th>Wins</th><th>Cups</th><th>Coins</th><th></th>";
+    else html += "<th>" + (board === "cups" ? "Cups" : board === "coins" ? "Coins" : "Wins") + "</th>";
+    html += "</tr></thead><tbody>";
+    rows.forEach(function (r) {
+      const value = board === "cups" ? r.cups : board === "coins" ? r.coins : r.wins;
+      html += "<tr" + (r.is_me ? " class='me'" : "") + "><td>" + (r.rank || "") + "</td>";
+      html += "<td class='who'><i class='swatch' style='background:" + r.color + "' aria-label='Favourite colour'></i>" + esc(r.name);
+      if (r.is_me) html += " <span class='you'>You</span>";
+      html += "</td>";
+      if (friends) {
+        html += "<td>" + r.wins + "</td><td>" + r.cups + "</td><td>" + r.coins + "</td><td>";
+        if (!r.is_me && r.code) html += "<button type='button' data-remove='" + esc(r.code) + "'>Remove</button>";
+        html += "</td>";
+      } else html += "<td>" + value + "</td>";
+      html += "</tr>";
+    });
+    return html + "</tbody></table>";
+  }
+  function friendHead(model) {
+    const code = model.friendCode ? formatCode(model.friendCode) : "";
+    let html = "<p class='note'>Share your code with a friend. Adding their code shows just you and your friends.</p>";
+    if (code) {
+      html += "<p class='label'>Your friend code</p><p class='friendCode'>" + esc(code) + "</p>";
+      html += "<div class='row'><button type='button' id='boardCopy'>Copy code</button></div>";
+    } else html += "<p class='note'>Your code shows here once this list has loaded.</p>";
+    html += "<form id='boardAddForm' class='stackForm'><label for='friendCodeInput'>Friend's code</label>";
+    html += "<input id='friendCodeInput' maxlength='12' autocomplete='off' autocapitalize='characters' placeholder='H4WK-9R2M' aria-label=\"Friend's code\">";
+    html += "<button type='submit'>Add friend</button></form>";
+    html += "<p class='boardNote'>" + esc(model.friendNote || "") + "</p>";
+    return html;
+  }
+  function renderModel(model) {
+    model = model || {};
+    const board = boardKey(model.board);
+    if (model.gate) return "<p class='boardNote'>" + esc(model.gate) + "</p>";
+    let html = "";
+    if (model.sample) html += "<p class='note'>Sample scores, so you can see the board.</p>";
+    if (board === "friends") html += friendHead(model);
+    else html += "<p class='note'>Top 50 players who turned the leaderboard on. Your row is highlighted.</p>";
+    const split = splitTop(prepareRows(model.rows));
+    if (!split.top.length && !split.mine) html += "<p class='boardNote'>" + esc(emptyMessage(board)) + "</p>";
+    else {
+      if (split.top.length) html += tableHtml(split.top, board);
+      if (split.mine) {
+        html += "<p class='note'>Your place is outside the top 50.</p>";
+        html += tableHtml([split.mine], board);
+      }
+    }
+    if (model.signedIn && model.optIn === false && board !== "friends") {
+      html += "<p class='note'>You are hidden. Turn on Show me on the leaderboard in Settings, then Account, if you want to appear.</p>";
+    }
+    return html;
+  }
+  function accountHtml(signedIn, on) {
+    const disabled = signedIn ? "" : " disabled";
+    const checked = signedIn && on ? " checked" : "";
+    let html = "<label class='boardOpt' for='boardOptIn'><input id='boardOptIn' type='checkbox'" + checked + disabled + "> ";
+    html += "<span>Show me on the leaderboard</span></label>";
+    html += signedIn
+      ? "<p class='note'>Off unless you turn it on. People see your player name and favourite colour, not your email.</p>"
+      : "<p class='note'>Sign in with a parent email to choose this. It stays off until you turn it on.</p>";
+    return html;
+  }
+
+  const ui = {
+    board: "wins",
+    rows: [],
+    gate: "",
+    friendCode: "",
+    friendNote: "",
+    signedIn: false,
+    optIn: false,
+    sample: false,
+    loading: false,
+    sent: "",
+    missing: false,
+    force: false,
+  };
+  let pushTimer = 0;
+
+  function offlineNow() {
+    return typeof navigator !== "undefined" && navigator.onLine === false;
+  }
+  function withClient(fn) {
+    if (typeof CloudAccount === "undefined" || !CloudAccount || !CloudAccount.sharedClient) return Promise.resolve(null);
+    return Promise.resolve(CloudAccount.sharedClient()).then(function (client) {
+      if (!client || !client.auth || !client.auth.getSession) return null;
+      return client.auth.getSession().then(function (res) {
+        const session = res && res.data && res.data.session;
+        return fn(client, session || null);
+      });
+    });
+  }
+  function schedulePush(now) {
+    if (typeof document === "undefined" || ui.missing) return;
+    if (pushTimer) clearTimeout(pushTimer);
+    pushTimer = setTimeout(function () {
+      pushTimer = 0;
+      if (offlineNow()) return;
+      withClient(function (client, session) {
+        if (!client || !session) return null;
+        return pushStats(client, localStats());
+      }).catch(function () { /* keep playing */ });
+    }, now ? 40 : 1500);
+  }
+  function pushStats(client, stats) {
+    stats = stats || localStats();
+    const hash = statHash(stats);
+    if (!ui.force && hash === ui.sent) return Promise.resolve();
+    ui.force = false;
+    return client.rpc("save_my_leaderboard", {
+      p_name: stats.name,
+      p_color: stats.color,
+      p_wins: stats.wins,
+      p_cups: stats.cups,
+      p_coins: stats.coins,
+      p_show: !!stats.show,
+    }).then(function (res) {
+      if (res && res.error) {
+        if (isMissingRpc(res.error)) ui.missing = true;
+        return;
+      }
+      ui.sent = hash;
+      const row = rowsOf(res && res.data)[0];
+      if (row && row.friend_code) ui.friendCode = row.friend_code;
+      if (row && !optTouched) {
+        writeOpt(!!row.show_on_board);
+        ui.optIn = !!row.show_on_board;
+      }
+    });
+  }
+  function applyMine(row) {
+    if (!row) return;
+    if (row.friend_code) ui.friendCode = row.friend_code;
+    if (!optTouched) {
+      writeOpt(!!row.show_on_board);
+      ui.optIn = !!row.show_on_board;
+      syncCheckbox();
+    }
+  }
+  function loadTop(client, board) {
+    return client.rpc("leaderboard_top", { p_board: board }).then(function (res) {
+      ui.loading = false;
+      if (res.error && isMissingRpc(res.error)) {
+        ui.missing = true;
+        ui.rows = [];
+        ui.gate = gateMessage("soon");
+        paint();
+        return null;
+      }
+      if (res.error) {
+        ui.rows = [];
+        ui.gate = "The leaderboard did not load. You can keep playing.";
+        paint();
+        return null;
+      }
+      ui.gate = "";
+      ui.rows = rowsOf(res.data);
+      paint();
+      return client.rpc("my_leaderboard").then(function (mine) {
+        if (mine && !mine.error) applyMine(rowsOf(mine.data)[0]);
+        if (ui.board === "friends") paint();
+      });
+    });
+  }
+  function loadFriends(client) {
+    return client.rpc("leaderboard_friends").then(function (res) {
+      ui.loading = false;
+      if (res.error && isMissingRpc(res.error)) {
+        ui.missing = true;
+        ui.rows = [];
+        ui.gate = gateMessage("soon");
+        paint();
+        return;
+      }
+      if (res.error) {
+        ui.rows = [];
+        ui.gate = "The leaderboard did not load. You can keep playing.";
+        paint();
+        return;
+      }
+      ui.gate = "";
+      ui.rows = rowsOf(res.data);
+      const mine = ui.rows.filter(function (r) { return r && r.is_me; })[0];
+      applyMine(mine);
+      paint();
+    });
+  }
+  function loadBoard() {
+    const stats = localStats();
+    ui.optIn = stats.show;
+    ui.sample = false;
+    if (offlineNow()) {
+      ui.loading = false;
+      ui.signedIn = false;
+      ui.rows = [];
+      ui.gate = gateMessage("offline");
+      paint();
+      return;
+    }
+    ui.loading = true;
+    ui.gate = "";
+    paint();
+    withClient(function (client, session) {
+      if (!client || !session) {
+        ui.loading = false;
+        ui.signedIn = false;
+        ui.rows = [];
+        ui.friendCode = "";
+        ui.gate = gateMessage("signed-out");
+        paint();
+        return null;
+      }
+      ui.signedIn = true;
+      ui.force = true;
+      return pushStats(client, stats).then(function () {
+        if (ui.missing) {
+          ui.loading = false;
+          ui.rows = [];
+          ui.gate = gateMessage("soon");
+          paint();
+          return null;
+        }
+        if (ui.board === "friends") return loadFriends(client);
+        return loadTop(client, ui.board);
+      });
+    }).catch(function () {
+      ui.loading = false;
+      ui.rows = [];
+      ui.gate = gateMessage("offline");
+      paint();
+    });
+  }
+  function friendAct(kind, code) {
+    const cleaned = cleanCode(code);
+    if (ui.sample) {
+      ui.friendNote = "This sample list is not saved. Sign in to add a real friend.";
+      paint();
+      return;
+    }
+    if (cleaned.length !== 8) {
+      ui.friendNote = friendMessage("bad");
+      paint();
+      return;
+    }
+    if (offlineNow()) {
+      ui.friendNote = gateMessage("offline");
+      paint();
+      return;
+    }
+    withClient(function (client, session) {
+      if (!client || !session) {
+        ui.friendNote = gateMessage("signed-out");
+        paint();
+        return null;
+      }
+      const rpc = kind === "remove" ? "remove_friend" : "add_friend";
+      return client.rpc(rpc, { p_code: cleaned }).then(function (res) {
+        if (res.error && isMissingRpc(res.error)) {
+          ui.gate = gateMessage("soon");
+          ui.rows = [];
+          paint();
+          return null;
+        }
+        if (res.error) {
+          ui.friendNote = friendMessage("");
+          paint();
+          return null;
+        }
+        ui.friendNote = friendMessage(String(res.data || ""));
+        paint();
+        return loadFriends(client);
+      });
+    }).catch(function () {
+      ui.friendNote = gateMessage("offline");
+      paint();
+    });
+  }
+  function copyCode() {
+    const code = formatCode(ui.friendCode);
+    if (!code) return;
+    const done = function (ok) {
+      ui.friendNote = ok ? "Copied. You can read it to a friend." : "Read this code to a friend.";
+      paint();
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(function () { done(true); }, function () { done(false); });
+        return;
+      }
+    } catch (e) { /* fall through */ }
+    done(false);
+  }
+  function previewHost() {
+    try {
+      const host = location.hostname;
+      return host === "localhost" || host === "127.0.0.1";
+    } catch (e) { return false; }
+  }
+  function sampleRows() {
+    return [
+      { rank: 1, display_name: "Kit Fox", favorite_color: "#d62828", wins: 18, cups: 3, coins_earned: 420, is_me: false, friend_code: "M3QX7K4W" },
+      { rank: 2, display_name: "Mina P", favorite_color: "#e6b325", wins: 12, cups: 1, coins_earned: 260, is_me: true, friend_code: "K7MP2QX4" },
+      { rank: 3, display_name: "Jo 7", favorite_color: "#1f5fd6", wins: 9, cups: 0, coins_earned: 140, is_me: false, friend_code: "H4WK9R2M" },
+      { rank: 4, display_name: "Sam K", favorite_color: "#0b6e4f", wins: 4, cups: 2, coins_earned: 80, is_me: false, friend_code: "Q8NP3V7L" },
+    ];
+  }
+  function openPreview() {
+    if (!previewHost()) return;
+    ui.sample = true;
+    ui.loading = false;
+    ui.signedIn = true;
+    ui.optIn = true;
+    ui.gate = "";
+    ui.friendNote = "";
+    ui.friendCode = "K7MP2QX4";
+    ui.rows = sampleRows();
+    ui.board = ui.board || "wins";
+    showBoard();
+    paint();
+  }
+
+  root.KickoffLeaderboard = {
+    COLORS: COLORS,
+    clampStat: clampStat,
+    nickname: nickname,
+    normalizeColor: normalizeColor,
+    cleanCode: cleanCode,
+    formatCode: formatCode,
+    localStats: localStats,
+    noteWin: noteWin,
+    readOpt: readOpt,
+    writeOpt: writeOpt,
+    isMissingRpc: isMissingRpc,
+    gateMessage: gateMessage,
+    friendMessage: friendMessage,
+    prepareRows: prepareRows,
+    splitTop: splitTop,
+    renderModel: renderModel,
+    accountHtml: accountHtml,
+    schedulePush: schedulePush,
+    openPreview: openPreview,
+    mountAccount: function () {},
+  };
+
+  if (typeof document === "undefined") return;
+
+  const style = document.createElement("style");
+  style.textContent = ""
+    + "#leaderboardScreen .panel { width: min(560px, 94vw); }"
+    + "#boardTabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }"
+    + "#boardTabs button { margin: 0; }"
+    + ".boardTable { width: 100%; border-collapse: collapse; font-size: 15px; margin-top: 8px; }"
+    + ".boardTable th, .boardTable td { padding: 6px 4px; text-align: center; border-bottom: 1px solid rgba(255,255,255,.12); }"
+    + ".boardTable th.who, .boardTable td.who { text-align: left; }"
+    + ".boardTable tr.me { background: rgba(255,211,61,.28); }"
+    + ".boardTable .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; margin-right: 6px; vertical-align: -2px; }"
+    + ".you { font-size: 12px; font-weight: 800; color: #1a1404; background: #ffe27a; border-radius: 999px; padding: 1px 6px; }"
+    + ".friendCode { font: 800 28px/1.2 ui-monospace, monospace; letter-spacing: 2px; color: #ffe27a; margin: 4px 0; }"
+    + ".boardNote { font-weight: 700; min-height: 1.2em; }"
+    + "#friendCodeInput { font: inherit; font-size: 16px; width: 100%; box-sizing: border-box; min-height: 44px; padding: 8px; border-radius: 8px; border: 1px solid #fff; color: #111; background: #fff; }"
+    + "#accountPanel .boardOpt { display: flex; align-items: center; gap: 10px; font-weight: 800; margin: 10px 0 4px; }"
+    + "#accountPanel .boardOpt input { width: 22px; height: 22px; min-height: 22px; flex: 0 0 auto; }";
+  document.head.appendChild(style);
+
+  function paint() {
+    const body = document.getElementById("boardBody");
+    if (!body) return;
+    document.querySelectorAll("#boardTabs button").forEach(function (b) {
+      const on = b.dataset.board === ui.board;
+      b.classList.toggle("selected", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    if (ui.loading) {
+      body.innerHTML = "<p class='boardNote'>Loading the board…</p>";
+      return;
+    }
+    body.innerHTML = renderModel({
+      board: ui.board,
+      rows: ui.rows,
+      gate: ui.gate,
+      friendCode: ui.friendCode,
+      friendNote: ui.friendNote,
+      signedIn: ui.signedIn,
+      optIn: ui.optIn,
+      sample: ui.sample,
+    });
+  }
+  function showBoard() {
+    if (typeof showScreen === "function") showScreen("leaderboardScreen");
+  }
+  function syncCheckbox() {
+    const input = document.getElementById("boardOptIn");
+    if (!input || input.disabled || optTouched) return;
+    input.checked = readOpt();
+  }
+  function mountAccount(box, info) {
+    if (!box) return;
+    const old = document.getElementById("boardOptWrap");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    const wrap = document.createElement("div");
+    wrap.id = "boardOptWrap";
+    const signedIn = !!(info && info.signedIn);
+    wrap.innerHTML = accountHtml(signedIn, signedIn && readOpt());
+    const status = box.querySelector("#accountStatus");
+    if (status) box.insertBefore(wrap, status);
+    else box.appendChild(wrap);
+    const input = document.getElementById("boardOptIn");
+    if (input && signedIn) {
+      input.addEventListener("change", function () {
+        optTouched = true;
+        writeOpt(input.checked);
+        ui.optIn = input.checked;
+        ui.force = true;
+        schedulePush(true);
+      });
+    }
+  }
+  root.KickoffLeaderboard.mountAccount = mountAccount;
+  root.KickoffLeaderboard.paint = paint;
+
+  const menu = document.getElementById("menu");
+  const extra = document.getElementById("extraMenu");
+  if (menu && extra && !document.getElementById("boardBtn")) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "boardBtn";
+    btn.textContent = "Leaderboard";
+    extra.appendChild(btn);
+    btn.addEventListener("click", function () {
+      ui.board = "wins";
+      ui.friendNote = "";
+      showBoard();
+      if (previewHost() && /(?:\?|&)boardPreview=1(?:&|$)/.test(location.search || "")) openPreview();
+      else loadBoard();
+    });
+  }
+  if (menu && !document.getElementById("leaderboardScreen")) {
+    const el = document.createElement("div");
+    el.id = "leaderboardScreen";
+    el.className = "overlay hidden";
+    el.innerHTML = "<div class='panel'><h1 style='font-size:28px'>Leaderboard</h1>"
+      + "<div class='row' id='boardTabs' role='tablist' aria-label='Leaderboard'>"
+      + "<button type='button' data-board='wins' role='tab'>Wins</button>"
+      + "<button type='button' data-board='cups' role='tab'>Cup trophies</button>"
+      + "<button type='button' data-board='coins' role='tab'>Coins earned</button>"
+      + "<button type='button' data-board='friends' role='tab'>Friends</button>"
+      + "</div><div id='boardBody'></div>"
+      + "<div class='row'><button type='button' id='boardRefresh'>Refresh</button> <button type='button' id='boardBack'>Back</button></div></div>";
+    document.body.appendChild(el);
+    el.addEventListener("click", function (e) {
+      const t = e.target && e.target.closest ? e.target.closest("button") : null;
+      if (!t || !el.contains(t)) return;
+      if (t.id === "boardBack") {
+        if (typeof goToMenu === "function") goToMenu();
+        else if (typeof showScreen === "function") showScreen("menu");
+        return;
+      }
+      if (t.id === "boardRefresh") {
+        if (ui.sample) openPreview();
+        else loadBoard();
+        return;
+      }
+      if (t.id === "boardCopy") { copyCode(); return; }
+      if (t.dataset && t.dataset.remove) { friendAct("remove", t.dataset.remove); return; }
+      if (t.dataset && t.dataset.board) {
+        ui.board = boardKey(t.dataset.board);
+        ui.friendNote = "";
+        if (ui.sample) paint();
+        else loadBoard();
+      }
+    });
+    el.addEventListener("submit", function (e) {
+      const form = e.target;
+      if (!form || form.id !== "boardAddForm") return;
+      e.preventDefault();
+      const input = document.getElementById("friendCodeInput");
+      friendAct("add", input ? input.value : "");
+    });
+  }
+
+  setInterval(function () {
+    if (ui.missing || offlineNow()) return;
+    const stats = localStats();
+    if (statHash(stats) === ui.sent) return;
+    schedulePush(false);
+  }, 8000);
+
+  if (previewHost() && /(?:\?|&)boardPreview=1(?:&|$)/.test(location.search || "")) {
+    setTimeout(openPreview, 300);
+  }
 })(typeof globalThis !== "undefined" ? globalThis : this);
 
 // =====================================================================
@@ -12850,6 +13575,8 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
       <p id="adminCrowdSplit"></p>
       <p id="adminCrowdKind"></p>
       <p id="adminCrowdPeak"></p>
+      <p id="adminCrowdEver">Players ever: …</p>
+      <p id="adminCrowdToday"></p>
       <p id="adminCrowdRoom">In this online game: Not online</p>
       <p id="adminCrowdHint" class="hint"></p>
     </div>
@@ -14128,7 +14855,61 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     if (!room) out.room = "In this online game: Not online";
     else if (room.away > 0) out.room = "In this online game: " + peoplePhrase(room.total) + " (" + room.away + " away)";
     else out.room = "In this online game: " + peoplePhrase(room.total);
+    const ever = everLines(view.devices);
+    out.ever = ever.ever;
+    out.today = ever.today;
     return out;
+  }
+  function everLines(devices) {
+    devices = devices || {};
+    if (!devices.status) return { ever: "", today: "" };
+    if (devices.status === "offline") return { ever: "Players ever: Offline", today: "" };
+    if (devices.status === "soon") return { ever: "Players ever: Coming soon", today: "" };
+    if (devices.status === "checking" || devices.total == null || !isFinite(Number(devices.total))) {
+      return { ever: "Players ever: …", today: "" };
+    }
+    const total = Math.max(0, Math.round(Number(devices.total) || 0));
+    const out = { ever: "Players ever: " + total, today: "" };
+    if (devices.today != null && isFinite(Number(devices.today)) && Number(devices.today) >= 0) {
+      out.today = "New today: " + Math.round(Number(devices.today));
+    }
+    return out;
+  }
+  function hexToUuid(hex) {
+    hex = String(hex || "").toLowerCase();
+    if (!/^[a-f0-9]{32}$/.test(hex)) return "";
+    return hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" + hex.slice(16, 20) + "-" + hex.slice(20);
+  }
+  function storageBox(storage) {
+    if (storage) return storage;
+    try { if (typeof localStorage !== "undefined") return localStorage; } catch (e) { /* private */ }
+    return null;
+  }
+  function deviceUuid(storage) {
+    const box = storageBox(storage);
+    let hex = "";
+    try { hex = box ? (box.getItem("soccerDeviceId") || "") : ""; } catch (e) { hex = ""; }
+    const fromHex = hexToUuid(hex);
+    if (fromHex && fromHex !== "00000000-0000-0000-0000-000000000000") return fromHex;
+    let prev = "";
+    try { prev = box ? (box.getItem("soccerDeviceUuid") || "") : ""; } catch (e) { prev = ""; }
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(prev)) {
+      const id = prev.toLowerCase();
+      if (id !== "00000000-0000-0000-0000-000000000000") return id;
+    }
+    let id = "";
+    try {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) id = crypto.randomUUID().toLowerCase();
+    } catch (e) { id = ""; }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) {
+      const bytes = new Uint8Array(16);
+      for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      id = hexToUuid(Array.from(bytes, function (b) { return b.toString(16).padStart(2, "0"); }).join(""));
+    }
+    try { if (box) box.setItem("soccerDeviceUuid", id); } catch (e) { /* private mode */ }
+    return id;
   }
 
   root.KickoffCrowd = {
@@ -14137,6 +14918,8 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     readActivity: readActivity,
     roomTally: roomTally,
     lines: lines,
+    everLines: everLines,
+    deviceUuid: deviceUuid,
   };
 
   if (typeof document === "undefined") return;
@@ -14151,7 +14934,24 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     joining: false,
     sent: "",
     retryAt: Date.now() + 800,
+    devices: { status: "checking" },
   };
+  let deviceFetchAt = 0;
+  let deviceRecorded = false;
+
+  function missingRpc(error) {
+    if (!error) return false;
+    const code = String(error.code || "");
+    const msg = String(error.message || error.details || "").toLowerCase();
+    if (code === "PGRST202" || code === "42883" || code === "PGRST205") return true;
+    return msg.indexOf("could not find the function") >= 0 || msg.indexOf("does not exist") >= 0 || msg.indexOf("schema cache") >= 0;
+  }
+  function countFrom(data) {
+    if (data == null || data === "") return null;
+    const n = Number(data);
+    if (!isFinite(n) || n < 0) return null;
+    return Math.round(n);
+  }
   let painted = "";
 
   function loadPeak() {
@@ -14219,14 +15019,16 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
   function paintCrowd() {
     try {
       if (!helpersOpen()) return;
-      const view = lines({ status: crowd.status, totals: crowd.totals, peak: crowd.peak, room: liveRoom() });
-      const stamp = [view.now, view.split, view.kind, view.peak, view.room, view.hint].join("|");
+      const view = lines({ status: crowd.status, totals: crowd.totals, peak: crowd.peak, room: liveRoom(), devices: crowd.devices });
+      const stamp = [view.now, view.split, view.kind, view.peak, view.room, view.hint, view.ever, view.today].join("|");
       if (stamp === painted) return;
       painted = stamp;
       setText("adminCrowdNow", view.now);
       setText("adminCrowdSplit", view.split);
       setText("adminCrowdKind", view.kind);
       setText("adminCrowdPeak", view.peak);
+      setText("adminCrowdEver", view.ever);
+      setText("adminCrowdToday", view.today);
       setText("adminCrowdRoom", view.room);
       setText("adminCrowdHint", view.hint);
       const body = document.getElementById("adminBody");
@@ -14329,10 +15131,96 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     });
   }
 
+  function askClient() {
+    if (typeof CloudAccount === "undefined" || !CloudAccount.sharedClient) return null;
+    return CloudAccount.sharedClient();
+  }
+  function recordThisDevice() {
+    if (deviceRecorded) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    const id = deviceUuid();
+    if (!id) return;
+    const ask = askClient();
+    if (!ask) return;
+    Promise.resolve(ask).then(function (client) {
+      if (!client || typeof client.rpc !== "function") return null;
+      return client.rpc("record_device", { device_id: id });
+    }).then(function (res) {
+      if (!res) return;
+      if (res.error) {
+        if (missingRpc(res.error)) {
+          deviceRecorded = true;
+          crowd.devices = { status: "soon" };
+          paintCrowd();
+        }
+        return;
+      }
+      deviceRecorded = true;
+    }).catch(function () { /* the count can wait */ });
+  }
+  function fetchDevices() {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      crowd.devices = { status: "offline" };
+      paintCrowd();
+      return;
+    }
+    const ask = askClient();
+    if (!ask) {
+      crowd.devices = { status: "soon" };
+      paintCrowd();
+      return;
+    }
+    Promise.resolve(ask).then(function (client) {
+      if (!client || typeof client.rpc !== "function") {
+        crowd.devices = { status: "soon" };
+        paintCrowd();
+        return null;
+      }
+      return client.rpc("players_ever").then(function (res) {
+        if (res.error && missingRpc(res.error)) {
+          crowd.devices = { status: "soon" };
+          deviceFetchAt = Date.now() + 120000;
+          paintCrowd();
+          return null;
+        }
+        if (res.error) {
+          crowd.devices = { status: "offline" };
+          paintCrowd();
+          return null;
+        }
+        const total = countFrom(res.data);
+        return client.rpc("players_new_today").then(function (todayRes) {
+          let today = null;
+          if (todayRes && !todayRes.error) today = countFrom(todayRes.data);
+          crowd.devices = { status: "live", total: total == null ? 0 : total, today: today };
+          paintCrowd();
+        });
+      });
+    }).catch(function () {
+      crowd.devices = { status: "offline" };
+      paintCrowd();
+    });
+  }
+  function maybeFetchDevices() {
+    if (Date.now() < deviceFetchAt) return;
+    deviceFetchAt = Date.now() + 30000;
+    recordThisDevice();
+    fetchDevices();
+  }
+  root.KickoffCrowd.previewDevices = function (devices) {
+    let host = "";
+    try { host = location.hostname; } catch (e) { host = ""; }
+    if (host !== "localhost" && host !== "127.0.0.1") return;
+    crowd.devices = devices || { status: "live", total: 0, today: 0 };
+    painted = "";
+    paintCrowd();
+  };
+
   setInterval(function () {
     try {
       if (crowd.status === "live") pushTrack();
       else if (!crowd.joining && Date.now() >= crowd.retryAt) joinCrowd();
+      maybeFetchDevices();
       paintCrowd();
     } catch (e) { /* the match keeps running */ }
   }, 1000);
@@ -14342,12 +15230,15 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     crowd.joining = false;
     crowd.sent = "";
     crowd.retryAt = Date.now() + 4000;
+    crowd.devices = { status: "offline" };
     dropChannel();
     paintCrowd();
   });
   window.addEventListener("online", function () {
     crowd.retryAt = 0;
+    deviceFetchAt = 0;
     try { joinCrowd(); } catch (e) { /* stay on Offline until the next try */ }
+    try { maybeFetchDevices(); } catch (e2) { /* the count can wait */ }
   });
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState !== "visible") return;

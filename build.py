@@ -7,6 +7,7 @@ Build script: makes the playable files from the source files in src/.
   src/flags.js            team and country flags, drawn in code
   src/render.js           drawing (shared)
   src/progress.js         career, coins, daily challenges, and the kit creator
+  src/leaderboard.js      leaderboard, friend codes, and the opt-in toggle
   src/offline_shell.js    offline menus, cup, shootout, keyboard/touch
   src/offline_template.html   HTML + CSS of the offline game
   src/client_head.js, client_net.js, client_tail.js   online client parts
@@ -52,6 +53,7 @@ scripts = ('"use strict";\n' + banner("SQUADS (original players, same list as ga
            + banner("PLAYER") + read("player.js")
            + banner("SUPABASE CONFIG") + read("supabase_config.js")
            + banner("OPTIONAL ACCOUNT") + read("cloud_account.js")
+           + banner("LEADERBOARD") + read("leaderboard.js")
            + banner("HIDDEN ADMIN") + read("admin.js")
            + banner("WHO IS PLAYING") + read("crowd.js"))
 html = read("offline_template.html").replace("/*__SCRIPTS__*/", scripts)
@@ -66,7 +68,7 @@ def bundle(*names):
 game = read("squads.js") + "\n" + read("sim.js")
 write(os.path.join(MP, "public", "game.js"), game)
 write(os.path.join(HERE, "game.js"), game)
-parts = ("client_head.js", "sound.js", "client_net.js", "flags.js", "settings.js", "render.js", "client_tail.js", "player.js", "supabase_config.js", "cloud_account.js", "admin.js", "crowd.js")
+parts = ("client_head.js", "sound.js", "client_net.js", "flags.js", "settings.js", "render.js", "client_tail.js", "player.js", "supabase_config.js", "cloud_account.js", "leaderboard.js", "admin.js", "crowd.js")
 write(os.path.join(MP, "public", "client.js"), bundle("client_head.js", "sound.js", "client_ws.js", *parts[2:]))
 write(os.path.join(HERE, "online.js"), bundle("client_head.js", "sound.js", "p2p_net.js", *parts[2:]))
 
