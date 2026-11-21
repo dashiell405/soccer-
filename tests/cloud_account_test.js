@@ -166,6 +166,51 @@ assert.ok(Cloud.isMissingTable({ code: "PGRST205", message: "Could not find the 
 assert.ok(!Cloud.isMissingTable({ code: "42501", message: "permission denied for table profiles" }));
 assert.strictEqual(Cloud.friendlyAuthError({ message: "redirect not allowed" }).indexOf("Supabase") >= 0, true);
 
+const career = { version: 1, clubId: "hawks", clubName: "Harbor Hawks", season: 1, division: 2, matchday: 1 };
+const coins = { coins: 48 };
+const upgrades = { sprint: 2, shot: 1, pass: 0, stamina: 3 };
+const challenges = { date: "2026-11-21", ids: ["outside", "clean", "curl"], progress: { outside: 1 }, paid: { outside: true }, streak: 2, lastComplete: "2026-11-21", badges: [{ date: "2026-11-20", name: "Full set" }] };
+const kit = { primary: "#1f5fd6", secondary: "#ffffff", pattern: "stripes", shorts: "#111111", number: 7, badge: { shape: "shield", color: "#e6b325", initials: "FK" }, touched: true };
+const richStore = mem({
+  soccerPlayer: JSON.stringify({ name: "Alex Kid", team: "blue", color: "#e6b325", deviceId: deviceId }),
+  soccerName: "Alex Kid",
+  soccerCareer: JSON.stringify(career),
+  soccerCoins: JSON.stringify(coins),
+  soccerUpgrades: JSON.stringify(upgrades),
+  soccerChallenges: JSON.stringify(challenges),
+  soccerKit: JSON.stringify(kit),
+});
+const richSnap = Cloud.readLocal(richStore);
+const richRow = Cloud.toRow(richSnap, userId);
+same(richRow.settings.soccerCareer, career);
+same(richRow.settings.soccerCoins, coins);
+same(richRow.settings.soccerUpgrades, upgrades);
+same(richRow.settings.soccerChallenges, challenges);
+same(richRow.settings.soccerKit, kit);
+assert.ok(!JSON.stringify(richRow).includes(deviceId));
+const restored = mem({ soccerCareer: JSON.stringify({ version: 1, clubName: "Keep me", clubId: "you" }) });
+const oldRow = Cloud.toRow(snap, userId);
+delete oldRow.settings.soccerCareer;
+delete oldRow.settings.soccerCoins;
+delete oldRow.settings.soccerUpgrades;
+delete oldRow.settings.soccerChallenges;
+delete oldRow.settings.soccerKit;
+Cloud.applyWrites(restored, Cloud.writesFromRow(oldRow, {}));
+assert.strictEqual(JSON.parse(restored.getItem("soccerCareer")).clubName, "Keep me");
+const round = mem();
+Cloud.applyWrites(round, Cloud.writesFromRow(richRow, {}));
+same(JSON.parse(round.getItem("soccerCareer")), career);
+same(JSON.parse(round.getItem("soccerCoins")), coins);
+same(JSON.parse(round.getItem("soccerUpgrades")), upgrades);
+same(JSON.parse(round.getItem("soccerKit")), kit);
+const richer = JSON.parse(JSON.stringify(snap));
+richer.career = career;
+richer.coins = coins;
+richer.upgrades = upgrades;
+richer.challenges = challenges;
+richer.kit = kit;
+assert.ok(Cloud.richness(richer) > Cloud.richness(snap));
+
 const cfg = fs.readFileSync(path.join(root, "src/supabase_config.js"), "utf8");
 const cloudSrc = fs.readFileSync(path.join(root, "src/cloud_account.js"), "utf8");
 assert.ok(cfg.indexOf("sb_publishable_") >= 0);
@@ -185,8 +230,8 @@ assert.ok(cloudSrc.indexOf("kickoff://login") >= 0);
 assert.ok(cfg.indexOf("kickoff://login") >= 0);
 
 const sw = fs.readFileSync(path.join(root, "tools/build_pages.py"), "utf8");
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v41") >= 0);
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v38") < 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v42") >= 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v41") < 0);
 const settingsSrc = fs.readFileSync(path.join(root, "src/settings.js"), "utf8");
 assert.ok(settingsSrc.indexOf("touch-action: pan-y") >= 0);
 assert.ok(settingsSrc.indexOf("overscroll-behavior: contain") >= 0);

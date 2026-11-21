@@ -5,8 +5,11 @@
      soccerPlayer (name, team, colour only — device id stays on this phone)
      soccerName, soccerPlayAsMe, soccerTrophies, soccerCup, soccerSettings,
      soccerOptions, soccerMatchMinutes, soccerRenames, soccerTeam100,
-     soccerCamera, soccerHostBans
-   Those objects are stored as-is inside public.profiles. */
+     soccerCamera, soccerHostBans,
+     soccerCareer, soccerCoins, soccerUpgrades, soccerChallenges, soccerKit
+   Those objects are stored as-is inside public.profiles.
+   Career, coins, upgrades, challenges and the kit ride along inside the
+   settings object on the player's own row. No new secret and no service key. */
 (function (root) {
   const SITE = (typeof KICKOFF_SITE_URL === "string" && KICKOFF_SITE_URL) || "https://dashiell405.github.io/soccer-/";
   const SUPABASE_JS = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm";
@@ -16,12 +19,15 @@
     soccerPlayer: 1, soccerName: 1, soccerPlayAsMe: 1, soccerTrophies: 1, soccerCup: 1,
     soccerSettings: 1, soccerOptions: 1, soccerMatchMinutes: 1, soccerRenames: 1,
     soccerTeam100: 1, soccerCamera: 1, soccerHostBans: 1,
+    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1,
   };
   const WATCH = {
     soccerPlayer: 1, soccerName: 1, soccerPlayAsMe: 1, soccerTrophies: 1, soccerCup: 1,
     soccerSettings: 1, soccerOptions: 1, soccerMatchMinutes: 1, soccerRenames: 1,
     soccerTeam100: 1, soccerCamera: 1, soccerHostBans: 1,
+    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1,
   };
+  const PROGRESS_FIELDS = ["soccerCareer", "soccerCoins", "soccerUpgrades", "soccerChallenges", "soccerKit"];
 
   function storageOf(storage) {
     if (storage) return storage;
@@ -69,6 +75,7 @@
     const empty = {
       player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null,
       options: null, minutes: null, renames: null, team100: null, camera: null, bans: null,
+      career: null, coins: null, upgrades: null, challenges: null, kit: null,
     };
     if (!storage) return empty;
     return {
@@ -84,7 +91,35 @@
       team100: parseObj(getRaw(storage, "soccerTeam100")),
       camera: readCamera(getRaw(storage, "soccerCamera")),
       bans: parseObj(getRaw(storage, "soccerHostBans")),
+      career: parseObj(getRaw(storage, "soccerCareer")),
+      coins: parseObj(getRaw(storage, "soccerCoins")),
+      upgrades: parseObj(getRaw(storage, "soccerUpgrades")),
+      challenges: parseObj(getRaw(storage, "soccerChallenges")),
+      kit: parseObj(getRaw(storage, "soccerKit")),
     };
+  }
+  function progressObject(value) {
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  }
+  function progressFromBag(bag) {
+    const out = { career: null, coins: null, upgrades: null, challenges: null, kit: null };
+    if (!bag || typeof bag !== "object" || Array.isArray(bag)) return out;
+    out.career = progressObject(bag.soccerCareer);
+    out.coins = progressObject(bag.soccerCoins);
+    out.upgrades = progressObject(bag.soccerUpgrades);
+    out.challenges = progressObject(bag.soccerChallenges);
+    out.kit = progressObject(bag.soccerKit);
+    return out;
+  }
+  function progressWrites(bag) {
+    const writes = {};
+    if (!bag || typeof bag !== "object" || Array.isArray(bag)) return writes;
+    PROGRESS_FIELDS.forEach(function (key) {
+      if (!Object.prototype.hasOwnProperty.call(bag, key)) return;
+      const value = bag[key];
+      writes[key] = value && typeof value === "object" && !Array.isArray(value) ? JSON.stringify(value) : null;
+    });
+    return writes;
   }
   function clipName(name, max) {
     return String(name || "").replace(/[<>]/g, "").trim().slice(0, max);
@@ -107,6 +142,15 @@
     if (snap.playAsMe && (clipName(snap.playAsMe.name, 18) || typeof snap.playAsMe.on === "boolean")) n += 1;
     if (snap.minutes && snap.minutes.minutes != null && isFinite(Number(snap.minutes.minutes))) n += 1;
     if (snap.camera === "fp" || snap.camera === "tv") n += 1;
+    if (snap.career && snap.career.clubName) n += 4;
+    if (snap.career && snap.career.matchday) n += Math.min(6, Number(snap.career.matchday) || 0);
+    if (snap.coins && Number(snap.coins.coins) > 0) n += 1;
+    if (snap.upgrades) {
+      const sum = ["sprint", "shot", "pass", "stamina"].reduce(function (a, k) { return a + (Number(snap.upgrades[k]) || 0); }, 0);
+      if (sum > 0) n += 1 + Math.min(20, sum);
+    }
+    if (snap.challenges && Array.isArray(snap.challenges.badges) && snap.challenges.badges.length) n += snap.challenges.badges.length;
+    if (snap.kit && snap.kit.touched) n += 1;
     return n;
   }
   function unwrapSettings(raw) {
@@ -124,7 +168,7 @@
   }
   function snapFromRow(row) {
     if (!row || typeof row !== "object") {
-      return { player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null, options: null, minutes: null, renames: null, team100: null, camera: null, bans: null };
+      return { player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null, options: null, minutes: null, renames: null, team100: null, camera: null, bans: null, career: null, coins: null, upgrades: null, challenges: null, kit: null };
     }
     const bag = unwrapSettings(row.settings);
     const display = clipName(row.display_name, 16);
@@ -158,6 +202,11 @@
       team100: row.team_100 && typeof row.team_100 === "object" && !Array.isArray(row.team_100) ? row.team_100 : null,
       camera: row.camera_choice === "fp" || row.camera_choice === "tv" ? row.camera_choice : null,
       bans: row.host_bans && typeof row.host_bans === "object" ? row.host_bans : null,
+      career: progressFromBag(row.settings).career,
+      coins: progressFromBag(row.settings).coins,
+      upgrades: progressFromBag(row.settings).upgrades,
+      challenges: progressFromBag(row.settings).challenges,
+      kit: progressFromBag(row.settings).kit,
     };
   }
   function profileSnap(snap) {
@@ -179,6 +228,11 @@
       team100: (snap && snap.team100) || null,
       camera: (snap && snap.camera) || null,
       bans: (snap && snap.bans) || null,
+      career: (snap && snap.career) || null,
+      coins: (snap && snap.coins) || null,
+      upgrades: (snap && snap.upgrades) || null,
+      challenges: (snap && snap.challenges) || null,
+      kit: (snap && snap.kit) || null,
     });
   }
   function hashSnap(snap) {
@@ -208,6 +262,11 @@
         soccerOptions: snap && snap.options && typeof snap.options === "object" ? snap.options : null,
         soccerPlayAsMe: playSaved,
         soccerMatchMinutes: minutes,
+        soccerCareer: progressObject(snap && snap.career),
+        soccerCoins: progressObject(snap && snap.coins),
+        soccerUpgrades: progressObject(snap && snap.upgrades),
+        soccerChallenges: progressObject(snap && snap.challenges),
+        soccerKit: progressObject(snap && snap.kit),
       },
       renames: snap && snap.renames && typeof snap.renames === "object" && !Array.isArray(snap.renames) ? snap.renames : null,
       team_100: snap && snap.team100 && typeof snap.team100 === "object" && !Array.isArray(snap.team100) ? snap.team100 : null,
@@ -299,6 +358,8 @@
     writes.soccerTeam100 = row && row.team_100 && typeof row.team_100 === "object" && !Array.isArray(row.team_100) ? JSON.stringify(row.team_100) : null;
     writes.soccerCamera = row && (row.camera_choice === "fp" || row.camera_choice === "tv") ? row.camera_choice : null;
     writes.soccerHostBans = row && row.host_bans && typeof row.host_bans === "object" ? JSON.stringify(row.host_bans) : null;
+    const extra = progressWrites(row && row.settings);
+    Object.keys(extra).forEach(function (key) { writes[key] = extra[key]; });
     return writes;
   }
   function applyWrites(storage, writes) {
@@ -457,6 +518,7 @@
     try { if (typeof paintTrophyBadge === "function") paintTrophyBadge(); } catch (e) { /* ignore */ }
     try { if (typeof paintPlayAsMe === "function") paintPlayAsMe(); } catch (e) { /* ignore */ }
     try { if (typeof paintSquad === "function") paintSquad(); } catch (e) { /* ignore */ }
+    try { if (typeof KickoffProgress !== "undefined" && KickoffProgress.refresh) KickoffProgress.refresh(); } catch (e) { /* ignore */ }
   }
   function downloadRow(row) {
     const store = storageOf();
@@ -825,7 +887,7 @@
           html += "<p>Sign in with a parent email to keep this player on another phone or tablet. Kickoff does not save a password. We email a link. If the email has a code, type it here.</p>";
           html += "<p>You can skip this. With no account, or when you are offline, this phone keeps the game it already saved.</p>";
         }
-        html += "<p class='privacy'>What is saved: your player name, favourite team, colour, play-as-me name, trophies, cup, settings, match length, renamed players, star teams, camera, and bans from games you host. Friends in a room see your player name. If you saved \"Dashiell G.\", that is the name they see. A parent can delete the account in Supabase.</p>";
+        html += "<p class='privacy'>What is saved: your player name, favourite team, colour, play-as-me name, trophies, cup, settings, match length, renamed players, star teams, camera, bans from games you host, plus your career, coins, upgrades, daily challenges and kit. Friends in a room see your player name. If you saved \"Dashiell G.\", that is the name they see. A parent can delete the account in Supabase.</p>";
         html += "<label for='accountEmail'>Parent email</label>";
         html += "<input id='accountEmail' type='email' autocomplete='email' inputmode='email' placeholder='name@email.com'>";
         html += native
@@ -839,7 +901,7 @@
         html += shown
           ? "<p>Friends in a room see <b>" + esc(shown) + "</b>.</p>"
           : "<p>Friends in a room see your player name once you pick one.</p>";
-        html += "<p class='privacy'>The account stores that name, your team, colour, trophies, cup, settings and host bans. It does not store a password. A parent can delete the account in Supabase. Signing out keeps the game on this phone.</p>";
+        html += "<p class='privacy'>The account stores that name, your team, colour, trophies, cup, settings, host bans, career, coins, upgrades, challenges and kit. It does not store a password. A parent can delete the account in Supabase. Signing out keeps the game on this phone.</p>";
         if (state.choice && state.choice.mode === "keep") {
           html += "<div class='accountRow'><button type='button' id='accountSavePhone'>Save this phone's game to the account</button></div>";
           html += "<div class='accountRow'><button type='button' id='accountUseCloud'>Use the account game on this phone</button></div>";

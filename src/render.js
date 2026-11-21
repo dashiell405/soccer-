@@ -1383,6 +1383,70 @@ function drawThrowArmsOnTop(cast) {
   }
 }
 
+// Kit creator patterns and a simple badge. Real crests are not drawn.
+function paintShirtPattern(kit, x, y, w, h) {
+  if (!kit || !kit.pattern || kit.pattern === "plain") return;
+  const alt = kit.secondary || "#ffffff";
+  ctx.save();
+  ctx.beginPath();
+  roundRect(ctx, x, y, w, h, Math.max(2, h * 0.22));
+  ctx.clip();
+  ctx.fillStyle = alt;
+  if (kit.pattern === "stripes") {
+    const band = w / 5;
+    for (let i = 0; i < 5; i += 2) ctx.fillRect(x + i * band, y, band, h);
+  } else if (kit.pattern === "hoops") {
+    const band = h / 5;
+    for (let i = 0; i < 5; i += 2) ctx.fillRect(x, y + i * band, w, band);
+  } else if (kit.pattern === "halves") {
+    ctx.fillRect(x, y, w / 2, h);
+  } else if (kit.pattern === "sash") {
+    ctx.translate(x + w / 2, y + h / 2);
+    ctx.rotate(-0.65);
+    ctx.fillRect(-w, -h * 0.14, w * 2, h * 0.28);
+  }
+  ctx.restore();
+}
+function paintShirtBadge(kit, x, y, w, h) {
+  const b = kit && kit.badge;
+  if (!b || !b.shape) return;
+  const s = Math.min(w, h) * 0.42;
+  const cx = x + w * 0.3;
+  const cy = y + h * 0.66;
+  ctx.save();
+  ctx.fillStyle = b.color || "#ffd33d";
+  ctx.beginPath();
+  if (b.shape === "circle") ctx.arc(cx, cy, s / 2, 0, Math.PI * 2);
+  else if (b.shape === "diamond") {
+    ctx.moveTo(cx, cy - s / 2);
+    ctx.lineTo(cx + s / 2, cy);
+    ctx.lineTo(cx, cy + s / 2);
+    ctx.lineTo(cx - s / 2, cy);
+    ctx.closePath();
+  } else if (b.shape === "square") ctx.rect(cx - s / 2, cy - s / 2, s, s);
+  else {
+    ctx.moveTo(cx - s / 2, cy - s / 2);
+    ctx.lineTo(cx + s / 2, cy - s / 2);
+    ctx.lineTo(cx + s / 2, cy + s * 0.08);
+    ctx.quadraticCurveTo(cx, cy + s * 0.78, cx - s / 2, cy + s * 0.08);
+    ctx.closePath();
+  }
+  ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.stroke();
+  const letters = String(b.initials || "").slice(0, 3);
+  if (letters) {
+    const light = typeof isLight === "function" && isLight(b.color || "#ffd33d");
+    ctx.fillStyle = light ? "#1a1404" : "#ffffff";
+    ctx.font = "bold " + Math.max(6, Math.round(s * 0.34)) + "px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(letters, cx, cy + (b.shape === "shield" ? s * 0.02 : 0));
+  }
+  ctx.restore();
+}
+
 function drawPlayer(p) {
   if (!p || p.sentOff) return;
   const eyes = fpSubject();
@@ -1484,6 +1548,7 @@ function drawPlayer(p) {
   ctx.fillStyle = kit.shirt;
   roundRect(ctx, -H * 0.175, -H * 0.8, H * 0.35, H * 0.36, H * 0.08);
   ctx.fill();
+  if (p.role !== "GK") paintShirtPattern(kit, -H * 0.175, -H * 0.8, H * 0.35, H * 0.36);
   ctx.strokeStyle = "rgba(0,0,0,0.28)";
   ctx.lineWidth = 1;
   ctx.stroke();
@@ -1529,6 +1594,7 @@ function drawPlayer(p) {
     ctx.fill();
   }
 
+  if (p.role !== "GK") paintShirtBadge(kit, -H * 0.175, -H * 0.8, H * 0.35, H * 0.36);
   // Number. The body is mirrored for players facing left, so flip it back.
   ctx.save();
   ctx.scale(face / sideOn, 1);

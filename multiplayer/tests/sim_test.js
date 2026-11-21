@@ -512,3 +512,31 @@ function kickoffOk(sim, label) {
   sim.admin('award', { team: 'red' });
   assert(sim.game.phase === 'win' && sim.game.winner === 'red' && sim.game.score.red > sim.game.score.blue, 'award win ends the match for that team');
 }
+// Shop upgrades are gentle, capped, and not turned on by the sim itself.
+{
+  const none = S.upgradeMultipliers(null);
+  assert(none.sprint === 1 && none.shot === 1 && none.passErr === 1 && none.stamDrain === 1, 'no upgrades means no change');
+  const maxed = S.upgradeMultipliers({ sprint: 99, shot: 5, pass: 5, stamina: 5 });
+  assert(maxed.sprint === 1.1 && maxed.shot === 1.125 && maxed.passErr === 0.75 && maxed.stamDrain === 0.75, 'level 5 is a small capped boost');
+  const sim = S.createSim({});
+  sim.start();
+  assert(sim.players.every((p) => !p.upgrades), 'a new match does not invent upgrades');
+  const i = sim.roster.findIndex((p) => p.team === 'blue' && p.role !== 'GK');
+  const before = sim.debugBoosts(i);
+  sim.roster[i].upgrades = { sprint: 5, shot: 5, pass: 5, stamina: 5 };
+  const after = sim.debugBoosts(i);
+  assert(after.sprint > before.sprint && after.sprint < before.sprint * 1.12, 'sprint upgrade stays gentle');
+  assert(after.shot > before.shot && after.shot < before.shot * 1.14, 'shot upgrade stays gentle');
+  assert(after.passErr < before.passErr && after.stamDrain < before.stamDrain, 'pass and stamina upgrades help a little');
+  sim.game.phase = 'play';
+  sim.game.setpiece = null;
+  const scorer = sim.roster.find((p) => p.team === 'blue' && p.role !== 'GK');
+  Object.assign(sim.ball, {
+    owner: null, lastTeam: 'blue', lastTouch: scorer,
+    x: S.PITCH.right + 20, y: S.PITCH.cy, z: 0, vx: 40, vy: 0, vz: 0,
+    shot: { team: 'blue', x: S.PITCH.right - S.BOX.depth - 40, y: S.PITCH.cy, power: 800, finesse: true },
+  });
+  sim.update(1 / 120);
+  const goal = sim.game.stats.scorers[sim.game.stats.scorers.length - 1];
+  assert(sim.game.score.blue === 1 && goal && goal.outside && goal.curl && !goal.og, 'a curled shot from outside the box is marked on the goal');
+}

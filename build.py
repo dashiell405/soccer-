@@ -6,6 +6,7 @@ Build script: makes the playable files from the source files in src/.
   src/sound.js            sound effects (shared)
   src/flags.js            team and country flags, drawn in code
   src/render.js           drawing (shared)
+  src/progress.js         career, coins, daily challenges, and the kit creator
   src/offline_shell.js    offline menus, cup, shootout, keyboard/touch
   src/offline_template.html   HTML + CSS of the offline game
   src/client_head.js, client_net.js, client_tail.js   online client parts
@@ -46,6 +47,7 @@ scripts = ('"use strict";\n' + banner("SQUADS (original players, same list as ga
            + read("sim.js") + banner("SOUND") + read("sound.js") + banner("FLAGS") + read("flags.js")
            + banner("SETTINGS") + read("settings.js")
            + banner("DRAWING") + read("render.js")
+           + banner("CAREER, COINS, CHALLENGES, KIT") + read("progress.js")
            + banner("OFFLINE SHELL") + read("offline_shell.js")
            + banner("PLAYER") + read("player.js")
            + banner("SUPABASE CONFIG") + read("supabase_config.js")

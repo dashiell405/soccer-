@@ -3728,6 +3728,70 @@ function drawThrowArmsOnTop(cast) {
   }
 }
 
+// Kit creator patterns and a simple badge. Real crests are not drawn.
+function paintShirtPattern(kit, x, y, w, h) {
+  if (!kit || !kit.pattern || kit.pattern === "plain") return;
+  const alt = kit.secondary || "#ffffff";
+  ctx.save();
+  ctx.beginPath();
+  roundRect(ctx, x, y, w, h, Math.max(2, h * 0.22));
+  ctx.clip();
+  ctx.fillStyle = alt;
+  if (kit.pattern === "stripes") {
+    const band = w / 5;
+    for (let i = 0; i < 5; i += 2) ctx.fillRect(x + i * band, y, band, h);
+  } else if (kit.pattern === "hoops") {
+    const band = h / 5;
+    for (let i = 0; i < 5; i += 2) ctx.fillRect(x, y + i * band, w, band);
+  } else if (kit.pattern === "halves") {
+    ctx.fillRect(x, y, w / 2, h);
+  } else if (kit.pattern === "sash") {
+    ctx.translate(x + w / 2, y + h / 2);
+    ctx.rotate(-0.65);
+    ctx.fillRect(-w, -h * 0.14, w * 2, h * 0.28);
+  }
+  ctx.restore();
+}
+function paintShirtBadge(kit, x, y, w, h) {
+  const b = kit && kit.badge;
+  if (!b || !b.shape) return;
+  const s = Math.min(w, h) * 0.42;
+  const cx = x + w * 0.3;
+  const cy = y + h * 0.66;
+  ctx.save();
+  ctx.fillStyle = b.color || "#ffd33d";
+  ctx.beginPath();
+  if (b.shape === "circle") ctx.arc(cx, cy, s / 2, 0, Math.PI * 2);
+  else if (b.shape === "diamond") {
+    ctx.moveTo(cx, cy - s / 2);
+    ctx.lineTo(cx + s / 2, cy);
+    ctx.lineTo(cx, cy + s / 2);
+    ctx.lineTo(cx - s / 2, cy);
+    ctx.closePath();
+  } else if (b.shape === "square") ctx.rect(cx - s / 2, cy - s / 2, s, s);
+  else {
+    ctx.moveTo(cx - s / 2, cy - s / 2);
+    ctx.lineTo(cx + s / 2, cy - s / 2);
+    ctx.lineTo(cx + s / 2, cy + s * 0.08);
+    ctx.quadraticCurveTo(cx, cy + s * 0.78, cx - s / 2, cy + s * 0.08);
+    ctx.closePath();
+  }
+  ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.stroke();
+  const letters = String(b.initials || "").slice(0, 3);
+  if (letters) {
+    const light = typeof isLight === "function" && isLight(b.color || "#ffd33d");
+    ctx.fillStyle = light ? "#1a1404" : "#ffffff";
+    ctx.font = "bold " + Math.max(6, Math.round(s * 0.34)) + "px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(letters, cx, cy + (b.shape === "shield" ? s * 0.02 : 0));
+  }
+  ctx.restore();
+}
+
 function drawPlayer(p) {
   if (!p || p.sentOff) return;
   const eyes = fpSubject();
@@ -3829,6 +3893,7 @@ function drawPlayer(p) {
   ctx.fillStyle = kit.shirt;
   roundRect(ctx, -H * 0.175, -H * 0.8, H * 0.35, H * 0.36, H * 0.08);
   ctx.fill();
+  if (p.role !== "GK") paintShirtPattern(kit, -H * 0.175, -H * 0.8, H * 0.35, H * 0.36);
   ctx.strokeStyle = "rgba(0,0,0,0.28)";
   ctx.lineWidth = 1;
   ctx.stroke();
@@ -3874,6 +3939,7 @@ function drawPlayer(p) {
     ctx.fill();
   }
 
+  if (p.role !== "GK") paintShirtBadge(kit, -H * 0.175, -H * 0.8, H * 0.35, H * 0.36);
   // Number. The body is mirrored for players facing left, so flip it back.
   ctx.save();
   ctx.scale(face / sideOn, 1);
@@ -5724,8 +5790,11 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
      soccerPlayer (name, team, colour only — device id stays on this phone)
      soccerName, soccerPlayAsMe, soccerTrophies, soccerCup, soccerSettings,
      soccerOptions, soccerMatchMinutes, soccerRenames, soccerTeam100,
-     soccerCamera, soccerHostBans
-   Those objects are stored as-is inside public.profiles. */
+     soccerCamera, soccerHostBans,
+     soccerCareer, soccerCoins, soccerUpgrades, soccerChallenges, soccerKit
+   Those objects are stored as-is inside public.profiles.
+   Career, coins, upgrades, challenges and the kit ride along inside the
+   settings object on the player's own row. No new secret and no service key. */
 (function (root) {
   const SITE = (typeof KICKOFF_SITE_URL === "string" && KICKOFF_SITE_URL) || "https://dashiell405.github.io/soccer-/";
   const SUPABASE_JS = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm";
@@ -5735,12 +5804,15 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     soccerPlayer: 1, soccerName: 1, soccerPlayAsMe: 1, soccerTrophies: 1, soccerCup: 1,
     soccerSettings: 1, soccerOptions: 1, soccerMatchMinutes: 1, soccerRenames: 1,
     soccerTeam100: 1, soccerCamera: 1, soccerHostBans: 1,
+    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1,
   };
   const WATCH = {
     soccerPlayer: 1, soccerName: 1, soccerPlayAsMe: 1, soccerTrophies: 1, soccerCup: 1,
     soccerSettings: 1, soccerOptions: 1, soccerMatchMinutes: 1, soccerRenames: 1,
     soccerTeam100: 1, soccerCamera: 1, soccerHostBans: 1,
+    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1,
   };
+  const PROGRESS_FIELDS = ["soccerCareer", "soccerCoins", "soccerUpgrades", "soccerChallenges", "soccerKit"];
 
   function storageOf(storage) {
     if (storage) return storage;
@@ -5788,6 +5860,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     const empty = {
       player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null,
       options: null, minutes: null, renames: null, team100: null, camera: null, bans: null,
+      career: null, coins: null, upgrades: null, challenges: null, kit: null,
     };
     if (!storage) return empty;
     return {
@@ -5803,7 +5876,35 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
       team100: parseObj(getRaw(storage, "soccerTeam100")),
       camera: readCamera(getRaw(storage, "soccerCamera")),
       bans: parseObj(getRaw(storage, "soccerHostBans")),
+      career: parseObj(getRaw(storage, "soccerCareer")),
+      coins: parseObj(getRaw(storage, "soccerCoins")),
+      upgrades: parseObj(getRaw(storage, "soccerUpgrades")),
+      challenges: parseObj(getRaw(storage, "soccerChallenges")),
+      kit: parseObj(getRaw(storage, "soccerKit")),
     };
+  }
+  function progressObject(value) {
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  }
+  function progressFromBag(bag) {
+    const out = { career: null, coins: null, upgrades: null, challenges: null, kit: null };
+    if (!bag || typeof bag !== "object" || Array.isArray(bag)) return out;
+    out.career = progressObject(bag.soccerCareer);
+    out.coins = progressObject(bag.soccerCoins);
+    out.upgrades = progressObject(bag.soccerUpgrades);
+    out.challenges = progressObject(bag.soccerChallenges);
+    out.kit = progressObject(bag.soccerKit);
+    return out;
+  }
+  function progressWrites(bag) {
+    const writes = {};
+    if (!bag || typeof bag !== "object" || Array.isArray(bag)) return writes;
+    PROGRESS_FIELDS.forEach(function (key) {
+      if (!Object.prototype.hasOwnProperty.call(bag, key)) return;
+      const value = bag[key];
+      writes[key] = value && typeof value === "object" && !Array.isArray(value) ? JSON.stringify(value) : null;
+    });
+    return writes;
   }
   function clipName(name, max) {
     return String(name || "").replace(/[<>]/g, "").trim().slice(0, max);
@@ -5826,6 +5927,15 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     if (snap.playAsMe && (clipName(snap.playAsMe.name, 18) || typeof snap.playAsMe.on === "boolean")) n += 1;
     if (snap.minutes && snap.minutes.minutes != null && isFinite(Number(snap.minutes.minutes))) n += 1;
     if (snap.camera === "fp" || snap.camera === "tv") n += 1;
+    if (snap.career && snap.career.clubName) n += 4;
+    if (snap.career && snap.career.matchday) n += Math.min(6, Number(snap.career.matchday) || 0);
+    if (snap.coins && Number(snap.coins.coins) > 0) n += 1;
+    if (snap.upgrades) {
+      const sum = ["sprint", "shot", "pass", "stamina"].reduce(function (a, k) { return a + (Number(snap.upgrades[k]) || 0); }, 0);
+      if (sum > 0) n += 1 + Math.min(20, sum);
+    }
+    if (snap.challenges && Array.isArray(snap.challenges.badges) && snap.challenges.badges.length) n += snap.challenges.badges.length;
+    if (snap.kit && snap.kit.touched) n += 1;
     return n;
   }
   function unwrapSettings(raw) {
@@ -5843,7 +5953,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
   }
   function snapFromRow(row) {
     if (!row || typeof row !== "object") {
-      return { player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null, options: null, minutes: null, renames: null, team100: null, camera: null, bans: null };
+      return { player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null, options: null, minutes: null, renames: null, team100: null, camera: null, bans: null, career: null, coins: null, upgrades: null, challenges: null, kit: null };
     }
     const bag = unwrapSettings(row.settings);
     const display = clipName(row.display_name, 16);
@@ -5877,6 +5987,11 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
       team100: row.team_100 && typeof row.team_100 === "object" && !Array.isArray(row.team_100) ? row.team_100 : null,
       camera: row.camera_choice === "fp" || row.camera_choice === "tv" ? row.camera_choice : null,
       bans: row.host_bans && typeof row.host_bans === "object" ? row.host_bans : null,
+      career: progressFromBag(row.settings).career,
+      coins: progressFromBag(row.settings).coins,
+      upgrades: progressFromBag(row.settings).upgrades,
+      challenges: progressFromBag(row.settings).challenges,
+      kit: progressFromBag(row.settings).kit,
     };
   }
   function profileSnap(snap) {
@@ -5898,6 +6013,11 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
       team100: (snap && snap.team100) || null,
       camera: (snap && snap.camera) || null,
       bans: (snap && snap.bans) || null,
+      career: (snap && snap.career) || null,
+      coins: (snap && snap.coins) || null,
+      upgrades: (snap && snap.upgrades) || null,
+      challenges: (snap && snap.challenges) || null,
+      kit: (snap && snap.kit) || null,
     });
   }
   function hashSnap(snap) {
@@ -5927,6 +6047,11 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
         soccerOptions: snap && snap.options && typeof snap.options === "object" ? snap.options : null,
         soccerPlayAsMe: playSaved,
         soccerMatchMinutes: minutes,
+        soccerCareer: progressObject(snap && snap.career),
+        soccerCoins: progressObject(snap && snap.coins),
+        soccerUpgrades: progressObject(snap && snap.upgrades),
+        soccerChallenges: progressObject(snap && snap.challenges),
+        soccerKit: progressObject(snap && snap.kit),
       },
       renames: snap && snap.renames && typeof snap.renames === "object" && !Array.isArray(snap.renames) ? snap.renames : null,
       team_100: snap && snap.team100 && typeof snap.team100 === "object" && !Array.isArray(snap.team100) ? snap.team100 : null,
@@ -6018,6 +6143,8 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     writes.soccerTeam100 = row && row.team_100 && typeof row.team_100 === "object" && !Array.isArray(row.team_100) ? JSON.stringify(row.team_100) : null;
     writes.soccerCamera = row && (row.camera_choice === "fp" || row.camera_choice === "tv") ? row.camera_choice : null;
     writes.soccerHostBans = row && row.host_bans && typeof row.host_bans === "object" ? JSON.stringify(row.host_bans) : null;
+    const extra = progressWrites(row && row.settings);
+    Object.keys(extra).forEach(function (key) { writes[key] = extra[key]; });
     return writes;
   }
   function applyWrites(storage, writes) {
@@ -6176,6 +6303,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     try { if (typeof paintTrophyBadge === "function") paintTrophyBadge(); } catch (e) { /* ignore */ }
     try { if (typeof paintPlayAsMe === "function") paintPlayAsMe(); } catch (e) { /* ignore */ }
     try { if (typeof paintSquad === "function") paintSquad(); } catch (e) { /* ignore */ }
+    try { if (typeof KickoffProgress !== "undefined" && KickoffProgress.refresh) KickoffProgress.refresh(); } catch (e) { /* ignore */ }
   }
   function downloadRow(row) {
     const store = storageOf();
@@ -6544,7 +6672,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
           html += "<p>Sign in with a parent email to keep this player on another phone or tablet. Kickoff does not save a password. We email a link. If the email has a code, type it here.</p>";
           html += "<p>You can skip this. With no account, or when you are offline, this phone keeps the game it already saved.</p>";
         }
-        html += "<p class='privacy'>What is saved: your player name, favourite team, colour, play-as-me name, trophies, cup, settings, match length, renamed players, star teams, camera, and bans from games you host. Friends in a room see your player name. If you saved \"Dashiell G.\", that is the name they see. A parent can delete the account in Supabase.</p>";
+        html += "<p class='privacy'>What is saved: your player name, favourite team, colour, play-as-me name, trophies, cup, settings, match length, renamed players, star teams, camera, bans from games you host, plus your career, coins, upgrades, daily challenges and kit. Friends in a room see your player name. If you saved \"Dashiell G.\", that is the name they see. A parent can delete the account in Supabase.</p>";
         html += "<label for='accountEmail'>Parent email</label>";
         html += "<input id='accountEmail' type='email' autocomplete='email' inputmode='email' placeholder='name@email.com'>";
         html += native
@@ -6558,7 +6686,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
         html += shown
           ? "<p>Friends in a room see <b>" + esc(shown) + "</b>.</p>"
           : "<p>Friends in a room see your player name once you pick one.</p>";
-        html += "<p class='privacy'>The account stores that name, your team, colour, trophies, cup, settings and host bans. It does not store a password. A parent can delete the account in Supabase. Signing out keeps the game on this phone.</p>";
+        html += "<p class='privacy'>The account stores that name, your team, colour, trophies, cup, settings, host bans, career, coins, upgrades, challenges and kit. It does not store a password. A parent can delete the account in Supabase. Signing out keeps the game on this phone.</p>";
         if (state.choice && state.choice.mode === "keep") {
           html += "<div class='accountRow'><button type='button' id='accountSavePhone'>Save this phone's game to the account</button></div>";
           html += "<div class='accountRow'><button type='button' id='accountUseCloud'>Use the account game on this phone</button></div>";
