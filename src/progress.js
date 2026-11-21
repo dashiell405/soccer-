@@ -398,15 +398,40 @@
     if (v > 10000000) return 10000000;
     return v;
   }
-  function loadCoins(storage) {
-    const raw = readRaw(storage, KEY_COINS);
-    return clampCoins(raw && raw.coins);
+  function clampEarned(n) {
+    const v = Math.round(Number(n) || 0);
+    if (v < 0) return 0;
+    if (v > 20000000) return 20000000;
+    return v;
   }
-  function saveCoins(n, storage) { writeRaw(storage, KEY_COINS, { coins: clampCoins(n) }); }
+  function coinBag(storage) {
+    const raw = readRaw(storage, KEY_COINS) || {};
+    const coins = clampCoins(raw.coins);
+    let earned = clampEarned(raw.earned);
+    if (earned < coins) earned = clampEarned(coins);
+    return { coins: coins, earned: earned };
+  }
+  function writeCoins(bag, storage) {
+    const coins = clampCoins(bag.coins);
+    let earned = clampEarned(bag.earned);
+    if (earned < coins) earned = clampEarned(coins);
+    writeRaw(storage, KEY_COINS, { coins: coins, earned: earned });
+  }
+  function loadCoins(storage) { return coinBag(storage).coins; }
+  function loadCoinsEarned(storage) { return coinBag(storage).earned; }
+  function saveCoins(n, storage) {
+    const bag = coinBag(storage);
+    bag.coins = clampCoins(n);
+    writeCoins(bag, storage);
+  }
   function addCoins(n, storage) {
-    const next = clampCoins(loadCoins(storage) + (Number(n) || 0));
-    saveCoins(next, storage);
-    return next;
+    const bag = coinBag(storage);
+    const delta = Math.round(Number(n) || 0);
+    bag.coins = clampCoins(bag.coins + delta);
+    if (delta > 0) bag.earned = clampEarned(bag.earned + delta);
+    writeCoins(bag, storage);
+    if (delta > 0 && typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.schedulePush) KickoffLeaderboard.schedulePush();
+    return bag.coins;
   }
   function normalizeUpgrades(raw) {
     const src = raw && typeof raw === "object" ? raw : {};
@@ -667,6 +692,9 @@
     if (!matchSerial || settledSerial === matchSerial) return;
     settledSerial = matchSerial;
     const report = reportFromGame(game);
+    if (report.won && (typeof settings === "undefined" || settings.mode !== "2p")) {
+      if (typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.noteWin) KickoffLeaderboard.noteWin();
+    }
     const parts = [];
     let gained = 0;
     const purse = matchCoins(report);
@@ -962,6 +990,7 @@
     simScore: simScore,
     summaryText: summaryText,
     loadCoins: loadCoins,
+    loadCoinsEarned: loadCoinsEarned,
     saveCoins: saveCoins,
     addCoins: addCoins,
     loadUpgrades: loadUpgrades,

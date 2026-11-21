@@ -177,4 +177,25 @@ const build = fs.readFileSync(path.join(root, "build.py"), "utf8");
 const gameBundle = build.split("game = read")[1].split("write")[0];
 assert.ok(gameBundle.indexOf("progress.js") < 0, "online and the server must not run the career shop");
 
+function memCoins() {
+  const m = new Map();
+  return {
+    getItem(k) { return m.has(k) ? m.get(k) : null; },
+    setItem(k, v) { m.set(k, String(v)); },
+    removeItem(k) { m.delete(k); },
+    raw(k) { return JSON.parse(m.get(k)); },
+  };
+}
+const purse = memCoins();
+assert.strictEqual(P.addCoins(40, purse), 40);
+assert.strictEqual(P.loadCoinsEarned(purse), 40);
+assert.strictEqual(P.addCoins(18, purse), 58);
+assert.strictEqual(P.loadCoinsEarned(purse), 58);
+P.saveCoins(20, purse);
+assert.strictEqual(P.loadCoins(purse), 20);
+assert.strictEqual(P.loadCoinsEarned(purse), 58);
+const oldPurse = memCoins();
+oldPurse.setItem("soccerCoins", JSON.stringify({ coins: 48 }));
+assert.strictEqual(P.loadCoinsEarned(oldPurse), 48);
+
 console.log("career, coins, challenges and kit checks passed");

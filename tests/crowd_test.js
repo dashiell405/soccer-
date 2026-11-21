@@ -70,6 +70,30 @@ const away = Crowd.lines({ status: "checking", room: { total: 3, away: 1, here: 
 assert.strictEqual(away.now, "Playing right now: Checking…");
 assert.strictEqual(away.room, "In this online game: 3 people (1 away)");
 assert.strictEqual(away.peak, "");
+assert.strictEqual(live.ever, "");
+assert.strictEqual(live.today, "");
+
+const counted = Crowd.lines({
+  status: "live",
+  totals: { total: 2, match: 1, menu: 1, online: 0, solo: 2 },
+  peak: 4,
+  room: null,
+  devices: { status: "live", total: 12, today: 2 },
+});
+assert.strictEqual(counted.ever, "Players ever: 12");
+assert.strictEqual(counted.today, "New today: 2");
+assert.strictEqual(Crowd.everLines({ status: "soon" }).ever, "Players ever: Coming soon");
+assert.strictEqual(Crowd.everLines({ status: "offline" }).ever, "Players ever: Offline");
+assert.strictEqual(Crowd.everLines({ status: "checking" }).today, "");
+
+const devStore = {
+  bag: { soccerDeviceId: "0123456789abcdef0123456789abcdef" },
+  getItem(k) { return this.bag[k] || null; },
+  setItem(k, v) { this.bag[k] = String(v); },
+};
+assert.strictEqual(Crowd.deviceUuid(devStore), "01234567-89ab-cdef-0123-456789abcdef");
+assert.strictEqual(devStore.bag.soccerDeviceId, "0123456789abcdef0123456789abcdef");
+assert.strictEqual(Crowd.deviceUuid(devStore), "01234567-89ab-cdef-0123-456789abcdef");
 
 const src = fs.readFileSync(path.join(root, "src/crowd.js"), "utf8");
 assert.ok(src.indexOf('channel("kickoff-playing"') >= 0);

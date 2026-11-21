@@ -6,7 +6,8 @@
      soccerName, soccerPlayAsMe, soccerTrophies, soccerCup, soccerSettings,
      soccerOptions, soccerMatchMinutes, soccerRenames, soccerTeam100,
      soccerCamera, soccerHostBans,
-     soccerCareer, soccerCoins, soccerUpgrades, soccerChallenges, soccerKit
+     soccerCareer, soccerCoins, soccerUpgrades, soccerChallenges, soccerKit,
+     soccerRecord
    Those objects are stored as-is inside public.profiles.
    Career, coins, upgrades, challenges and the kit ride along inside the
    settings object on the player's own row. No new secret and no service key. */
@@ -19,15 +20,15 @@
     soccerPlayer: 1, soccerName: 1, soccerPlayAsMe: 1, soccerTrophies: 1, soccerCup: 1,
     soccerSettings: 1, soccerOptions: 1, soccerMatchMinutes: 1, soccerRenames: 1,
     soccerTeam100: 1, soccerCamera: 1, soccerHostBans: 1,
-    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1,
+    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1, soccerRecord: 1,
   };
   const WATCH = {
     soccerPlayer: 1, soccerName: 1, soccerPlayAsMe: 1, soccerTrophies: 1, soccerCup: 1,
     soccerSettings: 1, soccerOptions: 1, soccerMatchMinutes: 1, soccerRenames: 1,
     soccerTeam100: 1, soccerCamera: 1, soccerHostBans: 1,
-    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1,
+    soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1, soccerRecord: 1,
   };
-  const PROGRESS_FIELDS = ["soccerCareer", "soccerCoins", "soccerUpgrades", "soccerChallenges", "soccerKit"];
+  const PROGRESS_FIELDS = ["soccerCareer", "soccerCoins", "soccerUpgrades", "soccerChallenges", "soccerKit", "soccerRecord"];
 
   function storageOf(storage) {
     if (storage) return storage;
@@ -75,7 +76,7 @@
     const empty = {
       player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null,
       options: null, minutes: null, renames: null, team100: null, camera: null, bans: null,
-      career: null, coins: null, upgrades: null, challenges: null, kit: null,
+      career: null, coins: null, upgrades: null, challenges: null, kit: null, record: null,
     };
     if (!storage) return empty;
     return {
@@ -96,19 +97,21 @@
       upgrades: parseObj(getRaw(storage, "soccerUpgrades")),
       challenges: parseObj(getRaw(storage, "soccerChallenges")),
       kit: parseObj(getRaw(storage, "soccerKit")),
+      record: parseObj(getRaw(storage, "soccerRecord")),
     };
   }
   function progressObject(value) {
     return value && typeof value === "object" && !Array.isArray(value) ? value : null;
   }
   function progressFromBag(bag) {
-    const out = { career: null, coins: null, upgrades: null, challenges: null, kit: null };
+    const out = { career: null, coins: null, upgrades: null, challenges: null, kit: null, record: null };
     if (!bag || typeof bag !== "object" || Array.isArray(bag)) return out;
     out.career = progressObject(bag.soccerCareer);
     out.coins = progressObject(bag.soccerCoins);
     out.upgrades = progressObject(bag.soccerUpgrades);
     out.challenges = progressObject(bag.soccerChallenges);
     out.kit = progressObject(bag.soccerKit);
+    out.record = progressObject(bag.soccerRecord);
     return out;
   }
   function progressWrites(bag) {
@@ -151,6 +154,7 @@
     }
     if (snap.challenges && Array.isArray(snap.challenges.badges) && snap.challenges.badges.length) n += snap.challenges.badges.length;
     if (snap.kit && snap.kit.touched) n += 1;
+    if (snap.record && Number(snap.record.wins) > 0) n += 1;
     return n;
   }
   function unwrapSettings(raw) {
@@ -168,7 +172,7 @@
   }
   function snapFromRow(row) {
     if (!row || typeof row !== "object") {
-      return { player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null, options: null, minutes: null, renames: null, team100: null, camera: null, bans: null, career: null, coins: null, upgrades: null, challenges: null, kit: null };
+      return { player: null, name: "", playAsMe: null, trophies: null, cup: null, settings: null, options: null, minutes: null, renames: null, team100: null, camera: null, bans: null, career: null, coins: null, upgrades: null, challenges: null, kit: null, record: null };
     }
     const bag = unwrapSettings(row.settings);
     const display = clipName(row.display_name, 16);
@@ -207,6 +211,7 @@
       upgrades: progressFromBag(row.settings).upgrades,
       challenges: progressFromBag(row.settings).challenges,
       kit: progressFromBag(row.settings).kit,
+      record: progressFromBag(row.settings).record,
     };
   }
   function profileSnap(snap) {
@@ -233,6 +238,7 @@
       upgrades: (snap && snap.upgrades) || null,
       challenges: (snap && snap.challenges) || null,
       kit: (snap && snap.kit) || null,
+      record: (snap && snap.record) || null,
     });
   }
   function hashSnap(snap) {
@@ -267,6 +273,7 @@
         soccerUpgrades: progressObject(snap && snap.upgrades),
         soccerChallenges: progressObject(snap && snap.challenges),
         soccerKit: progressObject(snap && snap.kit),
+        soccerRecord: progressObject(snap && snap.record),
       },
       renames: snap && snap.renames && typeof snap.renames === "object" && !Array.isArray(snap.renames) ? snap.renames : null,
       team_100: snap && snap.team100 && typeof snap.team100 === "object" && !Array.isArray(snap.team100) ? snap.team100 : null,
@@ -935,6 +942,9 @@
       if (out) out.addEventListener("click", function () { signOut(); });
       if (save) save.addEventListener("click", function () { savePhone(); });
       if (cloud) cloud.addEventListener("click", function () { useAccount(); });
+      if (typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.mountAccount) {
+        KickoffLeaderboard.mountAccount(box, { signedIn: signedIn });
+      }
     } catch (e) { /* the game keeps running */ }
   }
   function watchStorage() {

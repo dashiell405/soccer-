@@ -74,7 +74,61 @@
     if (!room) out.room = "In this online game: Not online";
     else if (room.away > 0) out.room = "In this online game: " + peoplePhrase(room.total) + " (" + room.away + " away)";
     else out.room = "In this online game: " + peoplePhrase(room.total);
+    const ever = everLines(view.devices);
+    out.ever = ever.ever;
+    out.today = ever.today;
     return out;
+  }
+  function everLines(devices) {
+    devices = devices || {};
+    if (!devices.status) return { ever: "", today: "" };
+    if (devices.status === "offline") return { ever: "Players ever: Offline", today: "" };
+    if (devices.status === "soon") return { ever: "Players ever: Coming soon", today: "" };
+    if (devices.status === "checking" || devices.total == null || !isFinite(Number(devices.total))) {
+      return { ever: "Players ever: …", today: "" };
+    }
+    const total = Math.max(0, Math.round(Number(devices.total) || 0));
+    const out = { ever: "Players ever: " + total, today: "" };
+    if (devices.today != null && isFinite(Number(devices.today)) && Number(devices.today) >= 0) {
+      out.today = "New today: " + Math.round(Number(devices.today));
+    }
+    return out;
+  }
+  function hexToUuid(hex) {
+    hex = String(hex || "").toLowerCase();
+    if (!/^[a-f0-9]{32}$/.test(hex)) return "";
+    return hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" + hex.slice(16, 20) + "-" + hex.slice(20);
+  }
+  function storageBox(storage) {
+    if (storage) return storage;
+    try { if (typeof localStorage !== "undefined") return localStorage; } catch (e) { /* private */ }
+    return null;
+  }
+  function deviceUuid(storage) {
+    const box = storageBox(storage);
+    let hex = "";
+    try { hex = box ? (box.getItem("soccerDeviceId") || "") : ""; } catch (e) { hex = ""; }
+    const fromHex = hexToUuid(hex);
+    if (fromHex && fromHex !== "00000000-0000-0000-0000-000000000000") return fromHex;
+    let prev = "";
+    try { prev = box ? (box.getItem("soccerDeviceUuid") || "") : ""; } catch (e) { prev = ""; }
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(prev)) {
+      const id = prev.toLowerCase();
+      if (id !== "00000000-0000-0000-0000-000000000000") return id;
+    }
+    let id = "";
+    try {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) id = crypto.randomUUID().toLowerCase();
+    } catch (e) { id = ""; }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) {
+      const bytes = new Uint8Array(16);
+      for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      id = hexToUuid(Array.from(bytes, function (b) { return b.toString(16).padStart(2, "0"); }).join(""));
+    }
+    try { if (box) box.setItem("soccerDeviceUuid", id); } catch (e) { /* private mode */ }
+    return id;
   }
 
   root.KickoffCrowd = {
@@ -83,6 +137,8 @@
     readActivity: readActivity,
     roomTally: roomTally,
     lines: lines,
+    everLines: everLines,
+    deviceUuid: deviceUuid,
   };
 
   if (typeof document === "undefined") return;
@@ -97,7 +153,24 @@
     joining: false,
     sent: "",
     retryAt: Date.now() + 800,
+    devices: { status: "checking" },
   };
+  let deviceFetchAt = 0;
+  let deviceRecorded = false;
+
+  function missingRpc(error) {
+    if (!error) return false;
+    const code = String(error.code || "");
+    const msg = String(error.message || error.details || "").toLowerCase();
+    if (code === "PGRST202" || code === "42883" || code === "PGRST205") return true;
+    return msg.indexOf("could not find the function") >= 0 || msg.indexOf("does not exist") >= 0 || msg.indexOf("schema cache") >= 0;
+  }
+  function countFrom(data) {
+    if (data == null || data === "") return null;
+    const n = Number(data);
+    if (!isFinite(n) || n < 0) return null;
+    return Math.round(n);
+  }
   let painted = "";
 
   function loadPeak() {
@@ -165,14 +238,16 @@
   function paintCrowd() {
     try {
       if (!helpersOpen()) return;
-      const view = lines({ status: crowd.status, totals: crowd.totals, peak: crowd.peak, room: liveRoom() });
-      const stamp = [view.now, view.split, view.kind, view.peak, view.room, view.hint].join("|");
+      const view = lines({ status: crowd.status, totals: crowd.totals, peak: crowd.peak, room: liveRoom(), devices: crowd.devices });
+      const stamp = [view.now, view.split, view.kind, view.peak, view.room, view.hint, view.ever, view.today].join("|");
       if (stamp === painted) return;
       painted = stamp;
       setText("adminCrowdNow", view.now);
       setText("adminCrowdSplit", view.split);
       setText("adminCrowdKind", view.kind);
       setText("adminCrowdPeak", view.peak);
+      setText("adminCrowdEver", view.ever);
+      setText("adminCrowdToday", view.today);
       setText("adminCrowdRoom", view.room);
       setText("adminCrowdHint", view.hint);
       const body = document.getElementById("adminBody");
@@ -275,10 +350,96 @@
     });
   }
 
+  function askClient() {
+    if (typeof CloudAccount === "undefined" || !CloudAccount.sharedClient) return null;
+    return CloudAccount.sharedClient();
+  }
+  function recordThisDevice() {
+    if (deviceRecorded) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    const id = deviceUuid();
+    if (!id) return;
+    const ask = askClient();
+    if (!ask) return;
+    Promise.resolve(ask).then(function (client) {
+      if (!client || typeof client.rpc !== "function") return null;
+      return client.rpc("record_device", { device_id: id });
+    }).then(function (res) {
+      if (!res) return;
+      if (res.error) {
+        if (missingRpc(res.error)) {
+          deviceRecorded = true;
+          crowd.devices = { status: "soon" };
+          paintCrowd();
+        }
+        return;
+      }
+      deviceRecorded = true;
+    }).catch(function () { /* the count can wait */ });
+  }
+  function fetchDevices() {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      crowd.devices = { status: "offline" };
+      paintCrowd();
+      return;
+    }
+    const ask = askClient();
+    if (!ask) {
+      crowd.devices = { status: "soon" };
+      paintCrowd();
+      return;
+    }
+    Promise.resolve(ask).then(function (client) {
+      if (!client || typeof client.rpc !== "function") {
+        crowd.devices = { status: "soon" };
+        paintCrowd();
+        return null;
+      }
+      return client.rpc("players_ever").then(function (res) {
+        if (res.error && missingRpc(res.error)) {
+          crowd.devices = { status: "soon" };
+          deviceFetchAt = Date.now() + 120000;
+          paintCrowd();
+          return null;
+        }
+        if (res.error) {
+          crowd.devices = { status: "offline" };
+          paintCrowd();
+          return null;
+        }
+        const total = countFrom(res.data);
+        return client.rpc("players_new_today").then(function (todayRes) {
+          let today = null;
+          if (todayRes && !todayRes.error) today = countFrom(todayRes.data);
+          crowd.devices = { status: "live", total: total == null ? 0 : total, today: today };
+          paintCrowd();
+        });
+      });
+    }).catch(function () {
+      crowd.devices = { status: "offline" };
+      paintCrowd();
+    });
+  }
+  function maybeFetchDevices() {
+    if (Date.now() < deviceFetchAt) return;
+    deviceFetchAt = Date.now() + 30000;
+    recordThisDevice();
+    fetchDevices();
+  }
+  root.KickoffCrowd.previewDevices = function (devices) {
+    let host = "";
+    try { host = location.hostname; } catch (e) { host = ""; }
+    if (host !== "localhost" && host !== "127.0.0.1") return;
+    crowd.devices = devices || { status: "live", total: 0, today: 0 };
+    painted = "";
+    paintCrowd();
+  };
+
   setInterval(function () {
     try {
       if (crowd.status === "live") pushTrack();
       else if (!crowd.joining && Date.now() >= crowd.retryAt) joinCrowd();
+      maybeFetchDevices();
       paintCrowd();
     } catch (e) { /* the match keeps running */ }
   }, 1000);
@@ -288,12 +449,15 @@
     crowd.joining = false;
     crowd.sent = "";
     crowd.retryAt = Date.now() + 4000;
+    crowd.devices = { status: "offline" };
     dropChannel();
     paintCrowd();
   });
   window.addEventListener("online", function () {
     crowd.retryAt = 0;
+    deviceFetchAt = 0;
     try { joinCrowd(); } catch (e) { /* stay on Offline until the next try */ }
+    try { maybeFetchDevices(); } catch (e2) { /* the count can wait */ }
   });
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState !== "visible") return;

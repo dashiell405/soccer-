@@ -268,6 +268,8 @@
       <p id="adminCrowdSplit"></p>
       <p id="adminCrowdKind"></p>
       <p id="adminCrowdPeak"></p>
+      <p id="adminCrowdEver">Players ever: …</p>
+      <p id="adminCrowdToday"></p>
       <p id="adminCrowdRoom">In this online game: Not online</p>
       <p id="adminCrowdHint" class="hint"></p>
     </div>

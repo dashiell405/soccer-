@@ -369,9 +369,12 @@ function idleSim() {
 // =====================================================================
 // E. MENU + TEAM PICKER
 // =====================================================================
-const SCREENS = ["menu", "pauseScreen", "winScreen", "teamPicker", "cupScreen", "trophyScreen", "careerScreen", "shopScreen", "challengeScreen", "kitScreen"];
+const SCREENS = ["menu", "pauseScreen", "winScreen", "teamPicker", "cupScreen", "trophyScreen", "careerScreen", "shopScreen", "challengeScreen", "kitScreen", "leaderboardScreen"];
 function showScreen(id) {
-  for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
+  for (const s of SCREENS) {
+    const el = $(s);
+    if (el) el.classList.toggle("hidden", s !== id);
+  }
   updateHud();
 }
 function updateHud() {
@@ -603,6 +606,7 @@ function loadTrophies() {
 }
 function saveTrophies(book) {
   try { localStorage.setItem(TROPHY_KEY, JSON.stringify(book)); } catch (e) { /* ignore */ }
+  if (typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.schedulePush) KickoffLeaderboard.schedulePush();
 }
 function trophyTotal(book) {
   return (book && book.wins && book.wins.length) || 0;
