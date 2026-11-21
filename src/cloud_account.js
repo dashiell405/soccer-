@@ -534,10 +534,18 @@
     const history = Array.isArray(c.history) ? c.history.length : 0;
     return season * 1000 + divScore * 100 + matchday + history * 50;
   }
+  function earnedCount(bag) {
+    if (!bag || typeof bag !== "object") return 0;
+    const coins = Math.max(0, Number(bag.coins) || 0);
+    if (bag.earned == null || bag.earned === "") return coins;
+    const earned = Number(bag.earned);
+    return isFinite(earned) && earned > 0 ? earned : 0;
+  }
   function mergeCoins(a, b) {
     if (!a && !b) return null;
     const coins = Math.max(Number(a && a.coins) || 0, Number(b && b.coins) || 0);
-    const earned = Math.max(Number(a && a.earned) || 0, Number(b && b.earned) || 0, coins);
+    // Do not lift earned up to the balance. Helper gifts spend, they are not Coins earned.
+    const earned = Math.max(earnedCount(a), earnedCount(b));
     if (!coins && !earned && !a && !b) return null;
     return { coins: coins, earned: earned };
   }

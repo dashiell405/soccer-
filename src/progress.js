@@ -404,17 +404,19 @@
     if (v > 20000000) return 20000000;
     return v;
   }
+  const COIN_ACTION_MAX = 1000000;
   function coinBag(storage) {
     const raw = readRaw(storage, KEY_COINS) || {};
     const coins = clampCoins(raw.coins);
-    let earned = clampEarned(raw.earned);
-    if (earned < coins) earned = clampEarned(coins);
+    // A missing earned field is an older save: those coins were earned.
+    // An explicit earned value can be lower than the balance when helpers
+    // add spendable coins. That gift must not raise Coins earned.
+    const earned = raw.earned == null ? coins : clampEarned(raw.earned);
     return { coins: coins, earned: earned };
   }
   function writeCoins(bag, storage) {
     const coins = clampCoins(bag.coins);
-    let earned = clampEarned(bag.earned);
-    if (earned < coins) earned = clampEarned(coins);
+    const earned = bag.earned == null ? coins : clampEarned(bag.earned);
     writeRaw(storage, KEY_COINS, { coins: coins, earned: earned });
   }
   function loadCoins(storage) { return coinBag(storage).coins; }
@@ -431,6 +433,22 @@
     if (delta > 0) bag.earned = clampEarned(bag.earned + delta);
     writeCoins(bag, storage);
     if (delta > 0 && typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.schedulePush) KickoffLeaderboard.schedulePush();
+    return bag.coins;
+  }
+  // Helpers and a host's gift. Changes the spendable balance only.
+  function grantCoins(n, storage) {
+    const bag = coinBag(storage);
+    let delta = Math.round(Number(n) || 0);
+    if (delta > COIN_ACTION_MAX) delta = COIN_ACTION_MAX;
+    if (delta < -COIN_ACTION_MAX) delta = -COIN_ACTION_MAX;
+    bag.coins = clampCoins(bag.coins + delta);
+    writeCoins(bag, storage);
+    return bag.coins;
+  }
+  function setCoinBalance(n, storage) {
+    const bag = coinBag(storage);
+    bag.coins = clampCoins(n);
+    writeCoins(bag, storage);
     return bag.coins;
   }
   function normalizeUpgrades(raw) {
@@ -731,6 +749,11 @@
     const el = document.getElementById("coinBalance");
     if (el) el.textContent = "Coins: " + loadCoins();
   }
+  function paintCoins() {
+    if (typeof document === "undefined") return;
+    paintMenu();
+    paintShop();
+  }
   function careerKickoff() {
     const c = loadCareer();
     const fix = nextFixture(c);
@@ -993,6 +1016,9 @@
     loadCoinsEarned: loadCoinsEarned,
     saveCoins: saveCoins,
     addCoins: addCoins,
+    grantCoins: grantCoins,
+    setCoinBalance: setCoinBalance,
+    COIN_ACTION_MAX: COIN_ACTION_MAX,
     loadUpgrades: loadUpgrades,
     saveUpgrades: saveUpgrades,
     buyUpgrade: buyUpgrade,
@@ -1011,6 +1037,7 @@
     onMatchStart: onMatchStart,
     onFullTime: onFullTime,
     paintMenu: paintMenu,
+    paintCoins: paintCoins,
     refresh: refresh,
     clubNameError: clubNameError,
   };

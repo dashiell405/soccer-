@@ -50,6 +50,15 @@ function onMessage(m) {
         if (typeof netFailJoin === "function") netFailJoin();
       }
       break;
+    case "gift": {
+      // Only a guest applies this, and only because their host sent it.
+      if (typeof netRole !== "string" || netRole !== "guest") break;
+      const n = Math.round(Number(m.n) || 0);
+      if (!isFinite(n) || n < 1 || n > 1000000) break;
+      if (typeof window.kickoffAcceptGift === "function") window.kickoffAcceptGift(n);
+      else if (typeof showNotice === "function") showNotice("The host gave you " + n + " coins!", true);
+      break;
+    }
     case "removed":
       if (typeof netMarkLeaving === "function") netMarkLeaving();
       wantRoom = null;

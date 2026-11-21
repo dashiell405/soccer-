@@ -9058,17 +9058,19 @@ if (window.visualViewport) {
     if (v > 20000000) return 20000000;
     return v;
   }
+  const COIN_ACTION_MAX = 1000000;
   function coinBag(storage) {
     const raw = readRaw(storage, KEY_COINS) || {};
     const coins = clampCoins(raw.coins);
-    let earned = clampEarned(raw.earned);
-    if (earned < coins) earned = clampEarned(coins);
+    // A missing earned field is an older save: those coins were earned.
+    // An explicit earned value can be lower than the balance when helpers
+    // add spendable coins. That gift must not raise Coins earned.
+    const earned = raw.earned == null ? coins : clampEarned(raw.earned);
     return { coins: coins, earned: earned };
   }
   function writeCoins(bag, storage) {
     const coins = clampCoins(bag.coins);
-    let earned = clampEarned(bag.earned);
-    if (earned < coins) earned = clampEarned(coins);
+    const earned = bag.earned == null ? coins : clampEarned(bag.earned);
     writeRaw(storage, KEY_COINS, { coins: coins, earned: earned });
   }
   function loadCoins(storage) { return coinBag(storage).coins; }
@@ -9085,6 +9087,22 @@ if (window.visualViewport) {
     if (delta > 0) bag.earned = clampEarned(bag.earned + delta);
     writeCoins(bag, storage);
     if (delta > 0 && typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.schedulePush) KickoffLeaderboard.schedulePush();
+    return bag.coins;
+  }
+  // Helpers and a host's gift. Changes the spendable balance only.
+  function grantCoins(n, storage) {
+    const bag = coinBag(storage);
+    let delta = Math.round(Number(n) || 0);
+    if (delta > COIN_ACTION_MAX) delta = COIN_ACTION_MAX;
+    if (delta < -COIN_ACTION_MAX) delta = -COIN_ACTION_MAX;
+    bag.coins = clampCoins(bag.coins + delta);
+    writeCoins(bag, storage);
+    return bag.coins;
+  }
+  function setCoinBalance(n, storage) {
+    const bag = coinBag(storage);
+    bag.coins = clampCoins(n);
+    writeCoins(bag, storage);
     return bag.coins;
   }
   function normalizeUpgrades(raw) {
@@ -9385,6 +9403,11 @@ if (window.visualViewport) {
     const el = document.getElementById("coinBalance");
     if (el) el.textContent = "Coins: " + loadCoins();
   }
+  function paintCoins() {
+    if (typeof document === "undefined") return;
+    paintMenu();
+    paintShop();
+  }
   function careerKickoff() {
     const c = loadCareer();
     const fix = nextFixture(c);
@@ -9647,6 +9670,9 @@ if (window.visualViewport) {
     loadCoinsEarned: loadCoinsEarned,
     saveCoins: saveCoins,
     addCoins: addCoins,
+    grantCoins: grantCoins,
+    setCoinBalance: setCoinBalance,
+    COIN_ACTION_MAX: COIN_ACTION_MAX,
     loadUpgrades: loadUpgrades,
     saveUpgrades: saveUpgrades,
     buyUpgrade: buyUpgrade,
@@ -9665,6 +9691,7 @@ if (window.visualViewport) {
     onMatchStart: onMatchStart,
     onFullTime: onFullTime,
     paintMenu: paintMenu,
+    paintCoins: paintCoins,
     refresh: refresh,
     clubNameError: clubNameError,
   };
@@ -12128,10 +12155,18 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     const history = Array.isArray(c.history) ? c.history.length : 0;
     return season * 1000 + divScore * 100 + matchday + history * 50;
   }
+  function earnedCount(bag) {
+    if (!bag || typeof bag !== "object") return 0;
+    const coins = Math.max(0, Number(bag.coins) || 0);
+    if (bag.earned == null || bag.earned === "") return coins;
+    const earned = Number(bag.earned);
+    return isFinite(earned) && earned > 0 ? earned : 0;
+  }
   function mergeCoins(a, b) {
     if (!a && !b) return null;
     const coins = Math.max(Number(a && a.coins) || 0, Number(b && b.coins) || 0);
-    const earned = Math.max(Number(a && a.earned) || 0, Number(b && b.earned) || 0, coins);
+    // Do not lift earned up to the balance. Helper gifts spend, they are not Coins earned.
+    const earned = Math.max(earnedCount(a), earnedCount(b));
     if (!coins && !earned && !a && !b) return null;
     return { coins: coins, earned: earned };
   }
@@ -14241,7 +14276,30 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     #adminPanel .team100 .keep, #adminPanel .hint { font-size: 14px; line-height: 1.3; }
     #adminPanel .hint { opacity: .85; flex: 1 0 100%; text-align: center; }
     #adminWins, #adminLength, #adminPeople { margin: 8px 0 4px; padding-top: 8px; border-top: 1px solid rgba(232, 197, 71, .35); }
-    #adminWins h3, #adminLength h3, #adminPeople h3, #adminCrowd h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
+    #adminWins h3, #adminLength h3, #adminPeople h3, #adminCrowd h3, #adminCoins h3 { margin: 0 0 4px; text-align: center; color: #e8c547; font-size: 1.05em; }
+    #adminCoins {
+      margin: 0 0 8px; padding: 8px 8px 6px;
+      border: 1px solid rgba(232, 197, 71, .55); border-radius: 12px;
+      background: rgba(232, 197, 71, .1);
+    }
+    #adminCoins .big { font-weight: 800; font-size: 1.2em; text-align: center; margin: 2px 0 6px; }
+    #adminCoins input[type=number], #adminCoins select {
+      font: inherit; font-size: 16px; min-height: 44px; box-sizing: border-box;
+      padding: 8px; border-radius: 8px; border: 1px solid #fff; background: #fff; color: #111;
+    }
+    #adminCoins input[type=number] { width: 8em; }
+    #adminCoins select { max-width: 100%; }
+    #adminCoinReset { text-align: center; margin-top: 4px; }
+    #adminCoinReset[hidden], #adminCoinWhoRow[hidden], #adminCoinToast[hidden] { display: none !important; }
+    #adminCoinToast {
+      position: fixed; z-index: 96; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      width: min(420px, calc(100vw - 24px));
+      box-sizing: border-box; padding: 10px 14px; text-align: center;
+      background: #1d4e34; color: #fff; border: 2px solid #e8c547; border-radius: 12px;
+      font-family: "Trebuchet MS", Arial, sans-serif; font-weight: 800; font-size: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.45); pointer-events: none;
+    }
     #adminCrowd {
       margin: 0 0 8px; padding: 8px 8px 6px;
       border: 1px solid rgba(232, 197, 71, .55); border-radius: 12px;
@@ -14335,6 +14393,33 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     </div>
     <div id="adminScroll">
     <div id="adminBody">
+    <div id="adminCoins">
+      <h3>Coins</h3>
+      <p id="adminCoinBalance" class="big">Coins: 0</p>
+      <p class="hint">These coins are for the shop. They do not count on the Coins earned leaderboard.</p>
+      <div class="grid">
+        <button type="button" data-coin="10">+10</button>
+        <button type="button" data-coin="100">+100</button>
+        <button type="button" data-coin="1000">+1,000</button>
+        <button type="button" data-coin="10000">+10,000</button>
+      </div>
+      <div class="row">
+        <label>Amount <input id="adminCoinAmount" type="number" min="1" max="1000000" inputmode="numeric" aria-label="Custom coin amount"></label>
+        <button type="button" id="adminCoinGive">Give</button>
+        <button type="button" id="adminCoinTake">Take away</button>
+      </div>
+      <div class="row" id="adminCoinWhoRow" hidden>
+        <label>Give to <select id="adminCoinWho" aria-label="Who gets the coins"><option value="me">Me</option></select></label>
+      </div>
+      <div class="row">
+        <button type="button" id="adminCoinZero">Set to 0</button>
+      </div>
+      <div id="adminCoinReset" hidden>
+        <p class="hint">Set your coins to 0? Coins earned stays the same.</p>
+        <button type="button" id="adminCoinResetYes">Yes, set to 0</button>
+        <button type="button" id="adminCoinResetNo">Keep them</button>
+      </div>
+    </div>
     <div id="adminCrowd">
       <h3>Players</h3>
       <p id="adminCrowdNow" class="big">Playing right now: …</p>
@@ -14494,11 +14579,13 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
   const bubble = el(`<button type="button" id="adminBubble" hidden aria-label="Open game helpers"><span class="adminGrip" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></button>`);
   const shield = el(`<div id="adminShield" hidden></div>`);
   const debug = el(`<div id="adminDebug" hidden></div>`);
+  const coinToastEl = el(`<div id="adminCoinToast" hidden role="status"></div>`);
   document.body.appendChild(shield);
   document.body.appendChild(prompt);
   document.body.appendChild(panel);
   document.body.appendChild(bubble);
   document.body.appendChild(debug);
+  document.body.appendChild(coinToastEl);
 
   const PLACE_KEY = "soccerAdminPlace";
   const DRAG_SLOP = 8;
@@ -15189,6 +15276,187 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     fillCupPanel();
     markAdminScroll();
   }
+  const COIN_CAP = 10000000;
+  const EARNED_CAP = 20000000;
+  const COIN_STEP = 1000000;
+  function coinLabel(n) {
+    const s = String(Math.max(0, Math.round(Number(n) || 0)));
+    return s.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+  function readLocalCoins() {
+    let raw = {};
+    try { raw = JSON.parse(localStorage.getItem("soccerCoins") || "null") || {}; } catch (e) { raw = {}; }
+    let coins = Math.round(Number(raw.coins) || 0);
+    if (coins < 0) coins = 0;
+    if (coins > COIN_CAP) coins = COIN_CAP;
+    let earned = raw.earned == null ? coins : Math.round(Number(raw.earned) || 0);
+    if (earned < 0) earned = 0;
+    if (earned > EARNED_CAP) earned = EARNED_CAP;
+    return { coins: coins, earned: earned };
+  }
+  function writeLocalCoins(bag) {
+    let coins = Math.round(Number(bag.coins) || 0);
+    if (coins < 0) coins = 0;
+    if (coins > COIN_CAP) coins = COIN_CAP;
+    let earned = bag.earned == null ? coins : Math.round(Number(bag.earned) || 0);
+    if (earned < 0) earned = 0;
+    if (earned > EARNED_CAP) earned = EARNED_CAP;
+    try { localStorage.setItem("soccerCoins", JSON.stringify({ coins: coins, earned: earned })); } catch (e) { /* private mode */ }
+    return coins;
+  }
+  function applyLocalCoins(delta) {
+    const bag = readLocalCoins();
+    let d = Math.round(Number(delta) || 0);
+    if (d > COIN_STEP) d = COIN_STEP;
+    if (d < -COIN_STEP) d = -COIN_STEP;
+    bag.coins = bag.coins + d;
+    return writeLocalCoins(bag);
+  }
+  function setLocalCoins(n) {
+    const bag = readLocalCoins();
+    bag.coins = n;
+    return writeLocalCoins(bag);
+  }
+  function walletCoins() {
+    if (typeof KickoffProgress !== "undefined" && KickoffProgress.loadCoins) return KickoffProgress.loadCoins();
+    return readLocalCoins().coins;
+  }
+  function changeWallet(delta) {
+    let coins;
+    if (typeof KickoffProgress !== "undefined" && KickoffProgress.grantCoins) coins = KickoffProgress.grantCoins(delta);
+    else coins = applyLocalCoins(delta);
+    if (typeof KickoffProgress !== "undefined" && KickoffProgress.paintCoins) KickoffProgress.paintCoins();
+    return coins;
+  }
+  function setWallet(n) {
+    let coins;
+    if (typeof KickoffProgress !== "undefined" && KickoffProgress.setCoinBalance) coins = KickoffProgress.setCoinBalance(n);
+    else coins = setLocalCoins(n);
+    if (typeof KickoffProgress !== "undefined" && KickoffProgress.paintCoins) KickoffProgress.paintCoins();
+    return coins;
+  }
+  let coinToastTimer = 0;
+  function coinToast(text) {
+    const box = document.getElementById("adminCoinToast");
+    if (!box) return;
+    box.textContent = text;
+    box.hidden = false;
+    clearTimeout(coinToastTimer);
+    coinToastTimer = setTimeout(() => { box.hidden = true; }, 2600);
+  }
+  function coinsBlockedReason() {
+    if (!unlocked()) return "Unlock the helpers first.";
+    if (guestBlocked()) return "Guests can't use the helpers.";
+    return "";
+  }
+  function parseCoinAmount(raw) {
+    const text = String(raw == null ? "" : raw).trim();
+    if (!/^\d+$/.test(text)) return { error: "Type a number from 1 to 1,000,000." };
+    const n = Number(text);
+    if (!isFinite(n) || n < 1) return { error: "Type a number from 1 to 1,000,000." };
+    if (n > COIN_STEP) return { error: "1,000,000 coins is the most at once." };
+    return { n: n };
+  }
+  function coinGuests() {
+    const mod = window.hostModeration;
+    if (guestBlocked() || !mod || !mod.isHost || !mod.isHost() || !mod.players) return [];
+    return mod.players().filter((p) => p && p.connected && p.id);
+  }
+  function fillCoinGuests() {
+    const row = document.getElementById("adminCoinWhoRow");
+    const sel = document.getElementById("adminCoinWho");
+    const bal = document.getElementById("adminCoinBalance");
+    if (bal) bal.textContent = "Coins: " + coinLabel(walletCoins());
+    if (!row || !sel) return;
+    const guests = coinGuests();
+    if (!guests.length) {
+      row.hidden = true;
+      sel.innerHTML = "<option value='me'>Me</option>";
+      sel.value = "me";
+      return;
+    }
+    row.hidden = false;
+    const keep = sel.value || "me";
+    sel.innerHTML = "<option value='me'>Me</option>" + guests.map((p) =>
+      "<option value='" + peopleText(p.id) + "'>" + peopleText(p.name) + "</option>"
+    ).join("");
+    if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+    else sel.value = "me";
+  }
+  function coinTarget() {
+    const sel = document.getElementById("adminCoinWho");
+    if (!sel || sel.value === "me") return null;
+    return coinGuests().find((p) => p.id === sel.value) || null;
+  }
+  function hideCoinReset() {
+    const box = document.getElementById("adminCoinReset");
+    if (box) box.hidden = true;
+  }
+  function giveCoins(amount, toPicker) {
+    const why = coinsBlockedReason();
+    if (why) { coinToast(why); return; }
+    hideCoinReset();
+    const parsed = parseCoinAmount(amount);
+    if (parsed.error) { coinToast(parsed.error); return; }
+    const sel = document.getElementById("adminCoinWho");
+    if (toPicker && sel && sel.value && sel.value !== "me") {
+      const who = coinTarget();
+      if (!who) { coinToast("That player already left."); fillCoinGuests(); return; }
+      const mod = window.hostModeration;
+      if (!mod || !mod.gift) { coinToast("Host a game to give coins to a guest."); return; }
+      const result = mod.gift(who.id, parsed.n);
+      if (result && result.ok) coinToast("Gave " + who.name + " " + coinLabel(parsed.n) + " coins!");
+      else coinToast((result && result.error) || "That guest did not get the coins.");
+      return;
+    }
+    const before = walletCoins();
+    const after = changeWallet(parsed.n);
+    const got = after - before;
+    if (got <= 0) coinToast("The wallet is full.");
+    else coinToast("Added " + coinLabel(got) + " coins. You have " + coinLabel(after) + ".");
+    fillCoinGuests();
+  }
+  function takeCoins(amount) {
+    const why = coinsBlockedReason();
+    if (why) { coinToast(why); return; }
+    hideCoinReset();
+    const parsed = parseCoinAmount(amount);
+    if (parsed.error) { coinToast(parsed.error); return; }
+    const before = walletCoins();
+    const after = changeWallet(-parsed.n);
+    const took = before - after;
+    if (took <= 0) coinToast("You have 0 coins.");
+    else coinToast("Took away " + coinLabel(took) + " coins. You have " + coinLabel(after) + ".");
+    fillCoinGuests();
+  }
+  function armCoinReset() {
+    const why = coinsBlockedReason();
+    if (why) { coinToast(why); return; }
+    if (walletCoins() <= 0) { coinToast("Coins are already 0."); hideCoinReset(); return; }
+    const box = document.getElementById("adminCoinReset");
+    if (box) box.hidden = false;
+  }
+  function confirmCoinReset() {
+    const why = coinsBlockedReason();
+    if (why) { coinToast(why); hideCoinReset(); return; }
+    setWallet(0);
+    hideCoinReset();
+    coinToast("Coins are 0.");
+    fillCoinGuests();
+  }
+  window.kickoffAcceptGift = function (n) {
+    if (typeof netRole === "string" && netRole === "host") return;
+    if (typeof netIsHost === "function" && netIsHost()) return;
+    const amount = Math.round(Number(n) || 0);
+    if (!isFinite(amount) || amount < 1 || amount > COIN_STEP) return;
+    const before = walletCoins();
+    const after = changeWallet(amount);
+    const got = Math.max(0, after - before);
+    const text = got > 0
+      ? "The host gave you " + coinLabel(got) + " coins!"
+      : "The host gave you coins, but your wallet is full.";
+    coinToast(text);
+  };
   function peopleText(s) {
     return String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -15283,6 +15551,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     fillPeople();
   }
   function fillPeople() {
+    fillCoinGuests();
     const note = document.getElementById("adminPeopleNote");
     const list = document.getElementById("adminPlayerList");
     const bansEl = document.getElementById("adminBanList");
@@ -15339,6 +15608,12 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     const btn = e.target.closest("button");
     if (!btn || !panel.contains(btn)) return;
     if (btn.id === "adminMin") { collapsePanel(); return; }
+    if (btn.dataset && btn.dataset.coin) { giveCoins(btn.dataset.coin, false); return; }
+    if (btn.id === "adminCoinGive") { giveCoins(document.getElementById("adminCoinAmount").value, true); return; }
+    if (btn.id === "adminCoinTake") { takeCoins(document.getElementById("adminCoinAmount").value); return; }
+    if (btn.id === "adminCoinZero") { armCoinReset(); return; }
+    if (btn.id === "adminCoinResetNo") { hideCoinReset(); return; }
+    if (btn.id === "adminCoinResetYes") { confirmCoinReset(); return; }
     if (btn.dataset && btn.dataset.mins) {
       kickChoice = btn.dataset.mins;
       syncKickCustom();

@@ -432,6 +432,17 @@ function hostRemove(memberId, opts) {
   showNotice(note, true);
   return note;
 }
+function hostGift(memberId, amount) {
+  if (typeof netRole === "string" && netRole === "guest") return { ok: false, error: "Guests can't use the helpers." };
+  if (!netIsHost() || !hosted) return { ok: false, error: "Host a game to give coins to a guest." };
+  const n = Math.round(Number(amount) || 0);
+  if (!isFinite(n) || n < 1 || n > 1000000) return { ok: false, error: "Type a number from 1 to 1,000,000." };
+  const m = hosted.members.get(String(memberId || ""));
+  if (!m || m.local || m.id === hosted.hostId) return { ok: false, error: "Pick a connected guest." };
+  if (!m.connected) return { ok: false, error: "That player is away." };
+  deliver(m, { t: "gift", n: n });
+  return { ok: true, name: m.name, n: n };
+}
 function hostUnban(deviceId, name) {
   if (typeof netRole === "string" && netRole === "guest") return "Only the host can remove players.";
   const id = cleanDeviceId(deviceId);
@@ -592,6 +603,9 @@ function handleFrom(member, msg) {
       if (note) showNotice(note, true);
       break;
     }
+    case "gift":
+      // Guests cannot ask for coins. Only the host's helpers send a gift.
+      return;
     case "debug":
       if (!room.debug || !room.sim) return;
       if (msg.cmd === "autoplay") room.sim.setAutoplay(!!msg.on);
@@ -884,6 +898,7 @@ window.hostModeration = {
   players: hostPlayers,
   bans: listActiveBans,
   remove: hostRemove,
+  gift: hostGift,
   unban: hostUnban,
   lookup: lookupBan,
   remember: rememberBan,
