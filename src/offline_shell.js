@@ -369,7 +369,7 @@ function idleSim() {
 // =====================================================================
 // E. MENU + TEAM PICKER
 // =====================================================================
-const SCREENS = ["menu", "pauseScreen", "winScreen", "teamPicker", "cupScreen", "trophyScreen", "careerScreen", "shopScreen", "challengeScreen", "kitScreen", "leaderboardScreen"];
+const SCREENS = ["menu", "pauseScreen", "winScreen", "teamPicker", "cupScreen", "trophyScreen", "careerScreen", "shopScreen", "challengeScreen", "kitScreen", "leaderboardScreen", "accountScreen"];
 function showScreen(id) {
   for (const s of SCREENS) {
     const el = $(s);

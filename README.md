@@ -18,7 +18,7 @@ One player: left thumb on the stick, right thumb on **SHOOT**, **PASS**, **RUN**
 
 **Play a friend online.** Tap **Play online**. One person taps **Host a game** and reads the short code (like `K7MP`). Friends tap **Join** and type it. 2 people (1 vs 1) or 4 people (2 vs 2) can play from different phones, iPads and computers. You can play with no account, and we don't run a game server.
 
-**Same player on another device (optional).** Open **Settings**, then **Account**. A parent signs in with their email. Kickoff does not keep a password. The game emails a link (or a code). That saves the player name, team, trophies and settings. Friends in a room still see the player name, such as `Dashiell G.` when that is the saved name. With no account, or offline, the phone keeps using its own saved game.
+**Same player on another device (optional).** On the main menu, tap **Sign in** (or open **Settings**, then **Account**). Make a username and a password, then use those on another phone. Kickoff does not ask for a real email. A parent can still sign in with their email instead. That saves the player name, team, colour, trophies, career, coins, upgrades, challenges and kit. Friends in a room still see the player name, such as `Dashiell G.` when that is the saved name. With no account, or offline, the phone keeps using its own saved game. Forgot the password? Ask a grown-up to reset it.
 
 The host's screen has to stay open, because their device runs the match. If it can't connect, both of you need internet. Some school or shop Wi-Fi blocks this. Try again, or play on one device. After the first visit, the one-device game also works with no internet.
 
