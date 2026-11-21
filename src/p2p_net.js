@@ -458,6 +458,8 @@ function startMatch(room) {
     adminMinutes: extra && !extra.unlimited ? extra.minutes : undefined,
     unlimited: !!(extra && extra.unlimited),
     teams: buildTeamKits(findTeam(room.blueTeam), findTeam(room.redTeam)),
+    weather: (typeof opt === "function" && opt("weather")) || "clear",
+    night: typeof opt === "function" && !!opt("night"),
   });
   for (const m of room.members.values()) {
     if (!m.team) continue;

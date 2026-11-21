@@ -155,7 +155,10 @@
   #shootBtn { right: 18px; bottom: 22px; width: min(96px, 24vh); height: min(96px, 24vh); background: rgba(232,86,42,.6); font-size: 17px; }
   #passBtn  { right: calc(28px + min(96px, 24vh)); bottom: 14px; width: min(72px, 18vh); height: min(72px, 18vh); background: rgba(47,123,255,.6); font-size: 14px; }
   #sprintBtn{ right: 30px; bottom: calc(34px + min(96px, 24vh)); width: min(66px, 17vh); height: min(66px, 17vh); background: rgba(46,204,64,.55); font-size: 12px; }
-  #skillBtn { right: calc(40px + min(96px, 24vh) + min(72px, 18vh)); bottom: 18px; width: min(62px, 16vh); height: min(62px, 16vh); background: rgba(155,89,182,.6); font-size: 12px; }
+  #skillBtn, #flickBtn, #curlBtn { letter-spacing: 0; }
+  #skillBtn { right: calc(40px + min(96px, 24vh) + min(72px, 18vh)); bottom: 18px; width: min(62px, 16vh); height: min(62px, 16vh); background: rgba(155,89,182,.6); font-size: 11px; }
+  #flickBtn { right: calc(40px + min(96px, 24vh) + min(72px, 18vh)); bottom: calc(18px + min(62px, 16vh) + 14px); width: min(52px, 13vh); height: min(52px, 13vh); background: rgba(230,126,34,.72); font-size: 10px; }
+  #curlBtn { right: calc(40px + min(96px, 24vh) + min(72px, 18vh)); bottom: calc(18px + min(62px, 16vh) + 14px + min(52px, 13vh) + 14px); width: min(52px, 13vh); height: min(52px, 13vh); background: rgba(52,152,219,.72); font-size: 10px; }
   .tbtn.pressed { background: rgba(255,211,61,.9) !important; color: #123; }
   #rotateHint {
     position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
@@ -272,6 +275,8 @@
   #passBtn   { right: calc(28px + min(96px, 24vh) + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); }
   #sprintBtn { right: calc(30px + env(safe-area-inset-right)); bottom: calc(34px + min(96px, 24vh) + env(safe-area-inset-bottom)); }
   #skillBtn  { right: calc(40px + min(96px, 24vh) + min(72px, 18vh) + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); }
+  #flickBtn  { right: calc(40px + min(96px, 24vh) + min(72px, 18vh) + env(safe-area-inset-right)); bottom: calc(18px + min(62px, 16vh) + 14px + env(safe-area-inset-bottom)); }
+  #curlBtn   { right: calc(40px + min(96px, 24vh) + min(72px, 18vh) + env(safe-area-inset-right)); bottom: calc(18px + min(62px, 16vh) + 14px + min(52px, 13vh) + 14px + env(safe-area-inset-bottom)); }
   #menuBtn { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
   #joyZone, #pauseBtn, #menuBtn { touch-action: none; }
   a.btnlink {
@@ -294,7 +299,7 @@
     #home .sub, #home .help { display: none; }
     #joyBase { width: 116px; height: 116px; }
     #joyZone { width: min(46vw, 200px); height: min(34vh, 260px); }
-    #shootBtn, #passBtn, #sprintBtn, #skillBtn {
+    #shootBtn, #passBtn, #sprintBtn, #skillBtn, #flickBtn, #curlBtn {
       right: calc(10px + env(safe-area-inset-right)); left: auto;
       width: 64px; height: 64px; font-size: 11px;
     }
@@ -302,6 +307,8 @@
     #passBtn { bottom: calc(84px + env(safe-area-inset-bottom)); }
     #sprintBtn { bottom: calc(156px + env(safe-area-inset-bottom)); }
     #skillBtn { bottom: calc(228px + env(safe-area-inset-bottom)); }
+    #flickBtn { bottom: calc(300px + env(safe-area-inset-bottom)); }
+    #curlBtn { bottom: calc(372px + env(safe-area-inset-bottom)); }
   }
   @media (max-height: 500px) {
     .panel { padding: 8px 14px; }
@@ -411,7 +418,7 @@
     <div class="row"><button type="button" id="menuSettingsBtn" class="gearBtn" aria-label="Settings">⚙ Settings</button></div>
     <div class="row"><button id="soundBtn">Sound: ON</button> <button id="menuLeaveBtn">Leave match</button></div>
     <div class="help" id="matchHelp">Move WASD / Arrows &bull; Sprint Shift &bull; Shoot Space (hold) / slide<br>Pass E (tap / hold to lob) / switch &bull; Q switch &bull; M sound<br>
-      R skill move (sideways = spin, back = flick, +Shift = burst) &bull; F rainbow flick<br>Penalty: up/down aim, hold Space &bull; in goal: up/down picks a side &bull; any key skips a celebration</div>
+      R step-over &bull; F rainbow flick &bull; G finesse curl<br>Penalty: up/down aim, hold Space &bull; in goal: up/down picks a side &bull; any key skips a replay</div>
   </div>
 </div>
 
@@ -442,7 +449,9 @@
   <div id="shootBtn" class="tbtn">SHOOT</div>
   <div id="passBtn" class="tbtn">PASS</div>
   <div id="sprintBtn" class="tbtn">RUN</div>
-  <div id="skillBtn" class="tbtn">SKILL</div>
+  <div id="skillBtn" class="tbtn">STEP</div>
+  <div id="flickBtn" class="tbtn">FLICK</div>
+  <div id="curlBtn" class="tbtn">CURL</div>
 </div>
 <div id="rotateHint" class="hidden">Turn your phone sideways — it's easier to play</div>
 

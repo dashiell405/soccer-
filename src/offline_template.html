@@ -205,14 +205,17 @@
     background: rgba(0,0,0,.75); padding: 6px 12px; border-radius: 10px; font-size: 15px;
     border: 2px solid #ffd33d;
   }
-  #joyZone2, #joyBase2, #shootBtn2, #passBtn2, #sprintBtn2, #skillBtn2, .padTag { display: none; }
+  #joyZone2, #joyBase2, #shootBtn2, #passBtn2, #sprintBtn2, #skillBtn2, #flickBtn2, #curlBtn2, .padTag { display: none; }
   .padTag {
     position: fixed; z-index: 7; pointer-events: none; font-size: 13px; font-weight: bold;
     background: rgba(0,0,0,.45); padding: 2px 8px; border-radius: 8px;
   }
 
   /* ---- New in this version: team picker, cup bracket, trophy ---- */
-  #skillBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); width: min(62px, 15vh); height: min(62px, 15vh); background: rgba(155,89,182,.6); font-size: 12px; }
+  #skillBtn, #flickBtn, #curlBtn, #skillBtn2, #flickBtn2, #curlBtn2 { letter-spacing: 0; }
+  #skillBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); width: min(62px, 15vh); height: min(62px, 15vh); background: rgba(155,89,182,.6); font-size: 11px; }
+  #flickBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + min(62px, 15vh) + 14px + env(safe-area-inset-bottom)); width: min(52px, 13vh); height: min(52px, 13vh); background: rgba(230,126,34,.72); font-size: 10px; }
+  #curlBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + min(62px, 15vh) + 14px + min(52px, 13vh) + 14px + env(safe-area-inset-bottom)); width: min(52px, 13vh); height: min(52px, 13vh); background: rgba(52,152,219,.72); font-size: 10px; }
   .kindRow button { min-width: 120px; }
   .teamsRow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: stretch; width: 100%; max-width: 100%; }
   .teamBtn {
@@ -345,7 +348,7 @@
     #bracket .col { min-width: 0; }
     #joyZone { width: min(46vw, 200px); height: min(34vh, 260px); }
     #joyBase { width: 116px; height: 116px; }
-    #shootBtn, #passBtn, #sprintBtn, #skillBtn {
+    #shootBtn, #passBtn, #sprintBtn, #skillBtn, #flickBtn, #curlBtn {
       right: calc(10px + env(safe-area-inset-right)); left: auto;
       width: 64px; height: 64px; font-size: 11px;
     }
@@ -353,6 +356,8 @@
     #passBtn { bottom: calc(84px + env(safe-area-inset-bottom)); }
     #sprintBtn { bottom: calc(156px + env(safe-area-inset-bottom)); }
     #skillBtn { bottom: calc(228px + env(safe-area-inset-bottom)); }
+    #flickBtn { bottom: calc(300px + env(safe-area-inset-bottom)); }
+    #curlBtn { bottom: calc(372px + env(safe-area-inset-bottom)); }
   }
 
   /* Two players, phone sideways: each thumb gets a stick and four buttons. */
@@ -365,17 +370,23 @@
     bottom: calc(14px + env(safe-area-inset-bottom));
   }
   #touchControls.split #shootBtn, #touchControls.split #passBtn, #touchControls.split #sprintBtn, #touchControls.split #skillBtn,
-  #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2 {
-    width: 62px; height: 62px; font-size: 11px;
+  #touchControls.split #flickBtn, #touchControls.split #curlBtn,
+  #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2,
+  #touchControls.split #flickBtn2, #touchControls.split #curlBtn2 {
+    width: 56px; height: 56px; font-size: 10px;
   }
   #touchControls.split #shootBtn { left: calc(136px + env(safe-area-inset-left)); right: auto; bottom: calc(14px + env(safe-area-inset-bottom)); width: 70px; height: 70px; }
   #touchControls.split #passBtn { left: calc(214px + env(safe-area-inset-left)); right: auto; bottom: calc(18px + env(safe-area-inset-bottom)); }
   #touchControls.split #sprintBtn { left: calc(136px + env(safe-area-inset-left)); right: auto; bottom: calc(92px + env(safe-area-inset-bottom)); }
   #touchControls.split #skillBtn { left: calc(208px + env(safe-area-inset-left)); right: auto; bottom: calc(96px + env(safe-area-inset-bottom)); }
+  #touchControls.split #flickBtn { display: flex; left: calc(286px + env(safe-area-inset-left)); right: auto; bottom: calc(18px + env(safe-area-inset-bottom)); background: rgba(230,126,34,.72); }
+  #touchControls.split #curlBtn { display: flex; left: calc(286px + env(safe-area-inset-left)); right: auto; bottom: calc(82px + env(safe-area-inset-bottom)); background: rgba(52,152,219,.72); }
   #touchControls.split #shootBtn2 { display: flex; right: calc(136px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); width: 70px; height: 70px; background: rgba(232,86,42,.6); }
   #touchControls.split #passBtn2 { display: flex; right: calc(214px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); background: rgba(47,123,255,.6); }
   #touchControls.split #sprintBtn2 { display: flex; right: calc(136px + env(safe-area-inset-right)); bottom: calc(92px + env(safe-area-inset-bottom)); background: rgba(46,204,64,.55); }
-  #touchControls.split #skillBtn2 { display: flex; right: calc(208px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
+  #touchControls.split #skillBtn2 { display: flex; right: calc(208px + env(safe-area-inset-right)); left: auto; bottom: calc(96px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
+  #touchControls.split #flickBtn2 { display: flex; right: calc(286px + env(safe-area-inset-right)); left: auto; bottom: calc(18px + env(safe-area-inset-bottom)); background: rgba(230,126,34,.72); }
+  #touchControls.split #curlBtn2 { display: flex; right: calc(286px + env(safe-area-inset-right)); left: auto; bottom: calc(82px + env(safe-area-inset-bottom)); background: rgba(52,152,219,.72); }
   #touchControls.split #padTag1 { display: block; left: calc(14px + env(safe-area-inset-left)); top: calc(58px + env(safe-area-inset-top)); color: #9cc4ff; }
   #touchControls.split #padTag2 { display: block; right: calc(14px + env(safe-area-inset-right)); top: calc(44px + env(safe-area-inset-top)); color: #ffb0b0; }
 
@@ -387,17 +398,23 @@
     #touchControls.split #joyBase { left: calc(25% - 50px); bottom: calc(10px + env(safe-area-inset-bottom)); }
     #touchControls.split #joyBase2 { display: block; left: calc(75% - 50px); bottom: calc(10px + env(safe-area-inset-bottom)); }
     #touchControls.split #shootBtn, #touchControls.split #passBtn, #touchControls.split #sprintBtn, #touchControls.split #skillBtn,
-    #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2 {
-      width: 52px; height: 52px; font-size: 10px; right: auto;
+    #touchControls.split #flickBtn, #touchControls.split #curlBtn,
+    #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2,
+    #touchControls.split #flickBtn2, #touchControls.split #curlBtn2 {
+      width: 48px; height: 48px; font-size: 9px; right: auto;
     }
     #touchControls.split #passBtn { left: calc(25% - 56px); bottom: calc(122px + env(safe-area-inset-bottom)); }
     #touchControls.split #shootBtn { left: calc(25% + 4px); bottom: calc(122px + env(safe-area-inset-bottom)); }
     #touchControls.split #sprintBtn { left: calc(25% - 56px); bottom: calc(180px + env(safe-area-inset-bottom)); }
     #touchControls.split #skillBtn { left: calc(25% + 4px); bottom: calc(180px + env(safe-area-inset-bottom)); }
+    #touchControls.split #flickBtn { display: flex; left: calc(25% - 56px); bottom: calc(240px + env(safe-area-inset-bottom)); background: rgba(230,126,34,.72); }
+    #touchControls.split #curlBtn { display: flex; left: calc(25% + 4px); bottom: calc(240px + env(safe-area-inset-bottom)); background: rgba(52,152,219,.72); }
     #touchControls.split #passBtn2 { display: flex; left: calc(75% - 56px); bottom: calc(122px + env(safe-area-inset-bottom)); background: rgba(47,123,255,.6); }
     #touchControls.split #shootBtn2 { display: flex; left: calc(75% + 4px); bottom: calc(122px + env(safe-area-inset-bottom)); background: rgba(232,86,42,.6); }
     #touchControls.split #sprintBtn2 { display: flex; left: calc(75% - 56px); bottom: calc(180px + env(safe-area-inset-bottom)); background: rgba(46,204,64,.55); }
     #touchControls.split #skillBtn2 { display: flex; left: calc(75% + 4px); bottom: calc(180px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
+    #touchControls.split #flickBtn2 { display: flex; left: calc(75% - 56px); bottom: calc(240px + env(safe-area-inset-bottom)); background: rgba(230,126,34,.72); }
+    #touchControls.split #curlBtn2 { display: flex; left: calc(75% + 4px); bottom: calc(240px + env(safe-area-inset-bottom)); background: rgba(52,152,219,.72); }
   }
 
   @media (max-height: 500px) {
@@ -562,7 +579,7 @@
 
 <button id="pauseBtn" class="hidden" title="Pause">II</button>
 <button id="viewBtn" class="hidden" type="button">TV</button>
-<div id="keysHint" class="hidden"><kbd>C</kbd> camera &nbsp;<kbd>R</kbd> skill &nbsp;<kbd>F</kbd> flick &nbsp;<kbd>Q</kbd> switch &nbsp;<kbd>P</kbd> pause &nbsp;<kbd>M</kbd> sound</div>
+<div id="keysHint" class="hidden"><kbd>R</kbd> step &nbsp;<kbd>F</kbd> flick &nbsp;<kbd>G</kbd> curl &nbsp;<kbd>Q</kbd> switch &nbsp;<kbd>P</kbd> pause</div>
 
 <!-- Touch controls. The second set is for player 2 on the same phone. -->
 <div id="touchControls" class="hidden">
@@ -571,14 +588,18 @@
   <div id="shootBtn" class="tbtn">SHOOT</div>
   <div id="passBtn" class="tbtn">PASS</div>
   <div id="sprintBtn" class="tbtn">RUN</div>
-  <div id="skillBtn" class="tbtn">SKILL</div>
+  <div id="skillBtn" class="tbtn">STEP</div>
+  <div id="flickBtn" class="tbtn">FLICK</div>
+  <div id="curlBtn" class="tbtn">CURL</div>
   <div id="padTag1" class="padTag">P1</div>
   <div id="joyZone2"></div>
   <div id="joyBase2"><div id="joyKnob2"></div></div>
   <div id="shootBtn2" class="tbtn">SHOOT</div>
   <div id="passBtn2" class="tbtn">PASS</div>
   <div id="sprintBtn2" class="tbtn">RUN</div>
-  <div id="skillBtn2" class="tbtn">SKILL</div>
+  <div id="skillBtn2" class="tbtn">STEP</div>
+  <div id="flickBtn2" class="tbtn">FLICK</div>
+  <div id="curlBtn2" class="tbtn">CURL</div>
   <div id="padTag2" class="padTag">P2</div>
 </div>
 <div id="rotateHint" class="hidden">Turn your phone sideways — it's easier to play</div>

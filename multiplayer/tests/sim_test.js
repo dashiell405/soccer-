@@ -95,7 +95,7 @@ const run = (sim, sec) => { for (let i = 0; i < sec * 120; i++) sim.update(1/120
   assert(n === 12, 'shootouts finish (' + n + '/12), sudden death in ' + sudden); }
 // 7. skills
 { const sim = S.createSim({}); sim.start(); run(sim, 2);
-  for (const t of ['stepover', 'spin', 'flick', 'burst']) { const r = sim.debugSkill('blue', t); assert(r.ok && r.skill === t, 'skill ' + t); run(sim, 1); }
+  for (const t of ['stepover', 'spin', 'flick', 'burst', 'finesse']) { const r = sim.debugSkill('blue', t); assert(r.ok && r.skill === t, 'skill ' + t); if (t === 'finesse') assert(Math.abs(r.curl) > 40, 'finesse curl'); run(sim, 1); }
   const sim2 = S.createSim({ difficulty: 'hard' }); sim2.start(); sim2.setAutoplay(true); run(sim2, 400); assert(sim2.game.stats.skills > 0, 'CPU uses skills on hard: ' + sim2.game.stats.skills); }
 // 8. celebration
 { const sim = S.createSim({}); sim.start(); run(sim, 1); sim.forceGoal('blue'); const ce = sim.game.celebration;

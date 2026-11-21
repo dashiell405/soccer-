@@ -354,6 +354,15 @@ function applyMatchInfo(info) {
   game.knockout = !!info.knockout;
   // The host's chosen length. A shootout has no clock. 0 must not fall back to 5:00.
   game.timeLimit = game.matchType === "shootout" ? 0 : (Number(info.timeLimit) > 0 ? Number(info.timeLimit) : MATCH_LENGTH);
+  if (info.weather) {
+    game.weather = info.weather;
+    game._weatherPick = info.weather;
+  }
+  if (Array.isArray(info.wind)) {
+    game.windX = Number(info.wind[0]) || 0;
+    game.windY = Number(info.wind[1]) || 0;
+  }
+  if (info.night != null) game.night = !!info.night;
   if (info.teams) { applyTeamKits(info.teams); renderBackground(); }
 }
 
@@ -460,7 +469,7 @@ const keys = {};
 const KEYMAP = {
   up: ["KeyW", "ArrowUp"], down: ["KeyS", "ArrowDown"], left: ["KeyA", "ArrowLeft"], right: ["KeyD", "ArrowRight"],
   sprint: ["ShiftLeft", "ShiftRight"], shoot: ["Space"], pass: ["KeyE"], swap: ["KeyQ"],
-  skill: ["KeyR"], flick: ["KeyF"],
+  skill: ["KeyR"], flick: ["KeyF"], finesse: ["KeyG"],
 };
 const held = (a) => KEYMAP[a].some((k) => keys[k]) || !!touch[a];
 
@@ -473,22 +482,29 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyM") { toggleSound(); return; }
   if (e.code === "Escape" || e.code === "KeyP") { toggleMenu(); return; }
   if (e.code === "KeyC" || e.code === "KeyV") { toggleCamera(); return; }
-  if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight", "Space", "KeyE", "KeyQ", "KeyR", "KeyF"].includes(e.code)) noteFpFollow(myId);
-  if (game.phase === "goal") { sendMsg({ t: "press", a: "skip" }); return; }   // skip the celebration
-  for (const a of ["shoot", "pass", "swap", "skill", "flick"]) if (KEYMAP[a].includes(e.code)) sendMsg({ t: "press", a });
+  if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight", "Space", "KeyE", "KeyQ", "KeyR", "KeyF", "KeyG"].includes(e.code)) noteFpFollow(myId);
+  if (game.phase === "goal") {
+    if (typeof skipReplayVisual === "function") skipReplayVisual();
+    sendMsg({ t: "press", a: "skip" });
+    return;
+  }
+  for (const a of ["shoot", "pass", "swap", "skill", "flick", "finesse"]) if (KEYMAP[a].includes(e.code)) sendMsg({ t: "press", a });
   sendInput(true);
 });
 window.addEventListener("keyup", (e) => { keys[e.code] = false; if (inMatch()) sendInput(true); });
 window.addEventListener("blur", () => { for (const k in keys) keys[k] = false; sendInput(true); });
 
 // Touch joystick + buttons (same as the offline game)
-const touch = { x: 0, y: 0, pointerId: null, baseX: 0, baseY: 0, shoot: false, pass: false, sprint: false, skill: false };
+const touch = { x: 0, y: 0, pointerId: null, baseX: 0, baseY: 0, shoot: false, pass: false, sprint: false, skill: false, flick: false, finesse: false };
 const joyZone = $("joyZone"), joyBase = $("joyBase"), joyKnob = $("joyKnob");
 const JOY_MAX = 50;
 joyZone.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   noteFpFollow(myId);
-  if (game.phase === "goal") sendMsg({ t: "press", a: "skip" });
+  if (game.phase === "goal") {
+    if (typeof skipReplayVisual === "function") skipReplayVisual();
+    sendMsg({ t: "press", a: "skip" });
+  }
   touch.pointerId = e.pointerId;
   const fixed = typeof opt === "function" && opt("joyMode") === "fixed";
   if (fixed) {
@@ -518,8 +534,9 @@ function updateJoystick(e) {
   touch.x = filtered.x; touch.y = filtered.y;
   joyKnob.style.transform = "translate(" + dx + "px," + dy + "px)";
 }
-for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprintBtn", "sprint"], ["skillBtn", "skill"]]) {
+for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprintBtn", "sprint"], ["skillBtn", "skill"], ["flickBtn", "flick"], ["curlBtn", "finesse"]]) {
   const el = $(id);
+  if (!el) continue;
   el.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     if (action === "sprint" && typeof opt === "function" && opt("sprintMode") === "toggle") {
@@ -531,7 +548,10 @@ for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprint
     touch[action] = true; el.classList.add("pressed");
     try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
     noteFpFollow(myId);
-    if (game.phase === "goal") sendMsg({ t: "press", a: "skip" });
+    if (game.phase === "goal") {
+      if (typeof skipReplayVisual === "function") skipReplayVisual();
+      sendMsg({ t: "press", a: "skip" });
+    }
     else if (action !== "sprint") sendMsg({ t: "press", a: action });
     sendInput(true);
   });
@@ -547,7 +567,10 @@ for (const [id, action] of [["shootBtn", "shoot"], ["passBtn", "pass"], ["sprint
   if (!el) return;
   let down = null;
   el.addEventListener("pointerdown", (e) => {
-    if (inMatch() && game.phase === "goal") sendMsg({ t: "press", a: "skip" });
+    if (inMatch() && game.phase === "goal") {
+      if (typeof skipReplayVisual === "function") skipReplayVisual();
+      sendMsg({ t: "press", a: "skip" });
+    }
     down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
   });
   el.addEventListener("pointerup", (e) => {
@@ -1060,7 +1083,7 @@ const SETTINGS_TABS = [
       { id: "fpFov", label: "First-person view angle", type: "range", min: 75, max: 90, step: 1, def: 84, suffix: "°" },
       { id: "headBob", label: "Head bob", type: "toggle", def: true },
       { id: "shake", label: "Screen shake", type: "toggle", def: true },
-      { id: "replays", label: "Goal replays", type: "toggle", def: true },
+      { id: "replays", label: "Goal replays", type: "toggle", def: true, help: "After a goal, a slow-motion replay plays on your screen. Tap to skip it. In an online game it never pauses the match." },
     ],
   },
   {
@@ -1077,6 +1100,10 @@ const SETTINGS_TABS = [
       { id: "stoppage", label: "Injury and stoppage time", type: "toggle", def: false },
       { id: "ballSpeed", label: "Ball speed", type: "range", min: 0.85, max: 1.25, step: 0.05, def: 1 },
       { id: "gameSpeed", label: "Game speed", type: "range", min: 0.7, max: 1.3, step: 0.05, def: 1 },
+      { id: "weather", label: "Weather", type: "select", def: "clear", help: "Pick this before kickoff. Rain is slippery, snow slows the ball, and wind nudges high balls. Random chooses one for you.", options: [
+        { v: "clear", label: "Clear" }, { v: "rain", label: "Rain" }, { v: "snow", label: "Snow" },
+        { v: "wind", label: "Wind" }, { v: "random", label: "Random" } ] },
+      { id: "night", label: "Night game", type: "toggle", def: false, help: "A darker sky and a floodlight glow." },
     ],
   },
   {
@@ -1102,6 +1129,8 @@ const SETTINGS_TABS = [
       { id: "sfx", label: "Sound effects", type: "range", min: 0, max: 1, step: 0.05, def: 1 },
       { id: "whistle", label: "Whistle", type: "range", min: 0, max: 1, step: 0.05, def: 1 },
       { id: "mute", label: "Mute", type: "toggle", def: false },
+      { id: "commentary", label: "Commentary", type: "toggle", def: true, help: "Short lines about goals, saves, near misses, cards, kickoff, half-time and full-time." },
+      { id: "commentaryVoice", label: "Commentary voice", type: "toggle", def: false, help: "Reads those lines out loud with this device's voice. Off unless you turn it on." },
     ],
   },
   {
@@ -1109,6 +1138,7 @@ const SETTINGS_TABS = [
     fields: [
       { id: "bigText", label: "Bigger text", type: "toggle", def: false },
       { id: "reduceMotion", label: "Reduce motion", type: "toggle", def: false, help: "Turns off shake, head bob and speed blur." },
+      { id: "reduceEffects", label: "Reduce effects", type: "toggle", def: false, help: "Fewer raindrops and snowflakes, and a simpler night glow. Handy on a phone." },
       { id: "contrast", label: "High contrast outlines", type: "toggle", def: false },
     ],
   },
@@ -1265,6 +1295,7 @@ function applySettings() {
   }
 
   if (typeof Sound !== "undefined" && Sound.applyMix) Sound.applyMix(g);
+  if (!g.commentaryVoice || g.commentary === false || g.mute) stopCommentaryVoice();
 
   if (!onlineMatch() && typeof settings !== "undefined" && settings) {
     settings.difficulty = g.difficulty || settings.difficulty;
@@ -1301,6 +1332,10 @@ function pushMatchTune() {
     ball: Number(g.ballSpeed) || 1,
     stoppage: !!g.stoppage,
   };
+  if (typeof setMatchAtmosphere === "function") setMatchAtmosphere(sim.game, g.weather || "clear", !!g.night);
+}
+function stopCommentaryVoice() {
+  try { if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel(); } catch (e) { /* no voice */ }
 }
 
 function revealSettingsTab(scroller, btn) {
@@ -1825,8 +1860,15 @@ function updateCamera(dt, snap = false) {
     zoom = 0.94;
   }
   if (game.phase === "goal") {
-    zoom = (replayOn ? (phone ? 1.16 : 1.42) : (phone ? 1.08 : 1.24)) / grow;
-    if (!replayOn && game.celebration && game.celebration.scorer) {
+    zoom = (replayOn ? (phone ? 1.2 : 1.5) : (phone ? 1.08 : 1.24)) / grow;
+    if (replayOn) {
+      // A side-on look, a little off the ball's path, like a broadcast replay.
+      const travel = Math.hypot(bvx, sample ? sample.ball.vy || 0 : 0) || 1;
+      const nx = -(sample ? sample.ball.vy || 0 : 0) / travel;
+      const ny = bvx / travel;
+      tx = bx + nx * (phone ? 70 : 120);
+      ty = by + ny * (phone ? 90 : 140);
+    } else if (game.celebration && game.celebration.scorer) {
       tx = game.celebration.scorer.x;
       ty = game.celebration.scorer.y;
     }
@@ -1900,16 +1942,19 @@ function captureFrame(list) {
   };
 }
 function recordTrail() {
+  // Pictures for a replay. This never touches the match, so an online
+  // host keeps simulating while the replay is only drawn on this screen.
   if (replay) return;
+  if (!game || game.phase === "menu" || game.phase === "lobby") return;
   if (typeof rosterList !== "function" || !ball) return;
   const list = rosterList();
   if (!list || !list.length) return;
   if (trail.length && viewTime - trail[trail.length - 1].t < 0.05) return;
   const snap = captureFrame(list);
   const prev = trail[trail.length - 1];
-  if (prev && Math.hypot(snap.ball.x - prev.ball.x, snap.ball.y - prev.ball.y) > 220) trail.length = 0;
+  if (prev && Math.hypot(snap.ball.x - prev.ball.x, snap.ball.y - prev.ball.y) > 480) trail.length = 0;
   trail.push(snap);
-  while (trail.length && viewTime - trail[0].t > 3.2) trail.shift();
+  while (trail.length && viewTime - trail[0].t > 6.2) trail.shift();
 }
 function syncReplay() {
   const goal = game.phase === "goal";
@@ -1919,10 +1964,14 @@ function syncReplay() {
     if (trail.length >= 12 && span > 0.75) {
       replay = trail.slice();
       replayT0 = viewTime;
-      replayDur = Math.min(2.35, span);
+      const room = Math.max(0, (game.timer || 5) - 0.7);
+      replayDur = clamp(room, 2.2, 4.6);
     } else replay = "skip";
   }
   if (!goal) replay = null;
+}
+function skipReplayVisual() {
+  if (replay && replay !== "skip") replay = "skip";
 }
 function isReplaying() {
   return !!(replay && replay !== "skip" && viewTime - replayT0 < replayDur);
@@ -1955,9 +2004,14 @@ function lerpOff(a, b, t) {
     fx: f.x, fy: f.y, sig: b.sig, anim: lerp(a.anim || 0, b.anim || 0, t),
   };
 }
+function replayEase(u) {
+  // Run through the build-up, then slow the finish right down.
+  if (u < 0.34) return (u / 0.34) * 0.7;
+  return 0.7 + ((u - 0.34) / 0.66) * 0.3;
+}
 function replaySample() {
   const span = replay[replay.length - 1].t - replay[0].t || 1;
-  const u = clamp((viewTime - replayT0) / Math.max(0.2, replayDur), 0, 1);
+  const u = replayEase(clamp((viewTime - replayT0) / Math.max(0.2, replayDur), 0, 1));
   const target = replay[0].t + span * u;
   let i = 1;
   while (i < replay.length - 1 && replay[i].t < target) i++;
@@ -2069,12 +2123,38 @@ function pitchPath() {
   ctx.closePath();
 }
 
+function shownWeather() {
+  return (game && game.weather) || "clear";
+}
+function shownNight() {
+  return !!(game && game.night);
+}
+function effectsReduced() {
+  return (typeof opt === "function" && (!!opt("reduceEffects") || !!opt("reduceMotion"))) || quality === "low";
+}
 function drawSky() {
+  const night = shownNight();
+  const w = shownWeather();
   const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-  g.addColorStop(0, "#070b14");
-  g.addColorStop(0.28, "#14233b");
-  g.addColorStop(0.55, "#1c3354");
-  g.addColorStop(1, "#101810");
+  if (night) {
+    g.addColorStop(0, "#02040a");
+    g.addColorStop(0.35, "#0a1020");
+    g.addColorStop(0.7, "#10182a");
+    g.addColorStop(1, "#070b10");
+  } else if (w === "rain") {
+    g.addColorStop(0, "#2a3340");
+    g.addColorStop(0.4, "#3d4a58");
+    g.addColorStop(1, "#1a221c");
+  } else if (w === "snow") {
+    g.addColorStop(0, "#8ea0b4");
+    g.addColorStop(0.45, "#c5d0dc");
+    g.addColorStop(1, "#d5ddd4");
+  } else {
+    g.addColorStop(0, "#070b14");
+    g.addColorStop(0.28, "#14233b");
+    g.addColorStop(0.55, "#1c3354");
+    g.addColorStop(1, "#101810");
+  }
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 }
@@ -2098,10 +2178,12 @@ function drawTower(x, y, glow) {
   ctx.fillRect(lamp.x - w / 2, lamp.y - h / 2, w, h);
   ctx.fillStyle = "#fff8e0";
   for (let i = -1; i <= 1; i++) ctx.fillRect(lamp.x + i * w * 0.28 - 1.5, lamp.y - h / 2, 3, h);
-  if (glow && quality === "high") {
-    const rad = 80 * Math.max(0.6, lamp.s);
+  const night = shownNight();
+  if (night || (glow && quality === "high")) {
+    const cheap = effectsReduced();
+    const rad = (night ? (cheap ? 46 : 92) : 80) * Math.max(0.6, lamp.s);
     const grd = ctx.createRadialGradient(lamp.x, lamp.y, 2, lamp.x, lamp.y, rad);
-    grd.addColorStop(0, "rgba(255, 236, 190, 0.55)");
+    grd.addColorStop(0, night ? "rgba(255, 236, 190, 0.85)" : "rgba(255, 236, 190, 0.55)");
     grd.addColorStop(1, "rgba(255, 236, 190, 0)");
     ctx.fillStyle = grd;
     ctx.beginPath();
@@ -2334,30 +2416,53 @@ function drawPitch() {
       i % 2 ? "#17692c" : "#1e7c36"
     );
   }
-  if (quality === "high") {
+  const night = shownNight();
+  const snow = shownWeather() === "snow";
+  if (quality === "high" || night || snow) {
     ctx.save();
     pitchPath();
     ctx.clip();
-    const yFar = w2s(PITCH.cx, PITCH.top, 0).y;
-    const yNear = w2s(PITCH.cx, PITCH.bottom, 0).y;
-    const g = ctx.createLinearGradient(0, yFar, 0, yNear);
-    g.addColorStop(0, "rgba(0,0,0,0.30)");
-    g.addColorStop(0.42, "rgba(0,0,0,0.05)");
-    g.addColorStop(1, "rgba(255,255,255,0.06)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    // Floodlight pools.
-    for (const x of [PITCH.left + PITCH.w * 0.3, PITCH.right - PITCH.w * 0.3]) {
-      const mid = w2s(x, PITCH.cy, 0);
-      const rx = Math.abs(w2s(x + 200, PITCH.cy, 0).x - w2s(x - 200, PITCH.cy, 0).x) / 2;
-      const ry = Math.abs(w2s(x, PITCH.bottom, 0).y - w2s(x, PITCH.top, 0).y) * 0.42;
-      const pool = ctx.createRadialGradient(mid.x, mid.y, 8, mid.x, mid.y, Math.max(rx, ry, 12));
-      pool.addColorStop(0, "rgba(255, 244, 214, 0.16)");
-      pool.addColorStop(1, "rgba(255, 244, 214, 0)");
-      ctx.fillStyle = pool;
-      ctx.beginPath();
-      ctx.ellipse(mid.x, mid.y, Math.max(8, rx), Math.max(8, ry), 0, 0, Math.PI * 2);
-      ctx.fill();
+    if (quality === "high" && !effectsReduced()) {
+      const yFar = w2s(PITCH.cx, PITCH.top, 0).y;
+      const yNear = w2s(PITCH.cx, PITCH.bottom, 0).y;
+      const g = ctx.createLinearGradient(0, yFar, 0, yNear);
+      g.addColorStop(0, "rgba(0,0,0,0.30)");
+      g.addColorStop(0.42, "rgba(0,0,0,0.05)");
+      g.addColorStop(1, "rgba(255,255,255,0.06)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+    if (snow) {
+      ctx.fillStyle = "rgba(255,255,255,0.34)";
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+    if (night) {
+      const spots = effectsReduced() ? [PITCH.cx] : [PITCH.left + PITCH.w * 0.3, PITCH.right - PITCH.w * 0.3];
+      for (const x of spots) {
+        const mid = w2s(x, PITCH.cy, 0);
+        const rx = Math.abs(w2s(x + 200, PITCH.cy, 0).x - w2s(x - 200, PITCH.cy, 0).x) / 2;
+        const ry = Math.abs(w2s(x, PITCH.bottom, 0).y - w2s(x, PITCH.top, 0).y) * 0.42;
+        const pool = ctx.createRadialGradient(mid.x, mid.y, 8, mid.x, mid.y, Math.max(rx, ry, 12));
+        pool.addColorStop(0, "rgba(255, 244, 214, 0.28)");
+        pool.addColorStop(1, "rgba(255, 244, 214, 0)");
+        ctx.fillStyle = pool;
+        ctx.beginPath();
+        ctx.ellipse(mid.x, mid.y, Math.max(8, rx), Math.max(8, ry), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (quality === "high" && !effectsReduced()) {
+      for (const x of [PITCH.left + PITCH.w * 0.3, PITCH.right - PITCH.w * 0.3]) {
+        const mid = w2s(x, PITCH.cy, 0);
+        const rx = Math.abs(w2s(x + 200, PITCH.cy, 0).x - w2s(x - 200, PITCH.cy, 0).x) / 2;
+        const ry = Math.abs(w2s(x, PITCH.bottom, 0).y - w2s(x, PITCH.top, 0).y) * 0.42;
+        const pool = ctx.createRadialGradient(mid.x, mid.y, 8, mid.x, mid.y, Math.max(rx, ry, 12));
+        pool.addColorStop(0, "rgba(255, 244, 214, 0.16)");
+        pool.addColorStop(1, "rgba(255, 244, 214, 0)");
+        ctx.fillStyle = pool;
+        ctx.beginPath();
+        ctx.ellipse(mid.x, mid.y, Math.max(8, rx), Math.max(8, ry), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.restore();
   }
@@ -2843,6 +2948,8 @@ function drawPlayer(p) {
     ctx.translate(0, H * 0.15);
   }
   if (!lying && speed > 22) ctx.rotate(run * 0.05);
+  if (!lying && p.skill === "finesse") ctx.rotate(-0.42);
+  if (!lying && p.skill === "flick") ctx.translate(0, -H * 0.16);
 
   const hip = -H * 0.46;
   const sw = run * H * 0.2;
@@ -3306,17 +3413,133 @@ function drawShootoutDots(x, y) {
   }
 }
 
+const flakes = [];
+let flakeKind = "";
+function weatherCount() {
+  if (effectsReduced()) return 14;
+  if (phonePlay() || quality === "medium") return 28;
+  return 46;
+}
+function drawWeather() {
+  const w = shownWeather();
+  if (w !== "rain" && w !== "snow") { flakes.length = 0; flakeKind = ""; return; }
+  if (flakeKind !== w) { flakes.length = 0; flakeKind = w; }
+  const snow = w === "snow";
+  const n = weatherCount();
+  while (flakes.length < n) {
+    flakes.push({
+      x: Math.random() * VIEW_W,
+      y: Math.random() * VIEW_H,
+      vx: snow ? (Math.random() - 0.5) * 28 : -40 - Math.random() * 30,
+      vy: snow ? 28 + Math.random() * 36 : 420 + Math.random() * 260,
+      r: snow ? 1.4 + Math.random() * 1.8 : 0,
+      len: 8 + Math.random() * 10,
+    });
+  }
+  if (flakes.length > n) flakes.length = n;
+  const dt = Math.min(0.05, lastDt || 0.016);
+  ctx.save();
+  for (const d of flakes) {
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    if (d.y > VIEW_H + 12 || d.x < -20 || d.x > VIEW_W + 20) {
+      d.y = -8;
+      d.x = Math.random() * VIEW_W;
+    }
+    if (snow) {
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = "rgba(190, 214, 235, 0.55)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(d.x, d.y);
+      ctx.lineTo(d.x + d.vx * 0.02, d.y + d.len);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+function drawAtmosphere() {
+  const w = shownWeather();
+  const night = shownNight();
+  if (w === "clear" && !night) return;
+  const pad = screenPad();
+  const bits = [];
+  if (night) bits.push("NIGHT");
+  if (w === "rain") bits.push("RAIN");
+  else if (w === "snow") bits.push("SNOW");
+  else if (w === "wind") bits.push("WIND");
+  const label = bits.join("  ");
+  ctx.save();
+  ctx.font = "bold 12px Arial";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const tw = ctx.measureText(label).width;
+  const x = VIEW_W - tw - 28 - pad.right - (w === "wind" ? 28 : 0);
+  const y = 72 + pad.top;
+  ctx.fillStyle = "rgba(8,12,20,0.72)";
+  roundRect(ctx, x - 8, y - 11, tw + 16 + (w === "wind" ? 26 : 0), 22, 6);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.fillText(label, x, y);
+  if (w === "wind") {
+    const wx = game.windX || 1, wy = game.windY || 0;
+    const len = Math.hypot(wx, wy) || 1;
+    const ax = x + tw + 14, ay = y;
+    ctx.strokeStyle = "#9fd4ff";
+    ctx.fillStyle = "#9fd4ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ax - (wx / len) * 8, ay - (wy / len) * 6);
+    ctx.lineTo(ax + (wx / len) * 8, ay + (wy / len) * 6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ax + (wx / len) * 8, ay + (wy / len) * 6);
+    ctx.lineTo(ax + (wx / len) * 3, ay + (wy / len) * 1);
+    ctx.lineTo(ax + (wx / len) * 4, ay + (wy / len) * 6 - 5);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+let spokenLine = "";
+function speakCommentary(text) {
+  if (typeof opt !== "function" || !opt("commentaryVoice") || opt("commentary") === false || opt("mute")) return;
+  if (!text || text === spokenLine) return;
+  spokenLine = text;
+  try {
+    if (typeof speechSynthesis === "undefined") return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.04;
+    u.pitch = 1;
+    const vol = Number(opt("master"));
+    u.volume = clamp(isFinite(vol) ? vol : 1, 0, 1);
+    speechSynthesis.speak(u);
+  } catch (e) { /* this browser has no voice */ }
+}
 function drawCommentary() {
   const c = game.comment;
   const pad = screenPad();
-  if (c && c.timer > 0 && c.text) {
+  const linesOn = typeof opt !== "function" || opt("commentary") !== false;
+  if (linesOn && c && c.timer > 0 && c.text) {
+    speakCommentary(c.text);
     const alpha = clamp(c.timer / 0.35, 0, 1);
     ctx.globalAlpha = alpha;
     ctx.font = "bold 15px Arial";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     const text = c.text;
-    const w = Math.min(VIEW_W * 0.7, ctx.measureText(text).width + 26);
+    let size = 15;
+    ctx.font = "bold " + size + "px Arial";
+    const maxW = Math.max(120, VIEW_W - 36 - pad.left - pad.right);
+    while (size > 11 && ctx.measureText(text).width + 26 > maxW) {
+      size -= 1;
+      ctx.font = "bold " + size + "px Arial";
+    }
+    const w = Math.min(maxW, ctx.measureText(text).width + 26);
     const x = 12 + pad.left;
     const y = (game.shootout ? 132 : 78) + pad.top;
     ctx.fillStyle = "rgba(8,12,20,0.8)";
@@ -3359,7 +3582,7 @@ function drawCommentary() {
       }
       ctx.globalAlpha = 1;
     }
-    if (game.timer > 1 && !isReplaying()) hintBox(keysHint("skip"), VIEW_H * 0.72, 13);
+    if (game.timer > 1) hintBox(isReplaying() ? (keysHint("skip") + " the replay") : keysHint("skip"), VIEW_H * 0.72, 13);
   }
   const mine = localActives();
   const pen = game.penalty;
@@ -3415,6 +3638,9 @@ function drawMatchBugs(replayOn) {
     ctx.fill();
     ctx.fillStyle = "#fff";
     ctx.fillText("REPLAY", x + 70, y);
+    ctx.font = "bold 11px Arial";
+    ctx.fillStyle = "#ffe14a";
+    ctx.fillText("SLOW MO", x + 70, y + 18);
   }
 }
 function centerTitle(text) {
@@ -3702,9 +3928,11 @@ function draw() {
     }
   }
 
+  drawWeather();
   drawVignette();
   updateConfetti();
   if (showHud()) {
+    drawAtmosphere();
     if (eyes) drawFpHud(eyes);
     else drawScoreboard();
     drawCommentary();
@@ -4292,7 +4520,7 @@ $("copyBtn").addEventListener("click", () => {
 // Sound can only start after a tap / key press (browser rule)
 window.addEventListener("pointerdown", () => Sound.init());
 if (isTouchDevice && $("matchHelp")) {
-  $("matchHelp").innerHTML = "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob). <b>RUN</b> sprints. <b>SKILL</b> does a trick.<br>Tap a teammate to control him. <b>TV</b> / <b>1ST</b> changes the camera.<br>Penalty: slide up or down, then hold SHOOT. In goal: slide up or down. Tap the picture to skip a celebration.";
+  $("matchHelp").innerHTML = "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob). <b>RUN</b> sprints.<br><b>STEP</b> is a step-over. <b>FLICK</b> is a rainbow. <b>CURL</b> bends a finesse shot.<br>Tap a teammate to control him. Tap the picture to skip a replay.";
 }
 
 // ---- Start up ----

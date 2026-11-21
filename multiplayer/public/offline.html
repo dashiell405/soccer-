@@ -218,14 +218,17 @@
     background: rgba(0,0,0,.75); padding: 6px 12px; border-radius: 10px; font-size: 15px;
     border: 2px solid #ffd33d;
   }
-  #joyZone2, #joyBase2, #shootBtn2, #passBtn2, #sprintBtn2, #skillBtn2, .padTag { display: none; }
+  #joyZone2, #joyBase2, #shootBtn2, #passBtn2, #sprintBtn2, #skillBtn2, #flickBtn2, #curlBtn2, .padTag { display: none; }
   .padTag {
     position: fixed; z-index: 7; pointer-events: none; font-size: 13px; font-weight: bold;
     background: rgba(0,0,0,.45); padding: 2px 8px; border-radius: 8px;
   }
 
   /* ---- New in this version: team picker, cup bracket, trophy ---- */
-  #skillBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); width: min(62px, 15vh); height: min(62px, 15vh); background: rgba(155,89,182,.6); font-size: 12px; }
+  #skillBtn, #flickBtn, #curlBtn, #skillBtn2, #flickBtn2, #curlBtn2 { letter-spacing: 0; }
+  #skillBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); width: min(62px, 15vh); height: min(62px, 15vh); background: rgba(155,89,182,.6); font-size: 11px; }
+  #flickBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + min(62px, 15vh) + 14px + env(safe-area-inset-bottom)); width: min(52px, 13vh); height: min(52px, 13vh); background: rgba(230,126,34,.72); font-size: 10px; }
+  #curlBtn { right: calc(36px + min(96px, 22vh) + min(72px, 17vh) + env(safe-area-inset-right)); bottom: calc(16px + min(62px, 15vh) + 14px + min(52px, 13vh) + 14px + env(safe-area-inset-bottom)); width: min(52px, 13vh); height: min(52px, 13vh); background: rgba(52,152,219,.72); font-size: 10px; }
   .kindRow button { min-width: 120px; }
   .teamsRow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: stretch; width: 100%; max-width: 100%; }
   .teamBtn {
@@ -358,7 +361,7 @@
     #bracket .col { min-width: 0; }
     #joyZone { width: min(46vw, 200px); height: min(34vh, 260px); }
     #joyBase { width: 116px; height: 116px; }
-    #shootBtn, #passBtn, #sprintBtn, #skillBtn {
+    #shootBtn, #passBtn, #sprintBtn, #skillBtn, #flickBtn, #curlBtn {
       right: calc(10px + env(safe-area-inset-right)); left: auto;
       width: 64px; height: 64px; font-size: 11px;
     }
@@ -366,6 +369,8 @@
     #passBtn { bottom: calc(84px + env(safe-area-inset-bottom)); }
     #sprintBtn { bottom: calc(156px + env(safe-area-inset-bottom)); }
     #skillBtn { bottom: calc(228px + env(safe-area-inset-bottom)); }
+    #flickBtn { bottom: calc(300px + env(safe-area-inset-bottom)); }
+    #curlBtn { bottom: calc(372px + env(safe-area-inset-bottom)); }
   }
 
   /* Two players, phone sideways: each thumb gets a stick and four buttons. */
@@ -378,17 +383,23 @@
     bottom: calc(14px + env(safe-area-inset-bottom));
   }
   #touchControls.split #shootBtn, #touchControls.split #passBtn, #touchControls.split #sprintBtn, #touchControls.split #skillBtn,
-  #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2 {
-    width: 62px; height: 62px; font-size: 11px;
+  #touchControls.split #flickBtn, #touchControls.split #curlBtn,
+  #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2,
+  #touchControls.split #flickBtn2, #touchControls.split #curlBtn2 {
+    width: 56px; height: 56px; font-size: 10px;
   }
   #touchControls.split #shootBtn { left: calc(136px + env(safe-area-inset-left)); right: auto; bottom: calc(14px + env(safe-area-inset-bottom)); width: 70px; height: 70px; }
   #touchControls.split #passBtn { left: calc(214px + env(safe-area-inset-left)); right: auto; bottom: calc(18px + env(safe-area-inset-bottom)); }
   #touchControls.split #sprintBtn { left: calc(136px + env(safe-area-inset-left)); right: auto; bottom: calc(92px + env(safe-area-inset-bottom)); }
   #touchControls.split #skillBtn { left: calc(208px + env(safe-area-inset-left)); right: auto; bottom: calc(96px + env(safe-area-inset-bottom)); }
+  #touchControls.split #flickBtn { display: flex; left: calc(286px + env(safe-area-inset-left)); right: auto; bottom: calc(18px + env(safe-area-inset-bottom)); background: rgba(230,126,34,.72); }
+  #touchControls.split #curlBtn { display: flex; left: calc(286px + env(safe-area-inset-left)); right: auto; bottom: calc(82px + env(safe-area-inset-bottom)); background: rgba(52,152,219,.72); }
   #touchControls.split #shootBtn2 { display: flex; right: calc(136px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); width: 70px; height: 70px; background: rgba(232,86,42,.6); }
   #touchControls.split #passBtn2 { display: flex; right: calc(214px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); background: rgba(47,123,255,.6); }
   #touchControls.split #sprintBtn2 { display: flex; right: calc(136px + env(safe-area-inset-right)); bottom: calc(92px + env(safe-area-inset-bottom)); background: rgba(46,204,64,.55); }
-  #touchControls.split #skillBtn2 { display: flex; right: calc(208px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
+  #touchControls.split #skillBtn2 { display: flex; right: calc(208px + env(safe-area-inset-right)); left: auto; bottom: calc(96px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
+  #touchControls.split #flickBtn2 { display: flex; right: calc(286px + env(safe-area-inset-right)); left: auto; bottom: calc(18px + env(safe-area-inset-bottom)); background: rgba(230,126,34,.72); }
+  #touchControls.split #curlBtn2 { display: flex; right: calc(286px + env(safe-area-inset-right)); left: auto; bottom: calc(82px + env(safe-area-inset-bottom)); background: rgba(52,152,219,.72); }
   #touchControls.split #padTag1 { display: block; left: calc(14px + env(safe-area-inset-left)); top: calc(58px + env(safe-area-inset-top)); color: #9cc4ff; }
   #touchControls.split #padTag2 { display: block; right: calc(14px + env(safe-area-inset-right)); top: calc(44px + env(safe-area-inset-top)); color: #ffb0b0; }
 
@@ -400,17 +411,23 @@
     #touchControls.split #joyBase { left: calc(25% - 50px); bottom: calc(10px + env(safe-area-inset-bottom)); }
     #touchControls.split #joyBase2 { display: block; left: calc(75% - 50px); bottom: calc(10px + env(safe-area-inset-bottom)); }
     #touchControls.split #shootBtn, #touchControls.split #passBtn, #touchControls.split #sprintBtn, #touchControls.split #skillBtn,
-    #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2 {
-      width: 52px; height: 52px; font-size: 10px; right: auto;
+    #touchControls.split #flickBtn, #touchControls.split #curlBtn,
+    #touchControls.split #shootBtn2, #touchControls.split #passBtn2, #touchControls.split #sprintBtn2, #touchControls.split #skillBtn2,
+    #touchControls.split #flickBtn2, #touchControls.split #curlBtn2 {
+      width: 48px; height: 48px; font-size: 9px; right: auto;
     }
     #touchControls.split #passBtn { left: calc(25% - 56px); bottom: calc(122px + env(safe-area-inset-bottom)); }
     #touchControls.split #shootBtn { left: calc(25% + 4px); bottom: calc(122px + env(safe-area-inset-bottom)); }
     #touchControls.split #sprintBtn { left: calc(25% - 56px); bottom: calc(180px + env(safe-area-inset-bottom)); }
     #touchControls.split #skillBtn { left: calc(25% + 4px); bottom: calc(180px + env(safe-area-inset-bottom)); }
+    #touchControls.split #flickBtn { display: flex; left: calc(25% - 56px); bottom: calc(240px + env(safe-area-inset-bottom)); background: rgba(230,126,34,.72); }
+    #touchControls.split #curlBtn { display: flex; left: calc(25% + 4px); bottom: calc(240px + env(safe-area-inset-bottom)); background: rgba(52,152,219,.72); }
     #touchControls.split #passBtn2 { display: flex; left: calc(75% - 56px); bottom: calc(122px + env(safe-area-inset-bottom)); background: rgba(47,123,255,.6); }
     #touchControls.split #shootBtn2 { display: flex; left: calc(75% + 4px); bottom: calc(122px + env(safe-area-inset-bottom)); background: rgba(232,86,42,.6); }
     #touchControls.split #sprintBtn2 { display: flex; left: calc(75% - 56px); bottom: calc(180px + env(safe-area-inset-bottom)); background: rgba(46,204,64,.55); }
     #touchControls.split #skillBtn2 { display: flex; left: calc(75% + 4px); bottom: calc(180px + env(safe-area-inset-bottom)); background: rgba(155,89,182,.6); }
+    #touchControls.split #flickBtn2 { display: flex; left: calc(75% - 56px); bottom: calc(240px + env(safe-area-inset-bottom)); background: rgba(230,126,34,.72); }
+    #touchControls.split #curlBtn2 { display: flex; left: calc(75% + 4px); bottom: calc(240px + env(safe-area-inset-bottom)); background: rgba(52,152,219,.72); }
   }
 
   @media (max-height: 500px) {
@@ -593,7 +610,7 @@
 
 <button id="pauseBtn" class="hidden" title="Pause">II</button>
 <button id="viewBtn" class="hidden" type="button">TV</button>
-<div id="keysHint" class="hidden"><kbd>C</kbd> camera &nbsp;<kbd>R</kbd> skill &nbsp;<kbd>F</kbd> flick &nbsp;<kbd>Q</kbd> switch &nbsp;<kbd>P</kbd> pause &nbsp;<kbd>M</kbd> sound</div>
+<div id="keysHint" class="hidden"><kbd>R</kbd> step &nbsp;<kbd>F</kbd> flick &nbsp;<kbd>G</kbd> curl &nbsp;<kbd>Q</kbd> switch &nbsp;<kbd>P</kbd> pause</div>
 
 <!-- Touch controls. The second set is for player 2 on the same phone. -->
 <div id="touchControls" class="hidden">
@@ -602,14 +619,18 @@
   <div id="shootBtn" class="tbtn">SHOOT</div>
   <div id="passBtn" class="tbtn">PASS</div>
   <div id="sprintBtn" class="tbtn">RUN</div>
-  <div id="skillBtn" class="tbtn">SKILL</div>
+  <div id="skillBtn" class="tbtn">STEP</div>
+  <div id="flickBtn" class="tbtn">FLICK</div>
+  <div id="curlBtn" class="tbtn">CURL</div>
   <div id="padTag1" class="padTag">P1</div>
   <div id="joyZone2"></div>
   <div id="joyBase2"><div id="joyKnob2"></div></div>
   <div id="shootBtn2" class="tbtn">SHOOT</div>
   <div id="passBtn2" class="tbtn">PASS</div>
   <div id="sprintBtn2" class="tbtn">RUN</div>
-  <div id="skillBtn2" class="tbtn">SKILL</div>
+  <div id="skillBtn2" class="tbtn">STEP</div>
+  <div id="flickBtn2" class="tbtn">FLICK</div>
+  <div id="curlBtn2" class="tbtn">CURL</div>
   <div id="padTag2" class="padTag">P2</div>
 </div>
 <div id="rotateHint" class="hidden">Turn your phone sideways — it's easier to play</div>
@@ -1445,10 +1466,155 @@ const SHOOTOUT_KICKS = 5;          // kicks each in a shootout (then sudden deat
 
 // Skill moves (R / F keys, SKILL button)
 const SKILL_COOLDOWN = 0.9;        // seconds before you can do another trick
-const SKILL_TIME = { stepover: 0.45, spin: 0.45, flick: 0.55, burst: 0.7 };
-const SKILL_NAMES = { stepover: "Step-over!", spin: "Roulette!", flick: "Rainbow flick!", burst: "Burst!" };
+const SKILL_TIME = { stepover: 0.45, spin: 0.45, flick: 0.55, burst: 0.7, finesse: 0.42 };
+const SKILL_NAMES = { stepover: "Step-over!", spin: "Roulette!", flick: "Rainbow flick!", burst: "Burst!", finesse: "Finesse!" };
 // How often the computer does tricks when a defender is close (per decision)
 const AI_SKILL_CHANCE = { easy: 0, normal: 0.18, hard: 0.45, legendary: 0.62 };
+
+// Weather is chosen before kickoff. "random" becomes one of the four
+// real kinds once, so a match does not change weather every frame.
+const WEATHER_KINDS = ["clear", "rain", "snow", "wind"];
+function rollWeather(raw) {
+  if (raw === "random") return WEATHER_KINDS[Math.floor(Math.random() * WEATHER_KINDS.length)];
+  return WEATHER_KINDS.indexOf(raw) >= 0 ? raw : "clear";
+}
+function setMatchAtmosphere(game, raw, night) {
+  if (!game) return;
+  const pick = raw || "clear";
+  if (game._weatherPick !== pick) {
+    game._weatherPick = pick;
+    game.weather = rollWeather(pick);
+    if (game.weather === "wind") {
+      const side = Math.random() < 0.5 ? 1 : -1;
+      game.windX = side * 32;
+      game.windY = (Math.random() < 0.5 ? 1 : -1) * 58;
+    } else {
+      game.windX = 0;
+      game.windY = 0;
+    }
+  }
+  game.night = !!night;
+}
+
+// Short commentary. Placeholders are filled with team names and the
+// made-up names already on the squad. Never a real footballer's name.
+const CALLS = {
+  goal: [
+    "GOAL! {name} scores for {team}!",
+    "GOAL! {name} finds the net for {team}!",
+    "GOAL! {name} makes it {score}!",
+    "GOAL! What a finish by {name}!",
+    "GOAL! {name} of {team} hits the net!",
+    "GOAL! {name} with a lovely finish!",
+    "GOAL! {team} are singing for {name}!",
+    "GOAL! {name} wheels away. What a moment!",
+  ],
+  og: [
+    "GOAL! Own goal, unlucky {name}!",
+    "GOAL! That one goes in off {name}!",
+    "GOAL! Into their own net. {other} take it!",
+  ],
+  chip: [
+    "GOAL! A cheeky chip from {name}!",
+    "GOAL! {name} dinks it over the keeper!",
+    "GOAL! What a little lob by {name}!",
+  ],
+  long: [
+    "GOAL! From way out, {name} catches them!",
+    "GOAL! {name} lets fly for {team}!",
+    "GOAL! What a hit from distance by {name}!",
+  ],
+  power: [
+    "GOAL! What a strike by {name}!",
+    "GOAL! {name} absolutely hammers it!",
+    "GOAL! {name} rifles it home!",
+  ],
+  penGoal: [
+    "GOAL! Penalty scored by {name}!",
+    "GOAL! {name} sends the keeper the wrong way!",
+    "GOAL! {name} scores coolly from the spot!",
+  ],
+  save: [
+    "What a save by {name}!",
+    "{name} keeps it out. Super stop!",
+    "Safe hands from {name}!",
+    "{team} keeper {name} says no!",
+    "Brilliant save! {name} to the rescue!",
+    "{name} gets down well to keep it out!",
+  ],
+  punch: [
+    "Great save! {name} punches it clear!",
+    "{name} gets a strong hand to that one!",
+    "Tipped away by {name}!",
+    "{name} palms it off the line!",
+  ],
+  post: [
+    "Off the post! So close for {team}!",
+    "The woodwork saves them. {team} groan!",
+    "Clang! {team} hit the post!",
+    "Inches away. {team} were so close!",
+  ],
+  bar: [
+    "Off the crossbar! {team} so close!",
+    "It hits the bar! Nearly for {team}!",
+    "Rattling the woodwork for {team}!",
+  ],
+  wide: [
+    "Just wide! {team} were close!",
+    "Past the post. A near miss for {team}!",
+    "Ooh, that one misses by a whisker!",
+    "Inches wide of the post for {team}!",
+  ],
+  over: [
+    "Over the bar! {team} had a chance!",
+    "Too high from {team}. So close though!",
+    "It sails over. Nearly a goal for {team}!",
+  ],
+  yellow: [
+    "Yellow card for {name} of {team}!",
+    "{name} is booked. One more and they walk!",
+    "The referee shows {name} a yellow!",
+    "Into the book goes {name}!",
+  ],
+  second: [
+    "Second yellow! {name} is off!",
+    "{name} sees red after two yellows!",
+    "That's a sending off. {name} walks!",
+  ],
+  red: [
+    "RED CARD! {name} is sent off!",
+    "{name} is off! {team} play a player down!",
+    "A straight red for {name}!",
+  ],
+  kickoff: [
+    "Coin toss: {name} wins it for {team}!",
+    "Coin toss: {name} gets {team} started!",
+    "Coin toss: {name} leads {team} out!",
+    "Coin toss: {name} will kick off for {team}!",
+    "Coin toss: {name} calls it. {team} start!",
+    "Coin toss: {name} sends {team} on their way!",
+  ],
+  half: [
+    "Half time. It's {score}.",
+    "That's the break. {score} at the half.",
+    "Peep peep! Half time, {score}.",
+    "Time for a drink. {score} so far.",
+    "The first half ends, {score}.",
+    "Oranges at the ready. {score}.",
+  ],
+  fullWin: [
+    "Full time! {team} win {score}!",
+    "The whistle goes. {team} take it {score}!",
+    "That's the game! {team} win {score}!",
+    "Full time. {team} finish on top, {score}.",
+  ],
+  fullDraw: [
+    "Full time! A draw, {score}.",
+    "They share it. Full time, {score}.",
+    "All square at the end, {score}.",
+    "Honours even. Full time, {score}.",
+  ],
+};
 
 // Difficulty settings for the COMPUTER team
 //   speed      - fraction of RUN_SPEED
@@ -1608,7 +1774,7 @@ function formatClock(s) {
 // Player states are sent as small numbers to keep messages short
 const STATE_NAMES = ["run", "slide", "dive", "down"];
 const STATE_CODES = { run: 0, slide: 1, dive: 2, down: 3 };
-const SKILL_LIST = [null, "stepover", "spin", "flick", "burst"];
+const SKILL_LIST = [null, "stepover", "spin", "flick", "burst", "finesse"];
 const CELEBRATIONS = ["slide", "spin", "plane", "pile"];   // knee slide, spin, airplane arms, pile-on
 // Shared by the offline game, the server and the browser: the default rules
 const DEFAULT_RULES = { offside: true, cards: true };
@@ -1668,7 +1834,13 @@ function createSim(opts = {}) {
     stats: newStats(),
     events: [],             // sounds etc. that happened since the last snapshot
     lastKick: null,
+    weather: "clear",
+    windX: 0,
+    windY: 0,
+    night: false,
+    halfSaid: false,
   };
+  setMatchAtmosphere(game, opts.weather || "clear", !!opts.night);
   let roster = [];   // both teams (including anyone sent off)
   let players = [];  // players still on the pitch
   // The referee and two assistant referees. They never touch the ball.
@@ -1737,6 +1909,27 @@ function createSim(opts = {}) {
   function say(text, color = "#fff", seconds = 2) {
     game.comment = { text, color, timer: seconds };
   }
+  function pickCall(kind, extra) {
+    const list = CALLS[kind] || ["Play on!"];
+    const line = list[Math.floor(Math.random() * list.length)];
+    const b = game.score.blue, r = game.score.red;
+    const info = { team: "", other: "", name: "a player", score: b + "\u2013" + r };
+    if (extra) for (const k in extra) if (extra[k] != null && extra[k] !== "") info[k] = extra[k];
+    return line.replace(/\{(\w+)\}/g, (m, key) => (info[key] == null ? "" : String(info[key])));
+  }
+  function weatherName() { return game.weather || "clear"; }
+  function groundKeep() {
+    const w = weatherName();
+    if (w === "rain") return 0.8;
+    if (w === "snow") return 0.38;
+    return GROUND_FRICTION;
+  }
+  function airKeep() { return weatherName() === "snow" ? 0.7 : AIR_DRAG; }
+  function applyWindTo(vx, vy, z, dt) {
+    if (weatherName() !== "wind" || z <= 11) return { vx: vx, vy: vy };
+    const lift = clamp((z - 11) / 34, 0, 1);
+    return { vx: vx + (game.windX || 0) * lift * dt, vy: vy + (game.windY || 0) * lift * dt };
+  }
   // Record a sound for the browsers to play
   function emit(name, arg) {
     if (game.events.length < 100) game.events.push(arg === undefined ? [name] : [name, typeof arg === "number" ? Math.round(arg) : arg]);
@@ -1796,8 +1989,8 @@ function canKick(p) {
   function humanPress(c, action) {
     const p = c.active;
     if (!p || action === "skip") return;
-    if (action === "skill" || action === "flick") {     // tricks (only with the ball)
-      if (ball.owner === p && game.phase === "play") humanSkill(p, c, action);
+    if (action === "skill" || action === "stepover" || action === "flick" || action === "finesse") {
+      if (game.phase === "play") humanSkill(p, c, action);
       return;
     }
     if (action === "swap") { manualSwitch(c); return; }
@@ -2067,24 +2260,15 @@ function humanThrow(p, action, charge) {
 }
 
 // ---------------------------------------------------------------------
-// 8. SKILL MOVES  (R = step-over / roulette, F = rainbow flick,
-//    Shift + R = knock-on burst; SKILL button on phones)
+// 8. SKILL MOVES
+//    R / STEP  = step-over     F / FLICK = rainbow flick
+//    G / CURL  = finesse curl shot
+//    The computer still mixes in a spin now and then.
 // ---------------------------------------------------------------------
-// Which trick? It depends on the direction you are pushing:
-//   holding sprint      -> BURST   (knock it ahead and sprint after it)
-//   pulling backwards   -> RAINBOW FLICK (pop it over the defender's head)
-//   pushing sideways    -> ROULETTE (spin away from the defender)
-//   nothing / forwards  -> STEP-OVER (fake: nearby defenders go the wrong way)
 function humanSkill(p, c, action) {
   if (action === "flick") { doSkill(p, "flick"); return; }
-  if (c.input.sprint) { doSkill(p, "burst"); return; }
-  const m = humanMove(c);
-  if (!m.x && !m.y) { doSkill(p, "stepover"); return; }
-  const n = normalize(m.x, m.y);
-  const dot = n.x * p.fx + n.y * p.fy;
-  if (dot < -0.4) doSkill(p, "flick");
-  else if (dot < 0.6) doSkill(p, "spin", n);
-  else doSkill(p, "stepover");
+  if (action === "finesse") { doFinesse(p); return; }
+  doSkill(p, "stepover");
 }
 
 function doSkill(p, type, dir) {
@@ -2118,16 +2302,52 @@ function doSkill(p, type, dir) {
   return true;
 }
 
-// Computer players sometimes try a trick when a defender is close in front
+// A placed shot that bends toward the goal. The ball has to be in play
+// and the player has to be facing the attack.
+function doFinesse(p) {
+  if (!p || p.skillCD > 0 || p.state !== "run" || game.phase !== "play") return false;
+  if (ball.owner !== p && !canKick(p)) return false;
+  const T = TEAMS[p.team];
+  const gx = T.targetGoalX - ball.x;
+  if (gx * T.dir < 40) return false;
+  const distGoal = Math.hypot(T.targetGoalX - ball.x, PITCH.cy - ball.y);
+  if (distGoal > 540 * FIELD) return false;
+  const side = ball.y < PITCH.cy ? 1 : -1;
+  const aimY = clamp(PITCH.cy + side * GOAL_W * 0.22, GOAL_TOP + 10, GOAL_BOTTOM - 10);
+  const dir = normalize(T.targetGoalX - ball.x, aimY - ball.y);
+  kickBall(p, dir, 760 * FIELD, 165, "shot");
+  const sign = dir.x >= 0 ? 1 : -1;
+  let curl = (PITCH.cy - ball.y) * sign * 1.35;
+  if (Math.abs(curl) < 90) curl = side * sign * 150;
+  ball.curl = clamp(curl, -240, 240);
+  if (ball.shot) ball.shot.finesse = true;
+  p.skill = "finesse";
+  p.skillT = SKILL_TIME.finesse;
+  p.skillCD = SKILL_COOLDOWN;
+  game.stats.skills++;
+  emit("skill");
+  say(SKILL_NAMES.finesse, "#7ee0ff", 0.9);
+  return true;
+}
+
+// Computer players sometimes try a trick when a defender is close in front,
+// and a finesse shot when they are in range of goal.
 function aiMaybeSkill(p, presser, pressure) {
   const chance = AI_SKILL_CHANCE[game.difficulty] || 0;
-  if (!chance || isHumanTeam(p.team) || p.skillCD > 0 || !presser || pressure > 75) return false;
+  if (!chance || isHumanTeam(p.team) || p.skillCD > 0) return false;
+  const T = TEAMS[p.team];
+  const distGoal = Math.hypot(T.targetGoalX - p.x, PITCH.cy - p.y);
+  if (distGoal < aiSettings(p.team).shootRange && Math.random() < chance * 0.85) {
+    if (doFinesse(p)) return true;
+  }
+  if (!presser || pressure > 75) return false;
   const to = normalize(presser.x - p.x, presser.y - p.y);
   if (to.x * p.fx + to.y * p.fy < 0.3 || Math.random() > chance) return false;
   const r = Math.random();
-  if (r < 0.4) return doSkill(p, "stepover");
-  if (r < 0.75) { const side = Math.random() < 0.5 ? 1 : -1; return doSkill(p, "spin", { x: -p.fy * side, y: p.fx * side }); }
-  return pressure > 30 ? doSkill(p, "flick") : doSkill(p, "stepover");
+  if (r < 0.42) return doSkill(p, "stepover");
+  if (r < 0.78) return doSkill(p, "flick");
+  const side = Math.random() < 0.5 ? 1 : -1;
+  return doSkill(p, "spin", { x: -p.fy * side, y: p.fx * side });
 }
 
   // ===================================================================
@@ -2246,6 +2466,7 @@ function parkForKickoff(taker) {
     game.clock = 0; game.winner = null; game.lastScorer = null;
     game.penalty = null; game.shootout = null; game.celebration = null; game.cardPopup = null; game.flag = null;
     game.stats = newStats();
+    game.halfSaid = false;
     createPlayers();
     resetToHome();
     for (const c of controllers) { c.active = null; c.charging = null; }
@@ -2452,7 +2673,9 @@ function updateBall(dt) {
     const holding = o.role === "GK" && inOwnBox(o.team, o);
     const ahead = holding ? 4 : PLAYER_R + BALL_R + 2 + (o.sprinting ? 5 : 0) + Math.sin(o.anim * 2) * 1.5;
     const tx = o.x + o.fx * ahead, ty = o.y + o.fy * ahead;
-    const k = Math.min(1, dt * 14);
+    // Rain: the ball sits a little looser at the feet.
+    const stick = weatherName() === "rain" ? 8.5 : 14;
+    const k = Math.min(1, dt * stick);
     ball.x += (tx - ball.x) * k;
     ball.y += (ty - ball.y) * k;
     ball.z = holding ? 14 : 0; ball.vz = 0;   // a goalie holds it in his hands
@@ -2484,15 +2707,21 @@ function updateBall(dt) {
   }
   if (ball.curl) ball.curl *= Math.pow(ball.z > 1 ? 0.5 : 0.12, dt);
 
+  // Wind only nudges the ball while it is up. Ground passes stay honest.
+  const blown = applyWindTo(ball.vx, ball.vy, ball.z, dt);
+  ball.vx = blown.vx; ball.vy = blown.vy;
+
   // --- Friction: rolling on grass slows it much more than flying ---
-  const f = Math.pow(ball.z > 0.5 ? AIR_DRAG : GROUND_FRICTION, dt);
+  // Rain skids (less friction). Snow is heavier and dies sooner.
+  const f = Math.pow(ball.z > 0.5 ? airKeep() : groundKeep(), dt);
   ball.vx *= f; ball.vy *= f;
   if (game.phase === "dead") { ball.vx *= 0.97; ball.vy *= 0.97; } // out of play: stops quickly
   if (ball.z === 0 && ballSpeed() < 8) { ball.vx = 0; ball.vy = 0; }
 
   const ballMul = (game.tune && game.tune.ball) || 1;
-  ball.x += ball.vx * dt * ballMul;
-  ball.y += ball.vy * dt * ballMul;
+  const snow = weatherName() === "snow" ? 0.86 : 1;
+  ball.x += ball.vx * dt * ballMul * snow;
+  ball.y += ball.vy * dt * ballMul * snow;
   ball.spin += ballSpeed() * dt / BALL_R;
 
   // --- Goal posts (only if the ball is lower than the crossbar) ---
@@ -2506,7 +2735,11 @@ function updateBall(dt) {
         const along = ball.vx * nx + ball.vy * ny;
         if (along < 0) {
           ball.vx -= 1.6 * along * nx; ball.vy -= 1.6 * along * ny;
-          if (game.phase === "play" && -along > 250) { say("Off the post!", "#ffd33d"); emit("post"); emit("ooh"); }
+          if (game.phase === "play" && -along > 250) {
+            const atk = ball.lastTeam || "blue";
+            say(pickCall("post", { team: teamName(atk), other: teamName(other(atk)) }), "#ffd33d", 1.8);
+            emit("post"); emit("ooh");
+          }
         }
       }
     }
@@ -2557,8 +2790,12 @@ function predictBall() {
       vy = oy + (ox / cspd) * curl * air * h;
     }
     if (curl) curl *= Math.pow(z > 1 ? 0.5 : 0.12, h);
-    const f = Math.pow(z > 0.5 ? AIR_DRAG : GROUND_FRICTION, h);
-    vx *= f; vy *= f; x += vx * h; y += vy * h;
+    const blown = applyWindTo(vx, vy, z, h);
+    vx = blown.vx; vy = blown.vy;
+    const f = Math.pow(z > 0.5 ? airKeep() : groundKeep(), h);
+    vx *= f; vy *= f;
+    const snow = weatherName() === "snow" ? 0.86 : 1;
+    x += vx * h * snow; y += vy * h * snow;
     trajectory.push({ x, y, z, t: i * h });
   }
 }
@@ -2628,11 +2865,14 @@ function ballContacts(dt) {
     }
     if (game.admin && game.admin.perfect && adminMine(p) && p.state === "run") { takePossession(p); return; }
     const rel = Math.hypot(ball.vx - p.vx, ball.vy - p.vy);
-    const limit = CONTROL_SPEED + (isHumanControlled(p) ? 120 : 0);
+    let limit = CONTROL_SPEED + (isHumanControlled(p) ? 120 : 0);
+    if (weatherName() === "rain") limit *= 0.86;
     if (rel < limit && p.state === "run") {
       // A heavy ball doesn't glue to the foot. The first touch pops it
       // into the stride, and the player settles it a moment later.
-      if (rel > 280 && p.touchSettle !== 1) {
+      // Rain makes that first touch a little less sticky.
+      const heavy = weatherName() === "rain" ? 220 : 280;
+      if (rel > heavy && p.touchSettle !== 1) {
         const face = normalize((p.fx || 0) + 1e-4, p.fy || 0);
         const keep = Math.min(150, rel * 0.22);
         ball.vx = p.vx * 0.45 + face.x * keep;
@@ -2687,7 +2927,10 @@ function goalieTouch(g) {
   const catchChance = s < 480 ? clamp(0.92 + extra, 0.7, 0.99) : clamp((ai.gkCatch + extra) * clamp(1 - (s - 480) / 1300, 0.2, 1), 0.12, 0.95);
   if (Math.random() < catchChance) {
     takePossession(g);
-    if (dangerous) { say(g.state === "dive" ? "What a save!" : "Safe hands!", "#9fffa0"); game.stats.saves++; emit("ooh"); }
+    if (dangerous) {
+      say(pickCall("save", { name: shownName(g), team: teamName(g.team) }), "#9fffa0", 1.8);
+      game.stats.saves++; emit("ooh");
+    }
   } else {
     // Parry: punch the ball away from goal (often out for a corner!)
     const T = TEAMS[g.team];
@@ -2703,7 +2946,10 @@ function goalieTouch(g) {
     ball.vz = 160;
     ball.lastTouch = g; ball.lastTeam = g.team; ball.intended = null;
     g.controlCD = 0.45;
-    if (dangerous) { say("Great save!", "#9fffa0"); game.stats.saves++; emit("ooh"); }
+    if (dangerous) {
+      say(pickCall("punch", { name: shownName(g), team: teamName(g.team) }), "#9fffa0", 1.8);
+      game.stats.saves++; emit("ooh");
+    }
     ball.shot = null;
   }
 }
@@ -3054,7 +3300,10 @@ function ownerAI(p, dt) {
     p.thinkTimer = ai.think + rand(0.05, 0.15);
     if (aiMaybeSkill(p, presser, pressure)) return { x: p.x + p.fx * 50, y: p.y + p.fy * 50, sprint: false };
     const angleOK = Math.abs(ball.y - PITCH.cy) < distGoal * 0.85;
-    if (distGoal < ai.shootRange && angleOK) { aiShoot(p); return { x: p.x, y: p.y, sprint: false }; }
+    if (distGoal < ai.shootRange && angleOK) {
+      if (game.difficulty !== "easy" && Math.random() < 0.3 && doFinesse(p)) return { x: p.x, y: p.y, sprint: false };
+      aiShoot(p); return { x: p.x, y: p.y, sprint: false };
+    }
     const best = bestPass(p);
     const mine = attackValue(p, p.team) + Math.min(pressure, 120) * 0.4;
     if (best && (best.score > mine + 10 || (pressure < 40 && best.score > mine - 30))) {
@@ -3359,7 +3608,9 @@ function checkOutOfPlay() {
     if (inMouth && past > 0 && past < 3 * r && Math.abs(ball.z - CROSSBAR) < r + 1 && ball.vx * s > 0) {
       ball.vx = -ball.vx * 0.5; ball.x = L - s * 1;
       ball.vz = ball.z > CROSSBAR ? Math.abs(ball.vz) * 0.5 + 60 : -Math.abs(ball.vz) * 0.5;
-      say("Off the crossbar!", "#ffd33d"); emit("post"); emit("ooh");
+      const atkBar = ball.lastTeam || "blue";
+      say(pickCall("bar", { team: teamName(atkBar), other: teamName(other(atkBar)) }), "#ffd33d", 1.8);
+      emit("post"); emit("ooh");
       return;
     }
   }
@@ -3391,7 +3642,11 @@ function checkOutOfPlay() {
       goDead("corner", other(defending), { x: T.ownGoalX + T.dir * 4, y: top ? PITCH.top + 4 : PITCH.bottom - 4 });
     } else {
       goDead("goalkick", defending, { x: T.ownGoalX + T.dir * SIX.depth, y: PITCH.cy + (top ? -60 : 60) });
-      if (wasShot) { say(inMouth ? "Over the bar!" : "Just wide!", "#ffd33d"); emit("ooh"); }
+      if (wasShot) {
+        const atk = (ball.shot && ball.shot.team) || ball.lastTeam || other(defending);
+        say(pickCall(inMouth ? "over" : "wide", { team: teamName(atk), other: teamName(defending) }), "#ffd33d", 1.8);
+        emit("ooh");
+      }
     }
     return;
   }
@@ -3418,12 +3673,6 @@ function scoreGoal(team, side) {
   game.phase = "goal";
   game.timer = GOAL_CELEBRATION_TIME;
   const shot = ball.shot;
-  let text = "GOAL!";
-  if (ball.lastTeam && ball.lastTeam !== team) text = "Own goal!";
-  else if (shot && shot.penalty) text = "Penalty scored!";
-  else if (shot && shot.chip) text = "What a chip!";
-  else if (shot && Math.hypot(shot.x - ball.x, shot.y - ball.y) > 450) text = "From long range!";
-  else if (shot && shot.power >= 1050) text = "What a strike!";
   emit("cheer");
   emit("whistle");
   // ---- celebration: the scorer runs to the corner flag, teammates join ----
@@ -3433,8 +3682,14 @@ function scoreGoal(team, side) {
     for (const p of teamPlayers(team)) { if (p.role === "GK") continue; const d = dist(p, ball); if (d < bd) { bd = d; scorer = p; } }
   }
   const who = (ball.lastTeam && ball.lastTeam !== team && ball.lastTouch) ? ball.lastTouch : scorer;
-  if (who) text += " " + shownName(who);
-  say(text, teamUi(team), 3);
+  const name = who ? shownName(who) : "a player";
+  let call = "goal";
+  if (ball.lastTeam && ball.lastTeam !== team) call = "og";
+  else if (shot && shot.penalty) call = "penGoal";
+  else if (shot && shot.chip) call = "chip";
+  else if (shot && Math.hypot(shot.x - ball.x, shot.y - ball.y) > 450) call = "long";
+  else if (shot && shot.power >= 1050) call = "power";
+  say(pickCall(call, { name: name, team: teamName(team), other: teamName(other(team)) }), teamUi(team), 3.2);
   if (who) game.stats.scorers.push({ team, name: shownName(who), num: who.num, og: !!(ball.lastTeam && ball.lastTeam !== team) });
   const T = TEAMS[team];
   const top = scorer ? scorer.y < PITCH.cy : true;
@@ -3449,9 +3704,18 @@ function scoreGoal(team, side) {
 // is a cup match, which goes to a penalty shootout.
 function fullTime() {
   emit("whistleLong");
-  if (game.score.blue !== game.score.red) endGame(game.score.blue > game.score.red ? "blue" : "red");
-  else if (game.knockout) { say("It's a draw - PENALTIES!", "#ffd33d", 3); startShootout(); }
-  else endGame(null);
+  const b = game.score.blue, r = game.score.red;
+  if (b !== r) {
+    const winner = b > r ? "blue" : "red";
+    say(pickCall("fullWin", { team: teamName(winner) }), teamUi(winner), 3.2);
+    endGame(winner);
+  } else if (game.knockout) {
+    say("It's a draw, " + b + "\u2013" + r + ". Penalties!", "#ffd33d", 3);
+    startShootout();
+  } else {
+    say(pickCall("fullDraw"), "#fff", 3.2);
+    endGame(null);
+  }
 }
 
 // Restart the game with a set piece: the taker waits with the ball
@@ -3511,8 +3775,8 @@ function beginSetpiece(type, team, x, y, taker = null, indirect = false) {
     if (type === "throw") holdThrowBall(taker, 0);   // ball is already over the head, not at the feet
     if (type === "kickoff") {
       parkForKickoff(taker);
-      const who = taker && taker.captain ? shownName(taker) : "";
-      say(who ? "Coin toss: " + who + " wins it" : "Kick off!", "#ffd33d", 2.2);
+      const who = taker ? shownName(taker) : "";
+      say(pickCall("kickoff", { team: teamName(team), name: who || "The captain" }), "#ffd33d", 2.4);
       emit("whistle");
     } else {
       keepAwayFromSetpiece();
@@ -3616,7 +3880,8 @@ function giveCard(p, kind) {
   }
   game.cardPopup = { team: p.team, idx: pIndex(p), num: p.num, kind: shown, timer: 3 };
   emit("card", shown === "yellow" ? 1 : 2);
-  say(shown === "yellow" ? "Yellow card!" : shown === "second" ? "Second yellow - RED CARD!" : "RED CARD!", shown === "yellow" ? "#ffd33d" : "#ff4d4d", 2.2);
+  const callKind = shown === "yellow" ? "yellow" : shown === "second" ? "second" : "red";
+  say(pickCall(callKind, { name: shownName(p), team: teamName(p.team) }), shown === "yellow" ? "#ffd33d" : "#ff4d4d", 2.6);
 }
 
 function sendOff(p) {
@@ -4154,6 +4419,10 @@ function update(dt) {
     }
   } else if (game.phase === "play") {
     if (!(game.admin && game.admin.clockPaused)) game.clock += dt;
+    if (game.timeLimit && !game.halfSaid && game.clock >= game.timeLimit / 2 && game.clock < game.timeLimit) {
+      game.halfSaid = true;
+      say(pickCall("half"), "#ffe14a", 2.6);
+    }
     assignActive("blue", dt); assignActive("red", dt);
     computePlans();
     updatePlayers(dt);
@@ -4237,7 +4506,7 @@ function update(dt) {
   }
   function press(id, action) {
     const c = findController(id);
-    if (c && ["shoot", "pass", "swap", "skill", "flick", "skip"].includes(action) && c.presses.length < 10) c.presses.push(action);
+    if (c && ["shoot", "pass", "swap", "skill", "stepover", "flick", "finesse", "skip"].includes(action) && c.presses.length < 10) c.presses.push(action);
   }
 
   // A compact picture of the match, sent to every browser ~30x a second
@@ -4275,7 +4544,10 @@ function update(dt) {
   }
   // Everything else a browser needs to know about this match
   function matchInfo() {
-    return { teams: game.teams, rules: game.rules, timeLimit: game.timeLimit, knockout: game.knockout, matchType: game.matchType };
+    return {
+      teams: game.teams, rules: game.rules, timeLimit: game.timeLimit, knockout: game.knockout, matchType: game.matchType,
+      weather: game.weather || "clear", wind: [game.windX || 0, game.windY || 0], night: !!game.night,
+    };
   }
 
   // ---------------- debug / test helpers ----------------
@@ -4325,15 +4597,21 @@ function update(dt) {
     kickBall(mid, { x: fwd.x - ball.x, y: fwd.y - ball.y }, 700, 0, "pass", fwd);
     return { offside: ball.offside ? ball.offside.players.map(pIndex) : [] };
   }
-  // Make a player do a trick (type: stepover | spin | flick | burst)
+  // Make a player do a trick (type: stepover | spin | flick | burst | finesse)
   function debugSkill(team = "blue", type = "stepover") {
     let p = ball.owner && ball.owner.team === team ? ball.owner : teamPlayers(team).find((q) => q.role !== "GK");
     if (!p) return { ok: false };
     game.phase = "play"; game.setpiece = null;
     p.state = "run"; p.skillCD = 0;
+    if (type === "finesse") {
+      const T = TEAMS[team];
+      p.x = T.targetGoalX - T.dir * 280;
+      p.y = PITCH.cy - 36;
+      p.fx = T.dir; p.fy = 0;
+    }
     Object.assign(ball, { x: p.x + p.fx * 14, y: p.y + p.fy * 14, z: 0, vx: 0, vy: 0, owner: p });
-    const ok = doSkill(p, type, { x: -p.fy, y: p.fx });
-    return { ok, player: pIndex(p), skill: p.skill };
+    const ok = type === "finesse" ? doFinesse(p) : doSkill(p, type, { x: -p.fy, y: p.fx });
+    return { ok, player: pIndex(p), skill: p.skill, curl: ball.curl || 0 };
   }
 
   function restoreSquadStats(p, snap) {
@@ -5110,7 +5388,7 @@ const SETTINGS_TABS = [
       { id: "fpFov", label: "First-person view angle", type: "range", min: 75, max: 90, step: 1, def: 84, suffix: "°" },
       { id: "headBob", label: "Head bob", type: "toggle", def: true },
       { id: "shake", label: "Screen shake", type: "toggle", def: true },
-      { id: "replays", label: "Goal replays", type: "toggle", def: true },
+      { id: "replays", label: "Goal replays", type: "toggle", def: true, help: "After a goal, a slow-motion replay plays on your screen. Tap to skip it. In an online game it never pauses the match." },
     ],
   },
   {
@@ -5127,6 +5405,10 @@ const SETTINGS_TABS = [
       { id: "stoppage", label: "Injury and stoppage time", type: "toggle", def: false },
       { id: "ballSpeed", label: "Ball speed", type: "range", min: 0.85, max: 1.25, step: 0.05, def: 1 },
       { id: "gameSpeed", label: "Game speed", type: "range", min: 0.7, max: 1.3, step: 0.05, def: 1 },
+      { id: "weather", label: "Weather", type: "select", def: "clear", help: "Pick this before kickoff. Rain is slippery, snow slows the ball, and wind nudges high balls. Random chooses one for you.", options: [
+        { v: "clear", label: "Clear" }, { v: "rain", label: "Rain" }, { v: "snow", label: "Snow" },
+        { v: "wind", label: "Wind" }, { v: "random", label: "Random" } ] },
+      { id: "night", label: "Night game", type: "toggle", def: false, help: "A darker sky and a floodlight glow." },
     ],
   },
   {
@@ -5152,6 +5434,8 @@ const SETTINGS_TABS = [
       { id: "sfx", label: "Sound effects", type: "range", min: 0, max: 1, step: 0.05, def: 1 },
       { id: "whistle", label: "Whistle", type: "range", min: 0, max: 1, step: 0.05, def: 1 },
       { id: "mute", label: "Mute", type: "toggle", def: false },
+      { id: "commentary", label: "Commentary", type: "toggle", def: true, help: "Short lines about goals, saves, near misses, cards, kickoff, half-time and full-time." },
+      { id: "commentaryVoice", label: "Commentary voice", type: "toggle", def: false, help: "Reads those lines out loud with this device's voice. Off unless you turn it on." },
     ],
   },
   {
@@ -5159,6 +5443,7 @@ const SETTINGS_TABS = [
     fields: [
       { id: "bigText", label: "Bigger text", type: "toggle", def: false },
       { id: "reduceMotion", label: "Reduce motion", type: "toggle", def: false, help: "Turns off shake, head bob and speed blur." },
+      { id: "reduceEffects", label: "Reduce effects", type: "toggle", def: false, help: "Fewer raindrops and snowflakes, and a simpler night glow. Handy on a phone." },
       { id: "contrast", label: "High contrast outlines", type: "toggle", def: false },
     ],
   },
@@ -5315,6 +5600,7 @@ function applySettings() {
   }
 
   if (typeof Sound !== "undefined" && Sound.applyMix) Sound.applyMix(g);
+  if (!g.commentaryVoice || g.commentary === false || g.mute) stopCommentaryVoice();
 
   if (!onlineMatch() && typeof settings !== "undefined" && settings) {
     settings.difficulty = g.difficulty || settings.difficulty;
@@ -5351,6 +5637,10 @@ function pushMatchTune() {
     ball: Number(g.ballSpeed) || 1,
     stoppage: !!g.stoppage,
   };
+  if (typeof setMatchAtmosphere === "function") setMatchAtmosphere(sim.game, g.weather || "clear", !!g.night);
+}
+function stopCommentaryVoice() {
+  try { if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel(); } catch (e) { /* no voice */ }
 }
 
 function revealSettingsTab(scroller, btn) {
@@ -5878,8 +6168,15 @@ function updateCamera(dt, snap = false) {
     zoom = 0.94;
   }
   if (game.phase === "goal") {
-    zoom = (replayOn ? (phone ? 1.16 : 1.42) : (phone ? 1.08 : 1.24)) / grow;
-    if (!replayOn && game.celebration && game.celebration.scorer) {
+    zoom = (replayOn ? (phone ? 1.2 : 1.5) : (phone ? 1.08 : 1.24)) / grow;
+    if (replayOn) {
+      // A side-on look, a little off the ball's path, like a broadcast replay.
+      const travel = Math.hypot(bvx, sample ? sample.ball.vy || 0 : 0) || 1;
+      const nx = -(sample ? sample.ball.vy || 0 : 0) / travel;
+      const ny = bvx / travel;
+      tx = bx + nx * (phone ? 70 : 120);
+      ty = by + ny * (phone ? 90 : 140);
+    } else if (game.celebration && game.celebration.scorer) {
       tx = game.celebration.scorer.x;
       ty = game.celebration.scorer.y;
     }
@@ -5953,16 +6250,19 @@ function captureFrame(list) {
   };
 }
 function recordTrail() {
+  // Pictures for a replay. This never touches the match, so an online
+  // host keeps simulating while the replay is only drawn on this screen.
   if (replay) return;
+  if (!game || game.phase === "menu" || game.phase === "lobby") return;
   if (typeof rosterList !== "function" || !ball) return;
   const list = rosterList();
   if (!list || !list.length) return;
   if (trail.length && viewTime - trail[trail.length - 1].t < 0.05) return;
   const snap = captureFrame(list);
   const prev = trail[trail.length - 1];
-  if (prev && Math.hypot(snap.ball.x - prev.ball.x, snap.ball.y - prev.ball.y) > 220) trail.length = 0;
+  if (prev && Math.hypot(snap.ball.x - prev.ball.x, snap.ball.y - prev.ball.y) > 480) trail.length = 0;
   trail.push(snap);
-  while (trail.length && viewTime - trail[0].t > 3.2) trail.shift();
+  while (trail.length && viewTime - trail[0].t > 6.2) trail.shift();
 }
 function syncReplay() {
   const goal = game.phase === "goal";
@@ -5972,10 +6272,14 @@ function syncReplay() {
     if (trail.length >= 12 && span > 0.75) {
       replay = trail.slice();
       replayT0 = viewTime;
-      replayDur = Math.min(2.35, span);
+      const room = Math.max(0, (game.timer || 5) - 0.7);
+      replayDur = clamp(room, 2.2, 4.6);
     } else replay = "skip";
   }
   if (!goal) replay = null;
+}
+function skipReplayVisual() {
+  if (replay && replay !== "skip") replay = "skip";
 }
 function isReplaying() {
   return !!(replay && replay !== "skip" && viewTime - replayT0 < replayDur);
@@ -6008,9 +6312,14 @@ function lerpOff(a, b, t) {
     fx: f.x, fy: f.y, sig: b.sig, anim: lerp(a.anim || 0, b.anim || 0, t),
   };
 }
+function replayEase(u) {
+  // Run through the build-up, then slow the finish right down.
+  if (u < 0.34) return (u / 0.34) * 0.7;
+  return 0.7 + ((u - 0.34) / 0.66) * 0.3;
+}
 function replaySample() {
   const span = replay[replay.length - 1].t - replay[0].t || 1;
-  const u = clamp((viewTime - replayT0) / Math.max(0.2, replayDur), 0, 1);
+  const u = replayEase(clamp((viewTime - replayT0) / Math.max(0.2, replayDur), 0, 1));
   const target = replay[0].t + span * u;
   let i = 1;
   while (i < replay.length - 1 && replay[i].t < target) i++;
@@ -6122,12 +6431,38 @@ function pitchPath() {
   ctx.closePath();
 }
 
+function shownWeather() {
+  return (game && game.weather) || "clear";
+}
+function shownNight() {
+  return !!(game && game.night);
+}
+function effectsReduced() {
+  return (typeof opt === "function" && (!!opt("reduceEffects") || !!opt("reduceMotion"))) || quality === "low";
+}
 function drawSky() {
+  const night = shownNight();
+  const w = shownWeather();
   const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-  g.addColorStop(0, "#070b14");
-  g.addColorStop(0.28, "#14233b");
-  g.addColorStop(0.55, "#1c3354");
-  g.addColorStop(1, "#101810");
+  if (night) {
+    g.addColorStop(0, "#02040a");
+    g.addColorStop(0.35, "#0a1020");
+    g.addColorStop(0.7, "#10182a");
+    g.addColorStop(1, "#070b10");
+  } else if (w === "rain") {
+    g.addColorStop(0, "#2a3340");
+    g.addColorStop(0.4, "#3d4a58");
+    g.addColorStop(1, "#1a221c");
+  } else if (w === "snow") {
+    g.addColorStop(0, "#8ea0b4");
+    g.addColorStop(0.45, "#c5d0dc");
+    g.addColorStop(1, "#d5ddd4");
+  } else {
+    g.addColorStop(0, "#070b14");
+    g.addColorStop(0.28, "#14233b");
+    g.addColorStop(0.55, "#1c3354");
+    g.addColorStop(1, "#101810");
+  }
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 }
@@ -6151,10 +6486,12 @@ function drawTower(x, y, glow) {
   ctx.fillRect(lamp.x - w / 2, lamp.y - h / 2, w, h);
   ctx.fillStyle = "#fff8e0";
   for (let i = -1; i <= 1; i++) ctx.fillRect(lamp.x + i * w * 0.28 - 1.5, lamp.y - h / 2, 3, h);
-  if (glow && quality === "high") {
-    const rad = 80 * Math.max(0.6, lamp.s);
+  const night = shownNight();
+  if (night || (glow && quality === "high")) {
+    const cheap = effectsReduced();
+    const rad = (night ? (cheap ? 46 : 92) : 80) * Math.max(0.6, lamp.s);
     const grd = ctx.createRadialGradient(lamp.x, lamp.y, 2, lamp.x, lamp.y, rad);
-    grd.addColorStop(0, "rgba(255, 236, 190, 0.55)");
+    grd.addColorStop(0, night ? "rgba(255, 236, 190, 0.85)" : "rgba(255, 236, 190, 0.55)");
     grd.addColorStop(1, "rgba(255, 236, 190, 0)");
     ctx.fillStyle = grd;
     ctx.beginPath();
@@ -6387,30 +6724,53 @@ function drawPitch() {
       i % 2 ? "#17692c" : "#1e7c36"
     );
   }
-  if (quality === "high") {
+  const night = shownNight();
+  const snow = shownWeather() === "snow";
+  if (quality === "high" || night || snow) {
     ctx.save();
     pitchPath();
     ctx.clip();
-    const yFar = w2s(PITCH.cx, PITCH.top, 0).y;
-    const yNear = w2s(PITCH.cx, PITCH.bottom, 0).y;
-    const g = ctx.createLinearGradient(0, yFar, 0, yNear);
-    g.addColorStop(0, "rgba(0,0,0,0.30)");
-    g.addColorStop(0.42, "rgba(0,0,0,0.05)");
-    g.addColorStop(1, "rgba(255,255,255,0.06)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    // Floodlight pools.
-    for (const x of [PITCH.left + PITCH.w * 0.3, PITCH.right - PITCH.w * 0.3]) {
-      const mid = w2s(x, PITCH.cy, 0);
-      const rx = Math.abs(w2s(x + 200, PITCH.cy, 0).x - w2s(x - 200, PITCH.cy, 0).x) / 2;
-      const ry = Math.abs(w2s(x, PITCH.bottom, 0).y - w2s(x, PITCH.top, 0).y) * 0.42;
-      const pool = ctx.createRadialGradient(mid.x, mid.y, 8, mid.x, mid.y, Math.max(rx, ry, 12));
-      pool.addColorStop(0, "rgba(255, 244, 214, 0.16)");
-      pool.addColorStop(1, "rgba(255, 244, 214, 0)");
-      ctx.fillStyle = pool;
-      ctx.beginPath();
-      ctx.ellipse(mid.x, mid.y, Math.max(8, rx), Math.max(8, ry), 0, 0, Math.PI * 2);
-      ctx.fill();
+    if (quality === "high" && !effectsReduced()) {
+      const yFar = w2s(PITCH.cx, PITCH.top, 0).y;
+      const yNear = w2s(PITCH.cx, PITCH.bottom, 0).y;
+      const g = ctx.createLinearGradient(0, yFar, 0, yNear);
+      g.addColorStop(0, "rgba(0,0,0,0.30)");
+      g.addColorStop(0.42, "rgba(0,0,0,0.05)");
+      g.addColorStop(1, "rgba(255,255,255,0.06)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+    if (snow) {
+      ctx.fillStyle = "rgba(255,255,255,0.34)";
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+    if (night) {
+      const spots = effectsReduced() ? [PITCH.cx] : [PITCH.left + PITCH.w * 0.3, PITCH.right - PITCH.w * 0.3];
+      for (const x of spots) {
+        const mid = w2s(x, PITCH.cy, 0);
+        const rx = Math.abs(w2s(x + 200, PITCH.cy, 0).x - w2s(x - 200, PITCH.cy, 0).x) / 2;
+        const ry = Math.abs(w2s(x, PITCH.bottom, 0).y - w2s(x, PITCH.top, 0).y) * 0.42;
+        const pool = ctx.createRadialGradient(mid.x, mid.y, 8, mid.x, mid.y, Math.max(rx, ry, 12));
+        pool.addColorStop(0, "rgba(255, 244, 214, 0.28)");
+        pool.addColorStop(1, "rgba(255, 244, 214, 0)");
+        ctx.fillStyle = pool;
+        ctx.beginPath();
+        ctx.ellipse(mid.x, mid.y, Math.max(8, rx), Math.max(8, ry), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (quality === "high" && !effectsReduced()) {
+      for (const x of [PITCH.left + PITCH.w * 0.3, PITCH.right - PITCH.w * 0.3]) {
+        const mid = w2s(x, PITCH.cy, 0);
+        const rx = Math.abs(w2s(x + 200, PITCH.cy, 0).x - w2s(x - 200, PITCH.cy, 0).x) / 2;
+        const ry = Math.abs(w2s(x, PITCH.bottom, 0).y - w2s(x, PITCH.top, 0).y) * 0.42;
+        const pool = ctx.createRadialGradient(mid.x, mid.y, 8, mid.x, mid.y, Math.max(rx, ry, 12));
+        pool.addColorStop(0, "rgba(255, 244, 214, 0.16)");
+        pool.addColorStop(1, "rgba(255, 244, 214, 0)");
+        ctx.fillStyle = pool;
+        ctx.beginPath();
+        ctx.ellipse(mid.x, mid.y, Math.max(8, rx), Math.max(8, ry), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.restore();
   }
@@ -6896,6 +7256,8 @@ function drawPlayer(p) {
     ctx.translate(0, H * 0.15);
   }
   if (!lying && speed > 22) ctx.rotate(run * 0.05);
+  if (!lying && p.skill === "finesse") ctx.rotate(-0.42);
+  if (!lying && p.skill === "flick") ctx.translate(0, -H * 0.16);
 
   const hip = -H * 0.46;
   const sw = run * H * 0.2;
@@ -7359,17 +7721,133 @@ function drawShootoutDots(x, y) {
   }
 }
 
+const flakes = [];
+let flakeKind = "";
+function weatherCount() {
+  if (effectsReduced()) return 14;
+  if (phonePlay() || quality === "medium") return 28;
+  return 46;
+}
+function drawWeather() {
+  const w = shownWeather();
+  if (w !== "rain" && w !== "snow") { flakes.length = 0; flakeKind = ""; return; }
+  if (flakeKind !== w) { flakes.length = 0; flakeKind = w; }
+  const snow = w === "snow";
+  const n = weatherCount();
+  while (flakes.length < n) {
+    flakes.push({
+      x: Math.random() * VIEW_W,
+      y: Math.random() * VIEW_H,
+      vx: snow ? (Math.random() - 0.5) * 28 : -40 - Math.random() * 30,
+      vy: snow ? 28 + Math.random() * 36 : 420 + Math.random() * 260,
+      r: snow ? 1.4 + Math.random() * 1.8 : 0,
+      len: 8 + Math.random() * 10,
+    });
+  }
+  if (flakes.length > n) flakes.length = n;
+  const dt = Math.min(0.05, lastDt || 0.016);
+  ctx.save();
+  for (const d of flakes) {
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    if (d.y > VIEW_H + 12 || d.x < -20 || d.x > VIEW_W + 20) {
+      d.y = -8;
+      d.x = Math.random() * VIEW_W;
+    }
+    if (snow) {
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = "rgba(190, 214, 235, 0.55)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(d.x, d.y);
+      ctx.lineTo(d.x + d.vx * 0.02, d.y + d.len);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+function drawAtmosphere() {
+  const w = shownWeather();
+  const night = shownNight();
+  if (w === "clear" && !night) return;
+  const pad = screenPad();
+  const bits = [];
+  if (night) bits.push("NIGHT");
+  if (w === "rain") bits.push("RAIN");
+  else if (w === "snow") bits.push("SNOW");
+  else if (w === "wind") bits.push("WIND");
+  const label = bits.join("  ");
+  ctx.save();
+  ctx.font = "bold 12px Arial";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const tw = ctx.measureText(label).width;
+  const x = VIEW_W - tw - 28 - pad.right - (w === "wind" ? 28 : 0);
+  const y = 72 + pad.top;
+  ctx.fillStyle = "rgba(8,12,20,0.72)";
+  roundRect(ctx, x - 8, y - 11, tw + 16 + (w === "wind" ? 26 : 0), 22, 6);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.fillText(label, x, y);
+  if (w === "wind") {
+    const wx = game.windX || 1, wy = game.windY || 0;
+    const len = Math.hypot(wx, wy) || 1;
+    const ax = x + tw + 14, ay = y;
+    ctx.strokeStyle = "#9fd4ff";
+    ctx.fillStyle = "#9fd4ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ax - (wx / len) * 8, ay - (wy / len) * 6);
+    ctx.lineTo(ax + (wx / len) * 8, ay + (wy / len) * 6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ax + (wx / len) * 8, ay + (wy / len) * 6);
+    ctx.lineTo(ax + (wx / len) * 3, ay + (wy / len) * 1);
+    ctx.lineTo(ax + (wx / len) * 4, ay + (wy / len) * 6 - 5);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+let spokenLine = "";
+function speakCommentary(text) {
+  if (typeof opt !== "function" || !opt("commentaryVoice") || opt("commentary") === false || opt("mute")) return;
+  if (!text || text === spokenLine) return;
+  spokenLine = text;
+  try {
+    if (typeof speechSynthesis === "undefined") return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.04;
+    u.pitch = 1;
+    const vol = Number(opt("master"));
+    u.volume = clamp(isFinite(vol) ? vol : 1, 0, 1);
+    speechSynthesis.speak(u);
+  } catch (e) { /* this browser has no voice */ }
+}
 function drawCommentary() {
   const c = game.comment;
   const pad = screenPad();
-  if (c && c.timer > 0 && c.text) {
+  const linesOn = typeof opt !== "function" || opt("commentary") !== false;
+  if (linesOn && c && c.timer > 0 && c.text) {
+    speakCommentary(c.text);
     const alpha = clamp(c.timer / 0.35, 0, 1);
     ctx.globalAlpha = alpha;
     ctx.font = "bold 15px Arial";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     const text = c.text;
-    const w = Math.min(VIEW_W * 0.7, ctx.measureText(text).width + 26);
+    let size = 15;
+    ctx.font = "bold " + size + "px Arial";
+    const maxW = Math.max(120, VIEW_W - 36 - pad.left - pad.right);
+    while (size > 11 && ctx.measureText(text).width + 26 > maxW) {
+      size -= 1;
+      ctx.font = "bold " + size + "px Arial";
+    }
+    const w = Math.min(maxW, ctx.measureText(text).width + 26);
     const x = 12 + pad.left;
     const y = (game.shootout ? 132 : 78) + pad.top;
     ctx.fillStyle = "rgba(8,12,20,0.8)";
@@ -7412,7 +7890,7 @@ function drawCommentary() {
       }
       ctx.globalAlpha = 1;
     }
-    if (game.timer > 1 && !isReplaying()) hintBox(keysHint("skip"), VIEW_H * 0.72, 13);
+    if (game.timer > 1) hintBox(isReplaying() ? (keysHint("skip") + " the replay") : keysHint("skip"), VIEW_H * 0.72, 13);
   }
   const mine = localActives();
   const pen = game.penalty;
@@ -7468,6 +7946,9 @@ function drawMatchBugs(replayOn) {
     ctx.fill();
     ctx.fillStyle = "#fff";
     ctx.fillText("REPLAY", x + 70, y);
+    ctx.font = "bold 11px Arial";
+    ctx.fillStyle = "#ffe14a";
+    ctx.fillText("SLOW MO", x + 70, y + 18);
   }
 }
 function centerTitle(text) {
@@ -7755,9 +8236,11 @@ function draw() {
     }
   }
 
+  drawWeather();
   drawVignette();
   updateConfetti();
   if (showHud()) {
+    drawAtmosphere();
     if (eyes) drawFpHud(eyes);
     else drawScoreboard();
     drawCommentary();
@@ -8118,12 +8601,12 @@ function controlScheme(id) {
     up: one ? ["KeyW", "ArrowUp"] : ["KeyW"], down: one ? ["KeyS", "ArrowDown"] : ["KeyS"],
     left: one ? ["KeyA", "ArrowLeft"] : ["KeyA"], right: one ? ["KeyD", "ArrowRight"] : ["KeyD"],
     shoot: ["Space"], pass: ["KeyE"], sprint: one ? ["ShiftLeft", "ShiftRight"] : ["ShiftLeft"], swap: ["KeyQ"],
-    skill: ["KeyR"], flick: ["KeyF"],
+    skill: ["KeyR"], flick: ["KeyF"], finesse: ["KeyG"],
   };
   return {
     up: ["ArrowUp"], down: ["ArrowDown"], left: ["ArrowLeft"], right: ["ArrowRight"],
     shoot: ["Enter", "NumpadEnter"], pass: ["ShiftRight"], sprint: ["Slash", "ControlRight"], swap: ["Period"],
-    skill: ["Quote"], flick: ["Semicolon"],
+    skill: ["Quote"], flick: ["Semicolon"], finesse: ["Backslash"],
   };
 }
 const humanIds = () => (settings.mode === "2p" ? ["p1", "p2"] : ["p1"]);
@@ -8150,14 +8633,18 @@ function onKeyPressed(code) {
   if (paused) return;
   for (const id of humanIds()) {
     const s = controlScheme(id);
-    const codes = s.up.concat(s.down, s.left, s.right, s.shoot, s.pass, s.sprint, s.swap, s.skill, s.flick);
+    const codes = s.up.concat(s.down, s.left, s.right, s.shoot, s.pass, s.sprint, s.swap, s.skill, s.flick, s.finesse);
     if (codes.includes(code)) noteFpFollow(id);
   }
   // any key skips a goal celebration
-  if (game.phase === "goal") { sim.press("p1", "skip"); return; }
+  if (game.phase === "goal") {
+    if (typeof skipReplayVisual === "function") skipReplayVisual();
+    sim.press("p1", "skip");
+    return;
+  }
   for (const id of humanIds()) {
     const s = controlScheme(id);
-    for (const action of ["shoot", "pass", "swap", "skill", "flick"]) if (s[action].includes(code)) sim.press(id, action);
+    for (const action of ["shoot", "pass", "swap", "skill", "flick", "finesse"]) if (s[action].includes(code)) sim.press(id, action);
   }
 }
 const isDown = (id, action) => {
@@ -8183,7 +8670,7 @@ function feedInput() {
 // ---- Touch joysticks + buttons (player 2's pad is used in 2 Players) ----
 function bindPad(playerId, ids) {
   const zone = $(ids.zone), base = $(ids.base), knob = $(ids.knob);
-  const pad = { x: 0, y: 0, pointerId: null, baseX: 0, baseY: 0, shoot: false, pass: false, sprint: false, skill: false };
+  const pad = { x: 0, y: 0, pointerId: null, baseX: 0, baseY: 0, shoot: false, pass: false, sprint: false, skill: false, flick: false, finesse: false };
   if (!zone || !base || !knob) return pad;
   function movePad(e) {
     let dx = e.clientX - pad.baseX, dy = e.clientY - pad.baseY;
@@ -8197,7 +8684,10 @@ function bindPad(playerId, ids) {
   zone.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     noteFpFollow(playerId);
-    if (inMatch() && game.phase === "goal") sim.press(playerId, "skip");
+    if (inMatch() && game.phase === "goal") {
+      if (typeof skipReplayVisual === "function") skipReplayVisual();
+      sim.press(playerId, "skip");
+    }
     pad.pointerId = e.pointerId;
     const fixed = typeof opt === "function" && opt("joyMode") === "fixed";
     if (fixed) {
@@ -8222,7 +8712,7 @@ function bindPad(playerId, ids) {
   }
   zone.addEventListener("pointerup", release);
   zone.addEventListener("pointercancel", release);
-  for (const [id, action] of [[ids.shoot, "shoot"], [ids.pass, "pass"], [ids.sprint, "sprint"], [ids.skill, "skill"]]) {
+  for (const [id, action] of [[ids.shoot, "shoot"], [ids.pass, "pass"], [ids.sprint, "sprint"], [ids.skill, "skill"], [ids.flick, "flick"], [ids.curl, "finesse"]]) {
     const el = $(id);
     if (!el) continue;
     el.addEventListener("pointerdown", (e) => {
@@ -8236,7 +8726,10 @@ function bindPad(playerId, ids) {
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
       if (inMatch() && !paused) {
         noteFpFollow(playerId);
-        if (game.phase === "goal") sim.press(playerId, "skip");
+        if (game.phase === "goal") {
+          if (typeof skipReplayVisual === "function") skipReplayVisual();
+          sim.press(playerId, "skip");
+        }
         else if (action !== "sprint") sim.press(playerId, action);
       }
     });
@@ -8248,8 +8741,8 @@ function bindPad(playerId, ids) {
 }
 const sprintLatch = { p1: false, p2: false };
 const pads = {
-  p1: bindPad("p1", { zone: "joyZone", base: "joyBase", knob: "joyKnob", shoot: "shootBtn", pass: "passBtn", sprint: "sprintBtn", skill: "skillBtn" }),
-  p2: bindPad("p2", { zone: "joyZone2", base: "joyBase2", knob: "joyKnob2", shoot: "shootBtn2", pass: "passBtn2", sprint: "sprintBtn2", skill: "skillBtn2" }),
+  p1: bindPad("p1", { zone: "joyZone", base: "joyBase", knob: "joyKnob", shoot: "shootBtn", pass: "passBtn", sprint: "sprintBtn", skill: "skillBtn", flick: "flickBtn", curl: "curlBtn" }),
+  p2: bindPad("p2", { zone: "joyZone2", base: "joyBase2", knob: "joyKnob2", shoot: "shootBtn2", pass: "passBtn2", sprint: "sprintBtn2", skill: "skillBtn2", flick: "flickBtn2", curl: "curlBtn2" }),
 };
 // A short tap on a teammate switches to him. The joystick and buttons
 // sit on top of the picture, so a touch there never counts as a tap.
@@ -8257,7 +8750,10 @@ const pads = {
   const el = $("game");
   let down = null;
   el.addEventListener("pointerdown", (e) => {
-    if (inMatch() && game.phase === "goal") sim.press("p1", "skip");
+    if (inMatch() && game.phase === "goal") {
+      if (typeof skipReplayVisual === "function") skipReplayVisual();
+      sim.press("p1", "skip");
+    }
     down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
   });
   el.addEventListener("pointerup", (e) => {
@@ -8303,7 +8799,8 @@ function hudSubtitle() {
   const half = game.timeLimit && game.clock >= game.timeLimit / 2 ? "2nd half" : "1st half";
   const who = settings.mode === "1p" ? "1P vs CPU (" + game.difficulty + ")" : "2 Players";
   const draw = game.knockout ? " \u2022 draw = penalties" : "";
-  return info.minutes + " min \u2022 " + half + draw + "  \u2022  " + kindText + who;
+  const sky = (game.night ? "Night" : "Day") + (game.weather && game.weather !== "clear" ? " \u2022 " + game.weather : "");
+  return info.minutes + " min \u2022 " + half + draw + "  \u2022  " + kindText + who + "  \u2022  " + sky;
 }
 function keysHint(kind) {
   const t = touchActive();
@@ -8342,6 +8839,8 @@ function newMatch(opts) {
     mode: settings.mode === "2p" ? "2 players" : "1 player", difficulty: settings.difficulty, teams: kits,
     rules: settings.rules, knockout: opts.knockout, matchType: opts.matchType,
     minutes: extra ? undefined : settings.minutes,
+    weather: (typeof opt === "function" && opt("weather")) || "clear",
+    night: typeof opt === "function" && !!opt("night"),
     adminMinutes: extra && !extra.unlimited ? extra.minutes : undefined,
     unlimited: !!(extra && extra.unlimited),
   });
@@ -8459,7 +8958,10 @@ function renderMenu() {
   const fmt = { quick: "Quick match \u2022 11-a-side \u2022 " + len.game + " \u2022 " + len.halves + " \u2022 most goals wins",
                 cup: "Cup \u2022 8 teams, knockout \u2022 every match is " + minsWord + " \u2022 " + len.halves + " \u2022 a draw goes to penalties",
                 shootout: "Penalty shootout \u2022 5 kicks each, then sudden death" }[settings.kind];
-  $("formatLine").textContent = fmt;
+  const weatherNames = { clear: "Clear", rain: "Rain", snow: "Snow", wind: "Wind", random: "Random weather" };
+  const picked = (typeof opt === "function" && opt("weather")) || "clear";
+  const when = (typeof opt === "function" && opt("night")) ? "Night" : "Day";
+  $("formatLine").textContent = fmt + " \u2022 " + (weatherNames[picked] || "Clear") + " \u2022 " + when;
   $("startBtn").textContent = settings.kind === "cup" ? "START NEW CUP" : settings.kind === "shootout" ? "TAKE PENALTIES" : "KICK OFF";
   const saved = loadCup();
   if (!cup && saved && saved.over && saved.champion === 0) {
@@ -8477,30 +8979,30 @@ function updateControlsHelp() {
     help.innerHTML =
       "<b>You attack the goal on the right.</b><br>" +
       "Left thumb moves. <b>SHOOT</b> kicks (hold for a bigger kick). <b>PASS</b> passes (hold to lob).<br>" +
-      "<b>RUN</b> sprints. <b>SKILL</b> does a trick. The pause button is in the top corner.<br>" +
+      "<b>RUN</b> sprints. <b>STEP</b> is a step-over. <b>FLICK</b> is a rainbow. <b>CURL</b> bends a finesse shot.<br>" +
       "Tap a teammate to control him. <b>TV</b> / <b>1ST</b> changes the camera.<br>" +
-      "Penalty: slide the stick up or down, then hold SHOOT. In goal: slide up or down.";
+      "Penalty: slide the stick up or down, then hold SHOOT. In goal: slide up or down. Tap to skip a replay.";
   } else if (isTouchDevice) {
     help.innerHTML =
       "<b>Two players, one phone.</b> Hold it sideways.<br>" +
-      "<b style='color:#9cc4ff'>P1</b> uses the left stick and the left SHOOT, PASS, RUN and SKILL buttons.<br>" +
+      "<b style='color:#9cc4ff'>P1</b> uses the left stick and the left SHOOT, PASS, RUN, STEP, FLICK and CURL buttons.<br>" +
       "<b style='color:#ffb0b0'>P2</b> uses the right stick and the right buttons.<br>" +
-      "Tap your own players to control them. <b>TV</b> / <b>1ST</b> changes the camera.<br>" +
-      "Hold SHOOT for a bigger kick. Tap the pause button in the top corner to pause.";
+      "STEP is a step-over. FLICK is a rainbow. CURL bends a finesse shot.<br>" +
+      "Tap your own players to control them. Tap to skip a replay.";
   } else if (settings.mode === "1p") {
     help.innerHTML =
       "<b>You attack the goal on the right</b><br>" +
       "Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> &nbsp; Sprint <kbd>Shift</kbd> &nbsp; Switch <kbd>Q</kbd> &nbsp; Camera <kbd>C</kbd><br>" +
       "<kbd>Space</kbd> shoot (hold = power) &bull; no ball: slide tackle<br>" +
       "<kbd>E</kbd> pass (hold = lob) &bull; no ball: switch player<br>" +
-      "<kbd>R</kbd> skill move (push sideways = spin, back = flick, +Shift = burst) &nbsp; <kbd>F</kbd> rainbow flick<br>" +
+      "<kbd>R</kbd> step-over &nbsp; <kbd>F</kbd> rainbow flick &nbsp; <kbd>G</kbd> finesse curl shot<br>" +
       "Penalty: <kbd>&uarr;</kbd>/<kbd>&darr;</kbd> aim, hold <kbd>Space</kbd> &bull; in goal: <kbd>&uarr;</kbd>/<kbd>&darr;</kbd> pick a side<br>" +
-      "<kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound";
+      "<kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound &nbsp; any key skips a replay";
   } else {
     help.innerHTML =
-      "<b style='color:#9cc4ff'>P1</b>: <kbd>WASD</kbd> move, <kbd>L-Shift</kbd> sprint, <kbd>Space</kbd> shoot, <kbd>E</kbd> pass, <kbd>Q</kbd> switch, <kbd>R</kbd> skill, <kbd>F</kbd> flick, <kbd>C</kbd> camera<br>" +
-      "<b style='color:#ffb0b0'>P2</b>: <kbd>Arrows</kbd> move, <kbd>/</kbd> sprint, <kbd>Enter</kbd> shoot, <kbd>R-Shift</kbd> pass, <kbd>.</kbd> switch, <kbd>'</kbd> skill, <kbd>;</kbd> flick<br>" +
-      "Hold shoot for power, hold pass to lob &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound";
+      "<b style='color:#9cc4ff'>P1</b>: <kbd>WASD</kbd> move, <kbd>L-Shift</kbd> sprint, <kbd>Space</kbd> shoot, <kbd>E</kbd> pass, <kbd>Q</kbd> switch, <kbd>R</kbd> step-over, <kbd>F</kbd> rainbow, <kbd>G</kbd> finesse<br>" +
+      "<b style='color:#ffb0b0'>P2</b>: <kbd>Arrows</kbd> move, <kbd>/</kbd> sprint, <kbd>Enter</kbd> shoot, <kbd>R-Shift</kbd> pass, <kbd>.</kbd> switch, <kbd>'</kbd> step-over, <kbd>;</kbd> rainbow, <kbd>\\</kbd> finesse<br>" +
+      "Hold shoot for power, hold pass to lob &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound &nbsp; any key skips a replay";
   }
   $("pauseHelp").innerHTML = help.innerHTML;
 }
@@ -9363,6 +9865,7 @@ function frame(now) {
 loadSettings();
 Sound.setMuted(settings.muted);
 idleSim();
+if (typeof pushMatchTune === "function") pushMatchTune();
 renderMenu();
 resize();
 requestAnimationFrame(frame);
@@ -9415,6 +9918,10 @@ window.soccerDebug = {
       penalty: pen ? { team: pen.team, aimY: pen.aimY, gkChoice: pen.gkChoice } : null,
       shootout: so ? { blue: so.kicks.blue.slice(), red: so.kicks.red.slice(), sudden: so.sudden, done: so.done, winner: so.winner } : null,
       celebration: ce ? { type: ce.type, t: ce.t } : null,
+      weather: game.weather || "clear", night: !!game.night,
+      wind: [game.windX || 0, game.windY || 0],
+      comment: game.comment ? game.comment.text : "",
+      replay: typeof isReplaying === "function" && isReplaying(),
       skills: sim.roster.filter((p) => p.skill).map((p) => p.skill),
       screens: SCREENS.filter((s) => !$(s).classList.contains("hidden")),
       cup: cup ? { round: cup.round, over: cup.over, champion: cup.champion, out: cup.out } : null,
