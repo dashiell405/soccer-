@@ -483,6 +483,29 @@ function shownName(p) {
   return p.name || ("#" + p.num);
 }
 
+// Shop upgrades. Offline and career matches set p.upgrades. Online matches
+// leave it empty so both sides stay even. Caps are small on purpose.
+const UPGRADE_LEVEL_CAP = 5;
+function upgradeLevel(levels, key) {
+  const n = levels && Number(levels[key]);
+  if (!isFinite(n) || n <= 0) return 0;
+  return Math.min(UPGRADE_LEVEL_CAP, Math.floor(n));
+}
+function upgradeMultipliers(levels) {
+  const sprint = upgradeLevel(levels, "sprint");
+  const shot = upgradeLevel(levels, "shot");
+  const pass = upgradeLevel(levels, "pass");
+  const stamina = upgradeLevel(levels, "stamina");
+  return {
+    run: 1 + 0.012 * sprint,
+    sprint: 1 + 0.02 * sprint,
+    shot: 1 + 0.025 * shot,
+    aim: 1 - 0.025 * shot,
+    passErr: 1 - 0.05 * pass,
+    stamDrain: 1 - 0.05 * stamina,
+  };
+}
+
 function createSim(opts = {}) {
 
   // ===================================================================
@@ -843,6 +866,13 @@ function boosts(p) {
     steal = clamp(Math.max(steal, 1.76), 0, 1.82);
     stamDrain = clamp(Math.min(stamDrain, 0.38), 0.34, 2);
   }
+  const up = upgradeMultipliers(p && p.upgrades);
+  run *= up.run;
+  sprint *= up.sprint;
+  shot *= up.shot;
+  aim *= up.aim;
+  passErr *= up.passErr;
+  stamDrain *= up.stamDrain;
   if (game.admin && adminMine(p)) {
     if (game.admin.superSpeed) { run = Math.max(run, 1.85); sprint = Math.max(sprint, 1.9); }
     if (game.admin.superShot) { shot = Math.max(shot, 1.95); aim = Math.min(aim, 0.12); }
@@ -2373,7 +2403,16 @@ function scoreGoal(team, side) {
   else if (shot && Math.hypot(shot.x - ball.x, shot.y - ball.y) > 450) call = "long";
   else if (shot && shot.power >= 1050) call = "power";
   say(pickCall(call, { name: name, team: teamName(team), other: teamName(other(team)) }), teamUi(team), 3.2);
-  if (who) game.stats.scorers.push({ team, name: shownName(who), num: who.num, og: !!(ball.lastTeam && ball.lastTeam !== team) });
+  const goalX = side === "left" ? PITCH.left : PITCH.right;
+  const shotFar = shot ? Math.abs(shot.x - goalX) : 0;
+  const shotWide = shot ? Math.abs(shot.y - PITCH.cy) : 0;
+  const outside = !!(shot && (shotFar > BOX.depth || shotWide > BOX.width / 2));
+  const curl = !!(shot && shot.finesse);
+  if (who) game.stats.scorers.push({
+    team, name: shownName(who), num: who.num,
+    og: !!(ball.lastTeam && ball.lastTeam !== team),
+    outside: outside, curl: curl,
+  });
   const T = TEAMS[team];
   const top = scorer ? scorer.y < PITCH.cy : true;
   game.celebration = scorer ? {
@@ -3456,5 +3495,6 @@ function update(dt) {
 if (typeof module === "object" && module.exports) {
   module.exports = { createSim, MATCH_LENGTH, MATCH_PRESETS, FIELD, PITCH, DIFFICULTY, TEAMS, STATE_NAMES, SKILL_LIST, SKILL_NAMES,
                      TEAM_LIST, findTeam, customTeam, buildTeamKits, applyTeamKits, DEFAULT_RULES, setPlayAsMeSides,
-                     clampMatchMinutes, describeMatchLength, resolveMatchSeconds, loadSavedMinutes, saveSavedMinutes };
+                     clampMatchMinutes, describeMatchLength, resolveMatchSeconds, loadSavedMinutes, saveSavedMinutes,
+                     upgradeMultipliers, UPGRADE_LEVEL_CAP, BOX };
 }

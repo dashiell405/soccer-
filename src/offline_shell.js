@@ -310,9 +310,14 @@ function applyPlayAsMeSides(blue, red) {
   if (settings.mode === "2p" && !same) setPlayAsMeSides({ blue: true, red: true });
   else setPlayAsMeSides({ blue: true });
 }
+function dressedSide(def) {
+  if (typeof KickoffProgress !== "undefined" && KickoffProgress.dressTeam) return KickoffProgress.dressTeam(def);
+  return def;
+}
 function newMatch(opts) {
   applyPlayAsMeSides(opts.blue, opts.red);
-  const kits = buildTeamKits(opts.blue, opts.red);
+  const blueSide = dressedSide(opts.blue);
+  const kits = buildTeamKits(blueSide, opts.red);
   applyTeamKits(kits);
   renderBackground();         // the fans in the stands wear the new colours
   const extra = (typeof window !== "undefined" && window.__adminLength) || null;
@@ -332,6 +337,7 @@ function newMatch(opts) {
   confetti.length = 0;        // no confetti left over from the last match
   sim.start();
   players = sim.players;
+  if (typeof KickoffProgress !== "undefined" && KickoffProgress.onMatchStart) KickoffProgress.onMatchStart(opts);
   atMenu = false; paused = false; matchStartedAt = performance.now();
   Sound.init(); Sound.setMuted(settings.muted);
   showScreen(null);
@@ -351,8 +357,10 @@ function startFromMenu() {
 // An idle match so the stadium can be drawn behind the menu
 function idleSim() {
   applyPlayAsMeSides(teamDef(settings.blue), teamDef(settings.red));
-  const kits = buildTeamKits(teamDef(settings.blue), teamDef(settings.red));
-  applyTeamKits(kits); renderBackground();
+  const kits = buildTeamKits(dressedSide(teamDef(settings.blue)), teamDef(settings.red));
+  applyTeamKits(kits);
+  if (typeof KickoffProgress !== "undefined" && KickoffProgress.paintKit) KickoffProgress.paintKit();
+  renderBackground();
   sim = createSim({ teams: kits });
   game = sim.game; ball = sim.ball; controllers = sim.controllers; players = sim.players;
   game.phase = "menu";
@@ -361,7 +369,7 @@ function idleSim() {
 // =====================================================================
 // E. MENU + TEAM PICKER
 // =====================================================================
-const SCREENS = ["menu", "pauseScreen", "winScreen", "teamPicker", "cupScreen", "trophyScreen"];
+const SCREENS = ["menu", "pauseScreen", "winScreen", "teamPicker", "cupScreen", "trophyScreen", "careerScreen", "shopScreen", "challengeScreen", "kitScreen"];
 function showScreen(id) {
   for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
   updateHud();
@@ -450,6 +458,7 @@ function renderMenu() {
     try { localStorage.setItem("soccerCup", JSON.stringify(saved)); } catch (e) { /* ignore */ }
   }
   paintTrophyBadge();
+  if (typeof KickoffProgress !== "undefined" && KickoffProgress.paintMenu) KickoffProgress.paintMenu();
   $("continueCupBtn").classList.toggle("hidden", !(saved && !saved.over));
   if (saved && !saved.over) $("continueCupBtn").textContent = "Continue cup: " + esc(saved.teams[0].name) + " (" + CUP_ROUND_NAMES[saved.round] + ")";
   updateControlsHelp();
@@ -1302,10 +1311,15 @@ function showWin() {
   $("cupContinueBtn").classList.toggle("hidden", !isCup);
   if (isCup) {
     recordCupResult();
-    if (cup.over && cup.champion === 0) { showTrophy(); return; }
+    if (cup.over && cup.champion === 0) {
+      if (typeof KickoffProgress !== "undefined" && KickoffProgress.onFullTime) KickoffProgress.onFullTime();
+      showTrophy();
+      return;
+    }
     $("cupContinueBtn").textContent = "Continue cup";
   }
   showScreen("winScreen");
+  if (typeof KickoffProgress !== "undefined" && KickoffProgress.onFullTime) KickoffProgress.onFullTime();
 }
 $("againBtn").addEventListener("click", () => { if (matchKind === "shootout") startShootoutMatch(); else startQuickMatch(); });
 $("cupContinueBtn").addEventListener("click", () => { if (cup.over && cup.champion === 0) showTrophy(); else showCup(); });

@@ -11,7 +11,7 @@
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "floodlight-kickoff-pages-v41";
+const VERSION = "floodlight-kickoff-pages-v42";
 const NATIVE_APP = self.location && (self.location.protocol === "capacitor:" || self.location.protocol === "ionic:");
 const APP_SHELL = [
   "./",
