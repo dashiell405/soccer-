@@ -238,8 +238,8 @@ assert.ok(cloudSrc.indexOf("kickoff://login") >= 0);
 assert.ok(cfg.indexOf("kickoff://login") >= 0);
 
 const sw = fs.readFileSync(path.join(root, "tools/build_pages.py"), "utf8");
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v44") >= 0);
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v43") < 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v45") >= 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v44") < 0);
 const settingsSrc = fs.readFileSync(path.join(root, "src/settings.js"), "utf8");
 assert.ok(settingsSrc.indexOf("touch-action: pan-y") >= 0);
 assert.ok(settingsSrc.indexOf("overscroll-behavior: contain") >= 0);
@@ -318,7 +318,21 @@ const merged = Cloud.mergeProgress({
   challenges: { date: "2026-11-21", ids: ["clean"], progress: {}, paid: {}, streak: 4, lastComplete: "2026-11-21", badges: [{ date: "2026-11-21", name: "Full set" }] },
 }, "merge");
 assert.strictEqual(merged.coins.coins, 40);
-assert.strictEqual(merged.coins.earned, 40);
+assert.strictEqual(merged.coins.earned, 30);
+const gifted = Cloud.mergeProgress({
+  coins: { coins: 500, earned: 40 },
+}, {
+  coins: { coins: 10, earned: 80 },
+}, "merge");
+assert.strictEqual(gifted.coins.coins, 500);
+assert.strictEqual(gifted.coins.earned, 80);
+const legacyCoins = Cloud.mergeProgress({
+  coins: { coins: 15 },
+}, {
+  coins: { coins: 4, earned: 9 },
+}, "merge");
+assert.strictEqual(legacyCoins.coins.coins, 15);
+assert.strictEqual(legacyCoins.coins.earned, 15);
 assert.strictEqual(merged.upgrades.sprint, 3);
 assert.strictEqual(merged.upgrades.shot, 2);
 assert.strictEqual(merged.upgrades.stamina, 4);
