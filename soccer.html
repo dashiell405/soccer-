@@ -502,9 +502,18 @@
       <div id="lengthLine" class="lengthLine">5 minute game • two halves of 2:30</div>
     </div>
     <div class="row"><button id="startBtn" class="big">KICK OFF</button></div>
-    <div class="row"><button type="button" id="settingsBtn" class="gearBtn" aria-label="Settings">⚙ Settings</button> <button type="button" class="js-squad-open">Squads</button></div>
+    <div class="row"><button type="button" id="settingsBtn" class="gearBtn" aria-label="Settings">⚙ Settings</button> <button type="button" id="accountMenuBtn">Sign in</button> <button type="button" class="js-squad-open">Squads</button></div>
     <div class="row"><button id="continueCupBtn" class="hidden"></button></div>
     <div id="controlsHelp" class="controls"></div>
+  </div>
+</div>
+
+<!-- Account: username and password, or a parent email -->
+<div id="accountScreen" class="overlay hidden">
+  <div class="panel">
+    <h1 style="font-size:28px">Account</h1>
+    <div id="accountScreenPanel" class="kickoffAccount" data-kickoff-account="screen"></div>
+    <div class="row"><button type="button" id="accountBack">Back</button></div>
   </div>
 </div>
 
@@ -5687,7 +5696,7 @@ function paintSettings() {
     html += "</label>";
     if (f.help) html += "<p class='setHelp'>" + f.help + "</p>";
   }
-  if (tab.id === "account") html += "<div id='accountPanel'></div>";
+  if (tab.id === "account") html += "<div id='accountPanel' class='kickoffAccount' data-kickoff-account='settings'></div>";
   html += "<div class='setReset'><button type='button' id='settingsEditPlayer'>Edit profile</button>";
   if (tab.id !== "account") html += " <button type='button' id='settingsReset'>Reset to defaults</button>";
   html += "</div>";
@@ -10135,7 +10144,7 @@ function idleSim() {
 // =====================================================================
 // E. MENU + TEAM PICKER
 // =====================================================================
-const SCREENS = ["menu", "pauseScreen", "winScreen", "teamPicker", "cupScreen", "trophyScreen", "careerScreen", "shopScreen", "challengeScreen", "kitScreen", "leaderboardScreen"];
+const SCREENS = ["menu", "pauseScreen", "winScreen", "teamPicker", "cupScreen", "trophyScreen", "careerScreen", "shopScreen", "challengeScreen", "kitScreen", "leaderboardScreen", "accountScreen"];
 function showScreen(id) {
   for (const s of SCREENS) {
     const el = $(s);
@@ -11251,8 +11260,9 @@ window.soccerDebug = {
 // =====================================================================
 // PLAYER
 // =====================================================================
-/* A player name for this device. No password is stored here.
-   An optional parent-email sign-in lives in Settings → Account. */
+/* A player name for this device. The password for a Kickoff account
+   lives in Supabase Auth, not in this file.
+   Sign in from the main menu, or from Settings → Account. */
 (function () {
   const KEY = "soccerPlayer";
   const COLORS = ["#e6b325", "#1f5fd6", "#d62828", "#0b6e4f", "#6b3e1e", "#7b2cbf", "#f4f4f4", "#111111"];
@@ -11385,7 +11395,7 @@ window.soccerDebug = {
   gate.innerHTML = `
     <form id="playerCard">
       <h2 id="playerTitle">Create your player</h2>
-      <p id="playerBlurb">Pick a name friends will see. It stays on this phone. No password. A parent can sign in from Settings, then Account, to use the same player on another device.</p>
+      <p id="playerBlurb">Pick a name friends will see. It stays on this phone. Sign in with a username to use the same game on another device.</p>
       <label for="playerName">Player name</label>
       <input id="playerName" maxlength="16" autocomplete="off" autocapitalize="words" placeholder="3 to 16 characters">
       <label for="playerTeam">Favourite team</label>
@@ -11396,7 +11406,7 @@ window.soccerDebug = {
       <div class="row">
         <button type="submit" id="playerSave">Start playing</button>
         <button type="button" id="playerCancel" hidden>Cancel</button>
-        <button type="button" id="playerSignIn">Sign in with a parent email</button>
+        <button type="button" id="playerSignIn">Sign in</button>
       </div>
     </form>`;
   document.body.appendChild(gate);
@@ -11439,8 +11449,8 @@ window.soccerDebug = {
     color = COLORS.indexOf(current.color) >= 0 ? current.color : COLORS[0];
     document.getElementById("playerTitle").textContent = editing ? "Edit profile" : "Create your player";
     document.getElementById("playerBlurb").textContent = editing
-      ? "This name is what friends see in a room. It stays on this phone. Settings, then Account, can save it with a parent email."
-      : "Pick a name friends will see. It stays on this phone. No password. A parent can sign in from Settings, then Account, to use the same player on another device.";
+      ? "This name is what friends see in a room. It stays on this phone. Account can save it with your username."
+      : "Pick a name friends will see. It stays on this phone. Sign in with a username to use the same game on another device.";
     document.getElementById("playerSave").textContent = editing ? "Save" : "Start playing";
     document.getElementById("playerCancel").hidden = !editing;
     document.getElementById("playerName").value = current.name || "";
@@ -11474,7 +11484,8 @@ window.soccerDebug = {
   document.getElementById("playerSignIn").addEventListener("click", () => {
     gate.hidden = true;
     paintChip();
-    if (typeof GameSettings !== "undefined") GameSettings.open("account");
+    if (typeof CloudAccount !== "undefined" && CloudAccount.open) CloudAccount.open();
+    else if (typeof GameSettings !== "undefined") GameSettings.open("account");
   });
 
   function ensure() {
@@ -11530,7 +11541,10 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
 // =====================================================================
 // OPTIONAL ACCOUNT
 // =====================================================================
-/* Optional parent-email account (Supabase Auth magic link / email code).
+/* Kickoff account.
+   A player can make a username and a password. The username becomes a
+   non-routable address, <lowercase>@players.kickoff.invalid, so no real
+   email is collected. A parent email (magic link / email code) still works.
    Signed-out and offline play keep using localStorage, the same keys as today.
    This file never reads or writes soccerAdminUnlock2 or soccerAdminPlace.
    Synced keys:
@@ -11561,6 +11575,10 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     soccerCareer: 1, soccerCoins: 1, soccerUpgrades: 1, soccerChallenges: 1, soccerKit: 1, soccerRecord: 1,
   };
   const PROGRESS_FIELDS = ["soccerCareer", "soccerCoins", "soccerUpgrades", "soccerChallenges", "soccerKit", "soccerRecord"];
+  const PLAYER_EMAIL_DOMAIN = "@players.kickoff.invalid";
+  const USERNAME_RE = /^[A-Za-z0-9_]{3,16}$/;
+  const TRY_LIMIT = 5;
+  const TRY_WINDOW_MS = 60000;
 
   function storageOf(storage) {
     if (storage) return storage;
@@ -11942,21 +11960,248 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     return low.indexOf("redirect") >= 0 || low.indexOf("not allowed") >= 0;
   }
   function askUploadMessage() {
-    return "This phone already has a saved Kickoff game. Save it to the parent email so another phone can use it?\n\nOK = save this phone's game to the account\nCancel = not now. This phone keeps the game, and nothing is uploaded.";
+    return "This phone already has a saved Kickoff game. Keep this device's progress on the account so another phone can use it?\n\nOK = keep this device's progress and save it\nCancel = not now. This phone keeps the game, and nothing is uploaded.";
   }
   function askMergeMessage() {
-    return "This phone has a saved game, and the email account has one too.\n\nOK = use this phone's game and save it to the account\nCancel = use the account's game on this phone";
+    return "This phone has a saved game, and the account has one too. Keep this device's progress or load your account's?\n\nOK = keep this device's progress\nCancel = load your account's";
   }
-  function friendlyAuthError(error) {
-    const msg = String((error && (error.message || error.error_description)) || "");
+  function normalizeUsername(raw) {
+    return String(raw || "").trim();
+  }
+  function usernameError(raw) {
+    const name = normalizeUsername(raw);
+    if (!name) return "Type a username.";
+    if (!USERNAME_RE.test(name)) return "Use 3 to 16 letters, numbers, or underscores.";
+    return "";
+  }
+  function playerEmail(username) {
+    return normalizeUsername(username).toLowerCase() + PLAYER_EMAIL_DOMAIN;
+  }
+  function passwordStrength(pw) {
+    const s = String(pw || "");
+    if (s.length < 8) return { ok: false, label: "Use at least 8 characters." };
+    let kinds = 0;
+    if (/[a-z]/.test(s)) kinds++;
+    if (/[A-Z]/.test(s)) kinds++;
+    if (/[0-9]/.test(s)) kinds++;
+    if (/[^A-Za-z0-9]/.test(s)) kinds++;
+    if (s.length >= 12 && kinds >= 3) return { ok: true, label: "Strong password." };
+    if (kinds >= 2) return { ok: true, label: "Okay password. A longer one is safer." };
+    return { ok: true, label: "Weak password. Add a number or another word." };
+  }
+  function rateLimitAllow(now, stamps, limit, windowMs) {
+    const t = Number(now) || 0;
+    const lim = limit || TRY_LIMIT;
+    const win = windowMs || TRY_WINDOW_MS;
+    const recent = (Array.isArray(stamps) ? stamps : []).filter(function (s) { return t - Number(s) < win; });
+    if (recent.length >= lim) {
+      const oldest = Number(recent[0]) || t;
+      return { ok: false, stamps: recent, retryIn: Math.max(0, win - (t - oldest)) };
+    }
+    recent.push(t);
+    return { ok: true, stamps: recent, retryIn: 0 };
+  }
+  function authReason(error) {
+    const msg = String((error && (error.message || error.error_description || error.code)) || "");
     const low = msg.toLowerCase();
+    const status = Number(error && (error.status || error.statusCode)) || 0;
+    const code = String(error && error.code || "");
+    if (!low && !status) return "unknown";
+    if (status === 429 || code === "over_request_rate_limit" || low.indexOf("rate") >= 0 || low.indexOf("once every") >= 0 || low.indexOf("too many") >= 0) return "rate";
+    if (low.indexOf("fetch") >= 0 || low.indexOf("network") >= 0 || low.indexOf("failed to fetch") >= 0 || low.indexOf("offline") >= 0) return "offline";
+    if (low.indexOf("already") >= 0 || low.indexOf("registered") >= 0 || low.indexOf("exists") >= 0 || low.indexOf("taken") >= 0 || low.indexOf("duplicate") >= 0 || low.indexOf("unique") >= 0 || code === "23505") return "taken";
+    if (low.indexOf("invalid login") >= 0 || low.indexOf("invalid credentials") >= 0 || low.indexOf("invalid grant") >= 0) return "bad-login";
+    if (low.indexOf("confirm") >= 0 && low.indexOf("email") >= 0) return "confirm-email";
+    if (low.indexOf("password") >= 0 && (low.indexOf("least") >= 0 || low.indexOf("short") >= 0 || low.indexOf("weak") >= 0 || low.indexOf("characters") >= 0 || code === "weak_password")) return "weak-password";
+    if (low.indexOf("email") >= 0 && low.indexOf("invalid") >= 0) return "bad-email";
+    if (low.indexOf("token") >= 0 || low.indexOf("otp") >= 0 || low.indexOf("expired") >= 0) return "bad-code";
+    if (low.indexOf("redirect") >= 0 || low.indexOf("not allowed") >= 0) return "redirect";
+    return "unknown";
+  }
+  function confirmEmailMessage() {
+    return "Kickoff could not finish signing you in. A grown-up needs to turn off Confirm email. In Supabase that is Authentication, then Sign In / Providers, then Email. You can keep playing on this phone.";
+  }
+  function friendlyAuthError(error, kind) {
+    const reason = authReason(error);
+    if (kind === "password") {
+      if (reason === "rate") return "Too many tries. Wait a minute, then try again.";
+      if (reason === "taken") return "That username is taken. Try another.";
+      if (reason === "bad-login") return "That username or password is not right.";
+      if (reason === "weak-password") return "That password was not accepted. Use at least 8 characters. If it still fails, a grown-up can set the Supabase minimum password length to 8.";
+      if (reason === "offline") return "Sign-in needs the internet. You can keep playing on this phone.";
+      if (reason === "confirm-email") return confirmEmailMessage();
+      if (!error || !String(error.message || error.error_description || "")) return "Something went wrong. You can still play on this phone.";
+      return "Could not sign in. You can keep playing on this phone.";
+    }
+    const msg = String((error && (error.message || error.error_description)) || "");
     if (!msg) return "Something went wrong. You can still play on this phone.";
-    if (low.indexOf("rate") >= 0 || low.indexOf("once every") >= 0 || low.indexOf("too many") >= 0) return "Wait a minute, then ask for another email.";
-    if (low.indexOf("email") >= 0 && low.indexOf("invalid") >= 0) return "Type the parent email, like name@email.com.";
-    if (low.indexOf("token") >= 0 || low.indexOf("otp") >= 0 || low.indexOf("expired") >= 0) return "That code is not right or it is too old. Ask for a new email.";
-    if (low.indexOf("redirect") >= 0 || low.indexOf("not allowed") >= 0) return "The sign-in link was blocked. A parent needs to allow this website in Supabase.";
-    if (low.indexOf("fetch") >= 0 || low.indexOf("network") >= 0 || low.indexOf("failed to fetch") >= 0) return "Sign-in needs the internet. You can keep playing on this phone.";
+    if (reason === "rate") return "Wait a minute, then ask for another email.";
+    if (reason === "bad-email") return "Type the parent email, like name@email.com.";
+    if (reason === "bad-code") return "That code is not right or it is too old. Ask for a new email.";
+    if (reason === "redirect") return "The sign-in link was blocked. A parent needs to allow this website in Supabase.";
+    if (reason === "offline") return "Sign-in needs the internet. You can keep playing on this phone.";
     return "Could not sign in. You can keep playing on this phone.";
+  }
+  function signupOutcome(result) {
+    result = result || {};
+    if (result.error) return { ok: false, reason: authReason(result.error) };
+    const data = result.data || {};
+    const user = data.user || null;
+    const session = data.session || null;
+    if (session && (session.access_token || session.refresh_token)) return { ok: true, reason: "session", user: user };
+    const identities = user && user.identities;
+    if (Array.isArray(identities) && identities.length === 0) return { ok: false, reason: "taken", user: user };
+    const confirmed = user && (user.email_confirmed_at || user.confirmed_at);
+    if (!session || (user && !confirmed)) return { ok: false, reason: "confirm-email", user: user };
+    return { ok: true, reason: "session", user: user };
+  }
+  function usernameFromUser(user) {
+    if (!user) return "";
+    const meta = user.user_metadata || user.raw_user_meta_data || {};
+    const metaName = normalizeUsername(meta.username);
+    if (USERNAME_RE.test(metaName)) return metaName;
+    const email = String(user.email || "");
+    const low = email.toLowerCase();
+    if (low.length > PLAYER_EMAIL_DOMAIN.length && low.slice(-PLAYER_EMAIL_DOMAIN.length) === PLAYER_EMAIL_DOMAIN) {
+      const local = email.slice(0, email.length - PLAYER_EMAIL_DOMAIN.length);
+      if (USERNAME_RE.test(local)) return local;
+    }
+    return "";
+  }
+  function careerRank(c) {
+    if (!c || typeof c !== "object") return -1;
+    const season = Number(c.season) || 0;
+    const division = Number(c.division);
+    const divScore = isFinite(division) ? (2 - division) : 0;
+    const matchday = Number(c.matchday) || 0;
+    const history = Array.isArray(c.history) ? c.history.length : 0;
+    return season * 1000 + divScore * 100 + matchday + history * 50;
+  }
+  function mergeCoins(a, b) {
+    if (!a && !b) return null;
+    const coins = Math.max(Number(a && a.coins) || 0, Number(b && b.coins) || 0);
+    const earned = Math.max(Number(a && a.earned) || 0, Number(b && b.earned) || 0, coins);
+    if (!coins && !earned && !a && !b) return null;
+    return { coins: coins, earned: earned };
+  }
+  function mergeUpgrades(a, b) {
+    if (!a && !b) return null;
+    const out = {};
+    ["sprint", "shot", "pass", "stamina"].forEach(function (k) {
+      out[k] = Math.max(0, Math.min(5, Math.round(Math.max(Number(a && a[k]) || 0, Number(b && b[k]) || 0))));
+    });
+    return out;
+  }
+  function mergeTrophies(a, b) {
+    if (!a && !b) return null;
+    const wins = [];
+    const seen = {};
+    [a, b].forEach(function (t) {
+      const list = t && Array.isArray(t.wins) ? t.wins : [];
+      list.forEach(function (w) {
+        const key = w && (w.cupId || JSON.stringify(w));
+        if (seen[key]) return;
+        seen[key] = 1;
+        wins.push(w);
+      });
+    });
+    const base = {};
+    Object.keys(b || {}).forEach(function (k) { if (k !== "wins") base[k] = b[k]; });
+    Object.keys(a || {}).forEach(function (k) { if (k !== "wins") base[k] = a[k]; });
+    base.wins = wins;
+    return base;
+  }
+  function mergeChallenges(a, b) {
+    if (!a && !b) return null;
+    const aDate = String((a && a.date) || "");
+    const bDate = String((b && b.date) || "");
+    const primary = aDate >= bDate ? (a || {}) : (b || {});
+    const other = primary === a ? (b || {}) : (a || {});
+    const badges = [];
+    const seen = {};
+    [primary.badges, other.badges].forEach(function (list) {
+      (Array.isArray(list) ? list : []).forEach(function (badge) {
+        const key = badge && (badge.date || JSON.stringify(badge));
+        if (seen[key]) return;
+        seen[key] = 1;
+        badges.push(badge);
+      });
+    });
+    const lastA = String(primary.lastComplete || "");
+    const lastB = String(other.lastComplete || "");
+    return {
+      date: primary.date || other.date || "",
+      ids: Array.isArray(primary.ids) ? primary.ids : (Array.isArray(other.ids) ? other.ids : []),
+      progress: primary.progress || other.progress || {},
+      paid: primary.paid || other.paid || {},
+      streak: Math.max(Number(primary.streak) || 0, Number(other.streak) || 0),
+      lastComplete: lastA >= lastB ? (primary.lastComplete || other.lastComplete || "") : other.lastComplete,
+      badges: badges,
+    };
+  }
+  function mergeRecord(a, b) {
+    if (!a && !b) return null;
+    const out = {};
+    Object.keys(b || {}).forEach(function (k) { out[k] = b[k]; });
+    Object.keys(a || {}).forEach(function (k) { out[k] = a[k]; });
+    ["wins", "draws", "losses", "played", "goals"].forEach(function (k) {
+      if ((a && a[k] != null) || (b && b[k] != null)) {
+        out[k] = Math.max(Number(a && a[k]) || 0, Number(b && b[k]) || 0);
+      }
+    });
+    return out;
+  }
+  function mergeKit(localKit, cloudKit, preferLocal) {
+    const a = localKit && localKit.touched ? localKit : null;
+    const b = cloudKit && cloudKit.touched ? cloudKit : null;
+    if (a && b) return preferLocal ? a : b;
+    return a || b || (preferLocal ? (localKit || cloudKit) : (cloudKit || localKit)) || null;
+  }
+  function mergeProgress(local, cloud, mode) {
+    local = local || {};
+    cloud = cloud || {};
+    mode = mode === "load" || mode === "merge" ? mode : "keep";
+    const counts = {
+      coins: mergeCoins(local.coins, cloud.coins),
+      upgrades: mergeUpgrades(local.upgrades, cloud.upgrades),
+      trophies: mergeTrophies(local.trophies, cloud.trophies),
+      challenges: mergeChallenges(local.challenges, cloud.challenges),
+      record: mergeRecord(local.record, cloud.record),
+    };
+    let base;
+    if (mode === "merge") {
+      const preferLocal = careerRank(local.career) >= careerRank(cloud.career);
+      const career = (preferLocal ? local.career : cloud.career) || local.career || cloud.career || null;
+      const localWins = local.trophies && Array.isArray(local.trophies.wins) ? local.trophies.wins.length : 0;
+      const cloudWins = cloud.trophies && Array.isArray(cloud.trophies.wins) ? cloud.trophies.wins.length : 0;
+      const nameSide = cloudWins > localWins ? cloud : local;
+      const named = clipName((nameSide.player && nameSide.player.name) || nameSide.name, 16);
+      base = Object.assign({}, cloud, local, {
+        career: career,
+        kit: mergeKit(local.kit, cloud.kit, preferLocal),
+        player: nameSide.player || local.player || cloud.player || null,
+        name: named || clipName(local.name, 16) || clipName(cloud.name, 16),
+        settings: local.settings || cloud.settings || null,
+        options: local.options || cloud.options || null,
+        playAsMe: local.playAsMe || cloud.playAsMe || null,
+        minutes: local.minutes || cloud.minutes || null,
+        renames: local.renames || cloud.renames || null,
+        team100: local.team100 || cloud.team100 || null,
+        camera: local.camera || cloud.camera || null,
+        bans: local.bans || cloud.bans || null,
+        cup: (local.cup && Object.keys(local.cup).length) ? local.cup : (cloud.cup || null),
+      });
+    } else if (mode === "load") {
+      base = Object.assign({}, local, cloud);
+    } else {
+      base = Object.assign({}, cloud, local);
+    }
+    base.coins = counts.coins;
+    base.upgrades = counts.upgrades;
+    base.trophies = counts.trophies;
+    base.challenges = counts.challenges;
+    base.record = counts.record;
+    return base;
   }
 
   const api = {
@@ -11975,8 +12220,19 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     askUploadMessage: askUploadMessage,
     askMergeMessage: askMergeMessage,
     friendlyAuthError: friendlyAuthError,
+    usernameError: usernameError,
+    normalizeUsername: normalizeUsername,
+    playerEmail: playerEmail,
+    passwordStrength: passwordStrength,
+    rateLimitAllow: rateLimitAllow,
+    authReason: authReason,
+    signupOutcome: signupOutcome,
+    usernameFromUser: usernameFromUser,
+    mergeProgress: mergeProgress,
+    confirmEmailMessage: confirmEmailMessage,
     paint: function () {},
     signOut: function () {},
+    open: function () {},
   };
   root.CloudAccount = api;
 
@@ -11985,6 +12241,21 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
   const state = {
     email: "",
     code: "",
+    tab: "login",
+    loginName: "",
+    loginPassword: "",
+    createName: "",
+    createPassword: "",
+    createConfirm: "",
+    currentPassword: "",
+    newPassword: "",
+    newConfirm: "",
+    shown: {},
+    parentOpen: false,
+    username: "",
+    nameNote: "",
+    tries: [],
+    choosing: false,
     status: "You can play with no account. This phone still remembers your game.",
     mode: "signed-out",
     session: null,
@@ -12013,8 +12284,44 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
   }
   function setStatus(text) {
     state.status = text;
-    const el = document.getElementById("accountStatus");
-    if (el) el.textContent = text;
+    const nodes = document.querySelectorAll(".acctStatus, #accountStatus");
+    if (!nodes.length) {
+      const el = document.getElementById("accountStatus");
+      if (el) el.textContent = text;
+      return;
+    }
+    nodes.forEach(function (el) { el.textContent = text; });
+  }
+  function labelMenu() {
+    const btn = document.getElementById("accountMenuBtn");
+    if (!btn) return;
+    const signed = !!(state.session && state.session.user);
+    btn.textContent = signed ? "Account" : "Sign in";
+  }
+  function signedUsername() {
+    return state.username || usernameFromUser(state.session && state.session.user) || "";
+  }
+  function offlineNow() {
+    return typeof navigator !== "undefined" && navigator.onLine === false;
+  }
+  function allowTry() {
+    let stamps = state.tries || [];
+    try {
+      const raw = sessionStorage.getItem("soccerAuthTries");
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) stamps = parsed;
+    } catch (e) { /* keep the memory list */ }
+    const gate = rateLimitAllow(Date.now(), stamps, TRY_LIMIT, TRY_WINDOW_MS);
+    state.tries = gate.stamps;
+    try { sessionStorage.setItem("soccerAuthTries", JSON.stringify(gate.stamps)); } catch (e) { /* private mode */ }
+    return gate.ok;
+  }
+  function isMissingRelation(error) {
+    if (isMissingTable(error)) return true;
+    const code = String(error && error.code || "");
+    const msg = String((error && (error.message || error.details)) || "").toLowerCase();
+    if (code === "PGRST205" || code === "42P01") return true;
+    return msg.indexOf("schema cache") >= 0 || msg.indexOf("does not exist") >= 0 || msg.indexOf("could not find") >= 0;
   }
   function playerLabel() {
     const snap = readLocal(storageOf());
@@ -12157,7 +12464,13 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
         return;
       }
       const row = toRow(local, id);
-      const saved = await client.from("profiles").upsert(row, { onConflict: "id" }).select("updated_at").maybeSingle();
+      const uname = signedUsername();
+      if (uname) row.username = uname;
+      let saved = await client.from("profiles").upsert(row, { onConflict: "id" }).select("updated_at").maybeSingle();
+      if (saved.error && row.username && /username|column|schema cache/i.test(String(saved.error.message || saved.error.details || ""))) {
+        delete row.username;
+        saved = await client.from("profiles").upsert(row, { onConflict: "id" }).select("updated_at").maybeSingle();
+      }
       if (saved.error) {
         if (isMissingTable(saved.error)) { markMissing(); return; }
         state.dirty = true;
@@ -12190,6 +12503,45 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     state.dirty = true;
     clearTimeout(state.pushTimer);
     state.pushTimer = setTimeout(function () { push(); }, 700);
+  }
+  function applyChoiceSnap(row, mode) {
+    const local = readLocal(storageOf());
+    const merged = mergeProgress(local, snapFromRow(row), mode);
+    const next = toRow(merged, userId() || "local");
+    if (row && row.updated_at) next.updated_at = row.updated_at;
+    downloadRow(next);
+  }
+  function chooseProgress(action) {
+    if (state.choosing) return Promise.resolve("wait");
+    state.choosing = true;
+    const mergeAsk = action === "ask-merge";
+    return new Promise(function (resolve) {
+      const done = function (value) {
+        state.choosing = false;
+        const box = document.getElementById("progressChoice");
+        if (box && box.parentNode) box.parentNode.removeChild(box);
+        resolve(value);
+      };
+      const wrap = document.createElement("div");
+      wrap.id = "progressChoice";
+      wrap.setAttribute("role", "dialog");
+      wrap.setAttribute("aria-modal", "true");
+      const title = mergeAsk
+        ? "This phone has a saved game, and the account has one too. Keep this device's progress or load your account's?"
+        : "This phone already has a saved game. Keep this device's progress on the account?";
+      let buttons = "<button type='button' data-choice='keep'>Keep this device's progress</button>";
+      if (mergeAsk) {
+        buttons += "<button type='button' data-choice='load'>Load your account's</button>";
+        buttons += "<button type='button' data-choice='merge'>Merge the higher counts</button>";
+      } else {
+        buttons += "<button type='button' data-choice='skip'>Not now</button>";
+      }
+      wrap.innerHTML = "<div class='choiceCard'><p>" + esc(title) + "</p><div class='choiceButtons'>" + buttons + "</div></div>";
+      document.body.appendChild(wrap);
+      wrap.querySelectorAll("[data-choice]").forEach(function (btn) {
+        btn.addEventListener("click", function () { done(btn.dataset.choice); });
+      });
+    });
   }
   async function planOnce() {
     const id = userId();
@@ -12236,37 +12588,43 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
       state.choice = { userId: id, mode: "sync" };
       saveBook(id);
       await push();
-    } else if (plan.action === "ask-upload") {
-      const ok = window.confirm(askUploadMessage());
-      if (ok) {
-        state.choice = { userId: id, mode: "sync" };
-        saveBook(id);
-        await push();
-      } else {
+    } else if (plan.action === "ask-upload" || plan.action === "ask-merge") {
+      const pick = await chooseProgress(plan.action);
+      if (pick === "wait") return true;
+      if (pick === "skip") {
         state.choice = { userId: id, mode: "keep" };
         saveBook(id);
         setStatus("Nothing was uploaded. This phone keeps its game.");
         api.paint();
-      }
-    } else if (plan.action === "ask-merge") {
-      const ok = window.confirm(askMergeMessage());
-      if (ok) {
+      } else if (pick === "load" && got.row) {
+        applyChoiceSnap(got.row, "load");
         state.choice = { userId: id, mode: "sync" };
         saveBook(id);
         await push();
-      } else if (got.row) {
-        state.choice = { userId: id, mode: "sync" };
-        downloadRow(got.row);
-        saveBook(id);
         setStatus("This phone is using the saved game from the account.");
         api.paint();
+      } else if (pick === "merge" && got.row) {
+        applyChoiceSnap(got.row, "merge");
+        state.choice = { userId: id, mode: "sync" };
+        saveBook(id);
+        await push();
+        setStatus("Merged. This phone kept the higher coin, upgrade and trophy counts.");
+        api.paint();
+      } else if (pick === "keep") {
+        if (plan.action === "ask-merge" && got.row) applyChoiceSnap(got.row, "keep");
+        state.choice = { userId: id, mode: "sync" };
+        saveBook(id);
+        await push();
       }
     } else if (plan.action === "keep") {
       setStatus("Signed in. This phone is not copying its game to the account.");
       api.paint();
     } else {
+      const who = signedUsername();
       const email = state.session.user && state.session.user.email;
-      setStatus(email ? "Signed in as " + email + "." : "Signed in.");
+      if (who) setStatus("Signed in as " + who + ".");
+      else if (email && email.toLowerCase().indexOf(PLAYER_EMAIL_DOMAIN) < 0) setStatus("Signed in as " + email + ".");
+      else setStatus("Signed in.");
       api.paint();
     }
     return false;
@@ -12367,6 +12725,7 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     const client = state.client;
     state.session = null;
     state.mode = "signed-out";
+    state.username = "";
     state.dirty = false;
     if (client) {
       try { await client.auth.signOut(); } catch (e) { /* still leave the screen signed out */ }
@@ -12409,74 +12768,362 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     setStatus("This phone is using the saved game from the account.");
     api.paint();
   }
+  let nameTimer = 0;
+  async function rememberUsername(client, name) {
+    const id = userId();
+    if (!client || !id || !USERNAME_RE.test(name || "")) return { ok: true, skipped: true };
+    let existing = null;
+    try {
+      existing = await client.from("usernames").select("username").eq("user_id", id).maybeSingle();
+    } catch (e) {
+      return { ok: true, skipped: true };
+    }
+    if (!existing || existing.error) {
+      if (existing && existing.error && !isMissingRelation(existing.error)) return { ok: true, skipped: true };
+      if (existing && existing.error) return { ok: true, skipped: true };
+    }
+    if (existing && existing.data && existing.data.username) {
+      state.username = existing.data.username;
+      return { ok: true };
+    }
+    let saved = null;
+    try {
+      saved = await client.from("usernames").insert({
+        username_key: name.toLowerCase(),
+        username: name,
+        user_id: id,
+      });
+    } catch (e) {
+      return { ok: true, skipped: true };
+    }
+    if (saved && saved.error) {
+      if (isMissingRelation(saved.error)) return { ok: true, skipped: true };
+      if (authReason(saved.error) === "taken") return { ok: false, reason: "taken" };
+      return { ok: true, skipped: true };
+    }
+    state.username = name;
+    return { ok: true };
+  }
+  async function checkUsername(name, box) {
+    if (normalizeUsername(state.createName) !== name) return;
+    const note = box && box.querySelector ? box.querySelector(".acctNameNote") : null;
+    if (offlineNow()) {
+      state.nameNote = "Sign-in needs the internet. You can keep playing on this phone.";
+      if (note) note.textContent = state.nameNote;
+      return;
+    }
+    const client = await clientOrNull();
+    if (!client || !client.rpc) {
+      state.nameNote = "";
+      if (note) note.textContent = "";
+      return;
+    }
+    try {
+      const res = await client.rpc("username_available", { p_name: name });
+      if (normalizeUsername(state.createName) !== name) return;
+      if (res.error) {
+        state.nameNote = authReason(res.error) === "offline"
+          ? "Sign-in needs the internet. You can keep playing on this phone."
+          : "";
+      } else if (res.data === false) state.nameNote = "That username is taken.";
+      else if (res.data === true) state.nameNote = "That username is free.";
+      else state.nameNote = "";
+    } catch (e) {
+      state.nameNote = "Sign-in needs the internet. You can keep playing on this phone.";
+    }
+    if (note) note.textContent = state.nameNote;
+  }
+  function scheduleNameCheck(box, value) {
+    const note = box.querySelector(".acctNameNote");
+    const err = usernameError(value);
+    state.nameNote = err;
+    if (note) note.textContent = err;
+    if (err) return;
+    if (note) note.textContent = "Checking that username...";
+    clearTimeout(nameTimer);
+    const asked = normalizeUsername(value);
+    nameTimer = setTimeout(function () { checkUsername(asked, box); }, 400);
+  }
+  async function logIn() {
+    const name = normalizeUsername(state.loginName);
+    const err = usernameError(name);
+    if (err) { setStatus(err); return; }
+    if (!state.loginPassword) { setStatus("Type your password."); return; }
+    if (!allowTry()) { setStatus("Too many tries. Wait a minute, then try again."); return; }
+    if (offlineNow()) { setStatus("Sign-in needs the internet. You can keep playing on this phone."); return; }
+    state.busy = true;
+    api.paint();
+    try {
+      const client = await clientOrNull();
+      if (!client) {
+        setStatus("Sign-in needs the internet. You can keep playing on this phone.");
+        return;
+      }
+      const result = await client.auth.signInWithPassword({
+        email: playerEmail(name),
+        password: state.loginPassword,
+      });
+      if (result.error) { setStatus(friendlyAuthError(result.error, "password")); return; }
+      state.username = name;
+      state.loginPassword = "";
+      await rememberUsername(client, name);
+      setStatus("Signed in as " + (state.username || name) + ". Checking the saved game...");
+    } catch (e) {
+      setStatus("Sign-in needs the internet. You can keep playing on this phone.");
+    } finally {
+      state.busy = false;
+      api.paint();
+    }
+  }
+  async function createAccount() {
+    const name = normalizeUsername(state.createName);
+    const err = usernameError(name);
+    if (err) { setStatus(err); return; }
+    const pw = String(state.createPassword || "");
+    const hint = passwordStrength(pw);
+    if (!hint.ok) { setStatus(hint.label); return; }
+    if (pw !== String(state.createConfirm || "")) { setStatus("Those passwords do not match."); return; }
+    if (!allowTry()) { setStatus("Too many tries. Wait a minute, then try again."); return; }
+    if (state.nameNote === "That username is taken.") { setStatus("That username is taken. Try another."); return; }
+    if (offlineNow()) { setStatus("Sign-in needs the internet. You can keep playing on this phone."); return; }
+    state.busy = true;
+    api.paint();
+    try {
+      const client = await clientOrNull();
+      if (!client) {
+        setStatus("Sign-in needs the internet. You can keep playing on this phone.");
+        return;
+      }
+      try {
+        const avail = await client.rpc("username_available", { p_name: name });
+        if (!avail.error && avail.data === false) {
+          setStatus("That username is taken. Try another.");
+          return;
+        }
+      } catch (e) { /* the sign-up itself still rejects a used name */ }
+      const result = await client.auth.signUp({
+        email: playerEmail(name),
+        password: pw,
+        options: { data: { username: name } },
+      });
+      const outcome = signupOutcome(result);
+      if (!outcome.ok) {
+        if (outcome.reason === "confirm-email") setStatus(confirmEmailMessage());
+        else if (outcome.reason === "taken") setStatus("That username is taken. Try another.");
+        else if (outcome.reason === "rate") setStatus("Too many tries. Wait a minute, then try again.");
+        else if (outcome.reason === "offline") setStatus("Sign-in needs the internet. You can keep playing on this phone.");
+        else setStatus(friendlyAuthError(result.error || { message: "sign up failed" }, "password"));
+        return;
+      }
+      state.username = name;
+      state.createPassword = "";
+      state.createConfirm = "";
+      const claimed = await rememberUsername(client, name);
+      if (!claimed.ok && claimed.reason === "taken") {
+        try { await client.auth.signOut(); } catch (e2) { /* show taken either way */ }
+        state.session = null;
+        state.username = "";
+        setStatus("That username is taken. Try another.");
+        return;
+      }
+      setStatus("Account created. Signed in as " + name + ".");
+    } catch (e) {
+      setStatus("Sign-in needs the internet. You can keep playing on this phone.");
+    } finally {
+      state.busy = false;
+      api.paint();
+    }
+  }
+  async function changePassword() {
+    const next = String(state.newPassword || "");
+    const hint = passwordStrength(next);
+    if (!state.currentPassword) { setStatus("Type your current password."); return; }
+    if (!hint.ok) { setStatus(hint.label); return; }
+    if (next !== String(state.newConfirm || "")) { setStatus("Those passwords do not match."); return; }
+    if (!allowTry()) { setStatus("Too many tries. Wait a minute, then try again."); return; }
+    if (offlineNow()) { setStatus("Sign-in needs the internet. You can keep playing on this phone."); return; }
+    const user = state.session && state.session.user;
+    const email = user && user.email;
+    if (!email) { setStatus("Could not change the password. You can keep playing on this phone."); return; }
+    state.busy = true;
+    api.paint();
+    try {
+      const client = await clientOrNull();
+      if (!client) {
+        setStatus("Sign-in needs the internet. You can keep playing on this phone.");
+        return;
+      }
+      const check = await client.auth.signInWithPassword({ email: email, password: state.currentPassword });
+      if (check.error) { setStatus(friendlyAuthError(check.error, "password")); return; }
+      const updated = await client.auth.updateUser({ password: next });
+      if (updated.error) { setStatus(friendlyAuthError(updated.error, "password")); return; }
+      state.currentPassword = "";
+      state.newPassword = "";
+      state.newConfirm = "";
+      setStatus("Password changed.");
+    } catch (e) {
+      setStatus("Sign-in needs the internet. You can keep playing on this phone.");
+    } finally {
+      state.busy = false;
+      api.paint();
+    }
+  }
+  function passRow(labelText, field, autocomplete) {
+    const shown = !!state.shown[field];
+    return "<label>" + labelText + "</label><div class='acctPass'>"
+      + "<input class='acctField' data-field='" + field + "' type='" + (shown ? "text" : "password") + "' autocomplete='" + autocomplete + "' maxlength='72'>"
+      + "<button type='button' class='acctPeek' data-peek='" + field + "' aria-pressed='" + (shown ? "true" : "false") + "'>" + (shown ? "Hide" : "Show") + "</button></div>";
+  }
+  function bindBox(box, signedIn) {
+    box.querySelectorAll("[data-field]").forEach(function (input) {
+      const key = input.dataset.field;
+      input.value = state[key] == null ? "" : state[key];
+      input.disabled = !!state.busy;
+      input.addEventListener("input", function () {
+        state[key] = input.value;
+        if (key === "createPassword" || key === "newPassword") {
+          const hint = box.querySelector(".acctStrength");
+          if (hint) hint.textContent = input.value ? passwordStrength(input.value).label : "";
+        }
+        if (key === "createName") scheduleNameCheck(box, input.value);
+      });
+      input.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        if (key === "loginName" || key === "loginPassword") logIn();
+        else if (key === "createName" || key === "createPassword" || key === "createConfirm") createAccount();
+        else if (key === "email") sendLink();
+        else if (key === "code") verifyCode();
+        else if (key === "currentPassword" || key === "newPassword" || key === "newConfirm") changePassword();
+      });
+    });
+    box.querySelectorAll(".acctPeek").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const field = btn.dataset.peek;
+        state.shown[field] = !state.shown[field];
+        const input = box.querySelector("[data-field='" + field + "']");
+        if (input) input.type = state.shown[field] ? "text" : "password";
+        btn.textContent = state.shown[field] ? "Hide" : "Show";
+        btn.setAttribute("aria-pressed", state.shown[field] ? "true" : "false");
+      });
+    });
+    box.querySelectorAll("[data-acct-tab]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.tab = btn.dataset.acctTab;
+        api.paint();
+      });
+    });
+    const login = box.querySelector(".acctLogin");
+    const create = box.querySelector(".acctCreate");
+    const change = box.querySelector(".acctChange");
+    const out = box.querySelector(".acctSignOut");
+    const save = box.querySelector(".acctSavePhone");
+    const cloud = box.querySelector(".acctUseCloud");
+    const parentBtn = box.querySelector(".acctParentToggle");
+    const send = box.querySelector(".acctSend");
+    const use = box.querySelector(".acctUseCode");
+    if (login) { login.disabled = !!state.busy; login.addEventListener("click", function () { logIn(); }); }
+    if (create) { create.disabled = !!state.busy; create.addEventListener("click", function () { createAccount(); }); }
+    if (change) { change.disabled = !!state.busy; change.addEventListener("click", function () { changePassword(); }); }
+    if (out) out.addEventListener("click", function () { signOut(); });
+    if (save) save.addEventListener("click", function () { savePhone(); });
+    if (cloud) cloud.addEventListener("click", function () { useAccount(); });
+    if (send) { send.disabled = !!state.busy; send.addEventListener("click", function () { sendLink(); }); }
+    if (use) { use.disabled = !!state.busy; use.addEventListener("click", function () { verifyCode(); }); }
+    if (parentBtn) parentBtn.addEventListener("click", function () {
+      state.parentOpen = !state.parentOpen;
+      api.paint();
+    });
+    if (typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.mountAccount) {
+      KickoffLeaderboard.mountAccount(box, { signedIn: signedIn });
+    }
+  }
+  function accountHtml() {
+    const signedIn = !!(state.session && state.session.user);
+    const email = signedIn && state.session.user.email ? state.session.user.email : "";
+    const who = signedUsername();
+    const parentMail = !!(email && email.toLowerCase().indexOf(PLAYER_EMAIL_DOMAIN) < 0);
+    const shown = playerLabel();
+    const native = inNativeApp(typeof location !== "undefined" ? location : null);
+    let html = "";
+    if (!signedIn) {
+      html += "<p>Make a username and a password, then use them on another phone to get the same game. Kickoff does not ask for your real email.</p>";
+      html += "<div class='acctTabs' role='tablist' aria-label='Account'>";
+      html += "<button type='button' data-acct-tab='login' role='tab'" + (state.tab === "login" ? " class='on' aria-selected='true'" : " aria-selected='false'") + ">Log in</button>";
+      html += "<button type='button' data-acct-tab='create' role='tab'" + (state.tab === "create" ? " class='on' aria-selected='true'" : " aria-selected='false'") + ">Create account</button>";
+      html += "</div>";
+      if (state.tab === "create") {
+        html += "<label>Username</label><input class='acctField' data-field='createName' autocomplete='username' autocapitalize='off' spellcheck='false' maxlength='16' placeholder='3 to 16 characters'>";
+        html += "<p class='hint acctNameNote'>" + esc(state.nameNote || "") + "</p>";
+        html += passRow("Password", "createPassword", "new-password");
+        html += "<p class='hint acctStrength'>" + esc(state.createPassword ? passwordStrength(state.createPassword).label : "Use at least 8 characters.") + "</p>";
+        html += passRow("Confirm password", "createConfirm", "new-password");
+        html += "<div class='accountRow'><button type='button' class='acctCreate'>Create account</button></div>";
+      } else {
+        html += "<label>Username</label><input class='acctField' data-field='loginName' autocomplete='username' autocapitalize='off' spellcheck='false' maxlength='16'>";
+        html += passRow("Password", "loginPassword", "current-password");
+        html += "<div class='accountRow'><button type='button' class='acctLogin'>Log in</button></div>";
+        html += "<p class='privacy'>Forgot the password? Ask a grown-up to reset it. Kickoff cannot email a reset, because this account has no real email.</p>";
+      }
+      html += "<div class='accountRow'><button type='button' class='acctParentToggle'>Sign in with a parent's email instead</button></div>";
+      html += "<div class='acctParent'" + (state.parentOpen ? "" : " hidden") + ">";
+      if (native) {
+        html += "<p>A parent email does not use a password. We email a code. Type that code here. The link should open this app. If it opens the website, type the code.</p>";
+      } else {
+        html += "<p>A parent email does not use a password. We email a link. If the email has a code, type it here.</p>";
+      }
+      html += "<label>Parent email</label><input class='acctField' data-field='email' type='email' autocomplete='email' inputmode='email' placeholder='name@email.com'>";
+      html += native
+        ? "<div class='accountRow'><button type='button' class='acctSend'>Email me a code</button></div>"
+        : "<div class='accountRow'><button type='button' class='acctSend'>Email me a sign-in link</button></div>";
+      html += "<label>Code from the email</label><input class='acctField' data-field='code' inputmode='numeric' autocomplete='one-time-code' maxlength='12' placeholder='6 digit code'>";
+      html += "<div class='accountRow'><button type='button' class='acctUseCode'>Use this code</button></div></div>";
+    } else {
+      html += who
+        ? "<p>Signed in as <b>" + esc(who) + "</b>.</p>"
+        : "<p>Signed in as <b>" + esc(parentMail ? email : "your email") + "</b>.</p>";
+      html += shown
+        ? "<p>Friends in a room see <b>" + esc(shown) + "</b>.</p>"
+        : "<p>Friends in a room see your player name once you pick one.</p>";
+      html += "<p class='privacy'>What is saved: your player name, team, colour, trophies, career, coins, upgrades, challenges and kit. Signing out keeps the game on this phone. A parent can delete the account in Supabase.</p>";
+      if (who) {
+        html += "<h3>Change password</h3>";
+        html += passRow("Current password", "currentPassword", "current-password");
+        html += passRow("New password", "newPassword", "new-password");
+        html += "<p class='hint acctStrength'>" + esc(state.newPassword ? passwordStrength(state.newPassword).label : "Use at least 8 characters.") + "</p>";
+        html += passRow("Confirm new password", "newConfirm", "new-password");
+        html += "<div class='accountRow'><button type='button' class='acctChange'>Change password</button></div>";
+        html += "<p class='privacy'>Forgot the password? Ask a grown-up to reset it.</p>";
+      }
+      if (state.choice && state.choice.mode === "keep") {
+        html += "<div class='accountRow'><button type='button' class='acctSavePhone'>Save this phone's game to the account</button></div>";
+        html += "<div class='accountRow'><button type='button' class='acctUseCloud'>Use the account game on this phone</button></div>";
+      }
+      html += "<div class='accountRow'><button type='button' class='acctSignOut'>Log out</button></div>";
+    }
+    html += "<p class='acctStatus' aria-live='polite'></p>";
+    return html;
+  }
   function paint(panel) {
     try {
-      const box = panel || document.getElementById("accountPanel");
-      if (!box) return;
+      if (panel && panel.classList) panel.classList.add("kickoffAccount");
+      const boxes = [];
+      if (panel && boxes.indexOf(panel) < 0) boxes.push(panel);
+      document.querySelectorAll(".kickoffAccount").forEach(function (el) {
+        if (boxes.indexOf(el) < 0) boxes.push(el);
+      });
+      if (!boxes.length) {
+        const one = document.getElementById("accountPanel");
+        if (one) boxes.push(one);
+      }
       const signedIn = !!(state.session && state.session.user);
-      const email = signedIn && state.session.user.email ? state.session.user.email : "";
-      const shown = playerLabel();
-      const native = inNativeApp(typeof location !== "undefined" ? location : null);
-      let html = "<h3>Account (optional)</h3>";
-      if (!signedIn) {
-        if (native) {
-          html += "<p>Sign in with a parent email to keep this player on another phone or tablet. Kickoff does not save a password. We email a code. Type that code here.</p>";
-          html += "<p>The email also has a link. Tapping it should open this app. If it opens the website instead, type the code. You can skip this. With no account, this phone keeps the game it already saved.</p>";
-        } else {
-          html += "<p>Sign in with a parent email to keep this player on another phone or tablet. Kickoff does not save a password. We email a link. If the email has a code, type it here.</p>";
-          html += "<p>You can skip this. With no account, or when you are offline, this phone keeps the game it already saved.</p>";
-        }
-        html += "<p class='privacy'>What is saved: your player name, favourite team, colour, play-as-me name, trophies, cup, settings, match length, renamed players, star teams, camera, bans from games you host, plus your career, coins, upgrades, daily challenges and kit. Friends in a room see your player name. If you saved \"Dashiell G.\", that is the name they see. A parent can delete the account in Supabase.</p>";
-        html += "<label for='accountEmail'>Parent email</label>";
-        html += "<input id='accountEmail' type='email' autocomplete='email' inputmode='email' placeholder='name@email.com'>";
-        html += native
-          ? "<div class='accountRow'><button type='button' id='accountSend'>Email me a code</button></div>"
-          : "<div class='accountRow'><button type='button' id='accountSend'>Email me a sign-in link</button></div>";
-        html += "<label for='accountCode'>Code from the email</label>";
-        html += "<input id='accountCode' inputmode='numeric' autocomplete='one-time-code' maxlength='12' placeholder='6 digit code'>";
-        html += "<div class='accountRow'><button type='button' id='accountUseCode'>Use this code</button></div>";
-      } else {
-        html += "<p>Signed in as <b>" + esc(email || "your email") + "</b>.</p>";
-        html += shown
-          ? "<p>Friends in a room see <b>" + esc(shown) + "</b>.</p>"
-          : "<p>Friends in a room see your player name once you pick one.</p>";
-        html += "<p class='privacy'>The account stores that name, your team, colour, trophies, cup, settings, host bans, career, coins, upgrades, challenges and kit. It does not store a password. A parent can delete the account in Supabase. Signing out keeps the game on this phone.</p>";
-        if (state.choice && state.choice.mode === "keep") {
-          html += "<div class='accountRow'><button type='button' id='accountSavePhone'>Save this phone's game to the account</button></div>";
-          html += "<div class='accountRow'><button type='button' id='accountUseCloud'>Use the account game on this phone</button></div>";
-        }
-        html += "<div class='accountRow'><button type='button' id='accountSignOut'>Sign out</button></div>";
-      }
-      html += "<p id='accountStatus' aria-live='polite'></p>";
-      box.innerHTML = html;
-      const status = document.getElementById("accountStatus");
-      if (status) status.textContent = state.status;
-      const emailInput = document.getElementById("accountEmail");
-      const codeInput = document.getElementById("accountCode");
-      if (emailInput) {
-        emailInput.value = state.email;
-        emailInput.disabled = !!state.busy;
-        emailInput.addEventListener("input", function () { state.email = emailInput.value; });
-        emailInput.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); sendLink(); } });
-      }
-      if (codeInput) {
-        codeInput.value = state.code;
-        codeInput.disabled = !!state.busy;
-        codeInput.addEventListener("input", function () { state.code = codeInput.value; });
-      }
-      const send = document.getElementById("accountSend");
-      const use = document.getElementById("accountUseCode");
-      const out = document.getElementById("accountSignOut");
-      const save = document.getElementById("accountSavePhone");
-      const cloud = document.getElementById("accountUseCloud");
-      if (send) { send.disabled = !!state.busy; send.addEventListener("click", function () { sendLink(); }); }
-      if (use) { use.disabled = !!state.busy; use.addEventListener("click", function () { verifyCode(); }); }
-      if (out) out.addEventListener("click", function () { signOut(); });
-      if (save) save.addEventListener("click", function () { savePhone(); });
-      if (cloud) cloud.addEventListener("click", function () { useAccount(); });
-      if (typeof KickoffLeaderboard !== "undefined" && KickoffLeaderboard.mountAccount) {
-        KickoffLeaderboard.mountAccount(box, { signedIn: signedIn });
-      }
+      boxes.forEach(function (box) {
+        box.innerHTML = accountHtml();
+        const status = box.querySelector(".acctStatus");
+        if (status) status.textContent = state.status;
+        bindBox(box, signedIn);
+      });
+      labelMenu();
     } catch (e) { /* the game keeps running */ }
   }
   function watchStorage() {
@@ -12555,21 +13202,77 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
       }).catch(function () {});
     }
   }
+  function ensureAccountScreen() {
+    let el = document.getElementById("accountScreen");
+    if (el) {
+      const inner = el.querySelector("[data-kickoff-account], #accountScreenPanel");
+      if (inner && inner.classList) inner.classList.add("kickoffAccount");
+      return el;
+    }
+    el = document.createElement("div");
+    el.id = "accountScreen";
+    el.className = "overlay hidden";
+    el.innerHTML = "<div class='panel'><h1 style='font-size:28px'>Account</h1><div id='accountScreenPanel' class='kickoffAccount' data-kickoff-account='screen'></div><div class='row'><button type='button' id='accountBack'>Back</button></div></div>";
+    document.body.appendChild(el);
+    return el;
+  }
+  function openAccount() {
+    const el = ensureAccountScreen();
+    if (typeof showScreen === "function") showScreen("accountScreen");
+    else el.classList.remove("hidden");
+    api.paint();
+  }
+  function closeAccount() {
+    if (typeof goToMenu === "function") goToMenu();
+    else if (typeof showScreen === "function") showScreen("menu");
+    else {
+      const el = document.getElementById("accountScreen");
+      if (el) el.classList.add("hidden");
+    }
+  }
+  function wireAccount() {
+    ensureAccountScreen();
+    const menuBtn = document.getElementById("accountMenuBtn");
+    if (menuBtn && !menuBtn.__kickoffAccount) {
+      menuBtn.__kickoffAccount = true;
+      menuBtn.addEventListener("click", function () { openAccount(); });
+    }
+    const back = document.getElementById("accountBack");
+    if (back && !back.__kickoffAccount) {
+      back.__kickoffAccount = true;
+      back.addEventListener("click", function () { closeAccount(); });
+    }
+    labelMenu();
+  }
   function boot() {
     if (state.booted) return;
     state.booted = true;
     const style = document.createElement("style");
     style.textContent = ""
-      + "#accountPanel { text-align: left; margin: 8px 0 12px; max-width: 100%; }"
-      + "#accountPanel h3 { margin: 4px 0 8px; font-size: 18px; overflow-wrap: break-word; }"
-      + "#accountPanel p { margin: 0 0 8px; font-size: 15px; line-height: 1.4; color: #d5dbe6; overflow-wrap: break-word; }"
-      + "#accountPanel .privacy { color: #ffd27a; }"
-      + "#accountPanel label { display: block; font-weight: 700; margin: 8px 0 4px; }"
-      + "#accountPanel input { width: 100%; box-sizing: border-box; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.35); background: #fff; color: #111; font: inherit; font-size: 16px; padding: 8px 10px; user-select: text; -webkit-user-select: text; }"
-      + "#accountPanel .accountRow { margin: 8px 0; }"
-      + "#accountPanel button { min-height: 44px; max-width: 100%; padding: 8px 14px; border-radius: 10px; border: 0; background: #e8c547; color: #1a1404; font: inherit; font-weight: 800; white-space: normal; }"
-      + "#accountSignOut, #accountUseCloud { background: #243044 !important; color: #fff !important; }"
-      + "#accountStatus { font-weight: 700; color: #fff; }";
+      + ".kickoffAccount { text-align: left; margin: 8px 0 12px; max-width: 100%; }"
+      + ".kickoffAccount h3 { margin: 4px 0 8px; font-size: 18px; overflow-wrap: break-word; }"
+      + ".kickoffAccount p { margin: 0 0 8px; font-size: 15px; line-height: 1.4; color: #d5dbe6; overflow-wrap: break-word; }"
+      + ".kickoffAccount .privacy, .kickoffAccount .hint { color: #ffd27a; }"
+      + ".kickoffAccount label { display: block; font-weight: 700; margin: 8px 0 4px; }"
+      + ".kickoffAccount input { width: 100%; box-sizing: border-box; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.35); background: #fff; color: #111; font: inherit; font-size: 16px; padding: 8px 10px; user-select: text; -webkit-user-select: text; }"
+      + ".kickoffAccount .accountRow { margin: 8px 0; }"
+      + ".kickoffAccount button { min-height: 44px; max-width: 100%; padding: 8px 14px; border-radius: 10px; border: 0; background: #e8c547; color: #1a1404; font: inherit; font-weight: 800; white-space: normal; }"
+      + ".kickoffAccount .acctTabs { display: flex; gap: 6px; margin: 8px 0; }"
+      + ".kickoffAccount .acctTabs button { flex: 1 1 0; background: #243044; color: #fff; }"
+      + ".kickoffAccount .acctTabs button.on { background: #e8c547; color: #1a1404; }"
+      + ".kickoffAccount .acctPass { display: flex; gap: 6px; align-items: center; }"
+      + ".kickoffAccount .acctPass input { flex: 1 1 auto; min-width: 0; width: auto; }"
+      + ".kickoffAccount .acctPeek, .kickoffAccount .acctSignOut, .kickoffAccount .acctUseCloud, .kickoffAccount .acctParentToggle { background: #243044; color: #fff; }"
+      + ".kickoffAccount .acctStatus { font-weight: 700; color: #fff; }"
+      + ".kickoffAccount .acctParent { margin-top: 8px; }"
+      + "#accountScreen { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(4,8,16,.72); padding: 12px; box-sizing: border-box; }"
+      + "#accountScreen.hidden { display: none !important; }"
+      + "#accountScreen .panel { width: min(520px, 94vw); max-height: 94vh; overflow: auto; text-align: left; background: #121a2b; color: #fff; border-radius: 18px; padding: 16px; box-sizing: border-box; }"
+      + "#progressChoice { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: rgba(4,8,16,.72); padding: 16px; box-sizing: border-box; }"
+      + "#progressChoice .choiceCard { width: min(440px, 100%); background: #121a2b; color: #fff; border: 1px solid rgba(232,197,71,.45); border-radius: 16px; padding: 16px; box-sizing: border-box; }"
+      + "#progressChoice p { margin: 0 0 12px; font-size: 16px; line-height: 1.4; }"
+      + "#progressChoice .choiceButtons { display: flex; flex-direction: column; gap: 8px; }"
+      + "#progressChoice button { min-height: 44px; border: 0; border-radius: 10px; background: #e8c547; color: #1a1404; font: inherit; font-weight: 800; }";
     document.head.appendChild(style);
     loadBook();
     watchStorage();
@@ -12577,6 +13280,8 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     listenForAppLinks();
     api.paint = paint;
     api.signOut = signOut;
+    api.open = openAccount;
+    wireAccount();
     setInterval(function () {
       const id = userId();
       if (!id || state.applying || state.pushing) return;
@@ -12595,10 +13300,14 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
         state.session = session || null;
         state.mode = session ? "signed-in" : "signed-out";
         if (!session) {
+          state.username = "";
           api.paint();
           return;
         }
+        const named = usernameFromUser(session.user);
+        if (named && !state.username) state.username = named;
         api.paint();
+        if (named) rememberUsername(client, state.username).then(function () { api.paint(); }).catch(function () {});
         runPlan();
       });
       client.auth.getSession().then(function (res) {
@@ -12606,6 +13315,9 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
         if (!session) return;
         state.session = session;
         state.mode = "signed-in";
+        const named = usernameFromUser(session.user);
+        if (named) state.username = named;
+        api.paint();
         runPlan();
       }).catch(function () { /* still playable with no account */ });
     }).catch(function () {
@@ -12862,14 +13574,15 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     }
     return html;
   }
-  function accountHtml(signedIn, on) {
+  function accountHtml(signedIn, on, inputId) {
     const disabled = signedIn ? "" : " disabled";
     const checked = signedIn && on ? " checked" : "";
-    let html = "<label class='boardOpt' for='boardOptIn'><input id='boardOptIn' type='checkbox'" + checked + disabled + "> ";
+    const id = inputId || "boardOptIn";
+    let html = "<label class='boardOpt' for='" + id + "'><input class='boardOptIn' id='" + id + "' type='checkbox'" + checked + disabled + "> ";
     html += "<span>Show me on the leaderboard</span></label>";
     html += signedIn
-      ? "<p class='note'>Off unless you turn it on. People see your player name and favourite colour, not your email.</p>"
-      : "<p class='note'>Sign in with a parent email to choose this. It stays off until you turn it on.</p>";
+      ? "<p class='note'>Off unless you turn it on. People see your player name and favourite colour, not an email.</p>"
+      : "<p class='note'>Sign in to choose this. It stays off until you turn it on.</p>";
     return html;
   }
 
@@ -13170,8 +13883,8 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     + ".friendCode { font: 800 28px/1.2 ui-monospace, monospace; letter-spacing: 2px; color: #ffe27a; margin: 4px 0; }"
     + ".boardNote { font-weight: 700; min-height: 1.2em; }"
     + "#friendCodeInput { font: inherit; font-size: 16px; width: 100%; box-sizing: border-box; min-height: 44px; padding: 8px; border-radius: 8px; border: 1px solid #fff; color: #111; background: #fff; }"
-    + "#accountPanel .boardOpt { display: flex; align-items: center; gap: 10px; font-weight: 800; margin: 10px 0 4px; }"
-    + "#accountPanel .boardOpt input { width: 22px; height: 22px; min-height: 22px; flex: 0 0 auto; }";
+    + ".kickoffAccount .boardOpt { display: flex; align-items: center; gap: 10px; font-weight: 800; margin: 10px 0 4px; }"
+    + ".kickoffAccount .boardOpt input { width: 22px; height: 22px; min-height: 22px; flex: 0 0 auto; }";
   document.head.appendChild(style);
 
   function paint() {
@@ -13201,22 +13914,24 @@ const KICKOFF_APP_REDIRECT = "kickoff://login";
     if (typeof showScreen === "function") showScreen("leaderboardScreen");
   }
   function syncCheckbox() {
-    const input = document.getElementById("boardOptIn");
-    if (!input || input.disabled || optTouched) return;
-    input.checked = readOpt();
+    document.querySelectorAll(".boardOptIn").forEach(function (input) {
+      if (!input || input.disabled || optTouched) return;
+      input.checked = readOpt();
+    });
   }
   function mountAccount(box, info) {
     if (!box) return;
-    const old = document.getElementById("boardOptWrap");
+    const old = box.querySelector(".boardOptWrap");
     if (old && old.parentNode) old.parentNode.removeChild(old);
     const wrap = document.createElement("div");
-    wrap.id = "boardOptWrap";
+    wrap.className = "boardOptWrap";
     const signedIn = !!(info && info.signedIn);
-    wrap.innerHTML = accountHtml(signedIn, signedIn && readOpt());
-    const status = box.querySelector("#accountStatus");
+    const inputId = "boardOptIn-" + (box.id || "acct");
+    wrap.innerHTML = accountHtml(signedIn, signedIn && readOpt(), inputId);
+    const status = box.querySelector(".acctStatus");
     if (status) box.insertBefore(wrap, status);
     else box.appendChild(wrap);
-    const input = document.getElementById("boardOptIn");
+    const input = wrap.querySelector("input");
     if (input && signedIn) {
       input.addEventListener("change", function () {
         optTouched = true;

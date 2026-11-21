@@ -237,14 +237,15 @@
     }
     return html;
   }
-  function accountHtml(signedIn, on) {
+  function accountHtml(signedIn, on, inputId) {
     const disabled = signedIn ? "" : " disabled";
     const checked = signedIn && on ? " checked" : "";
-    let html = "<label class='boardOpt' for='boardOptIn'><input id='boardOptIn' type='checkbox'" + checked + disabled + "> ";
+    const id = inputId || "boardOptIn";
+    let html = "<label class='boardOpt' for='" + id + "'><input class='boardOptIn' id='" + id + "' type='checkbox'" + checked + disabled + "> ";
     html += "<span>Show me on the leaderboard</span></label>";
     html += signedIn
-      ? "<p class='note'>Off unless you turn it on. People see your player name and favourite colour, not your email.</p>"
-      : "<p class='note'>Sign in with a parent email to choose this. It stays off until you turn it on.</p>";
+      ? "<p class='note'>Off unless you turn it on. People see your player name and favourite colour, not an email.</p>"
+      : "<p class='note'>Sign in to choose this. It stays off until you turn it on.</p>";
     return html;
   }
 
@@ -545,8 +546,8 @@
     + ".friendCode { font: 800 28px/1.2 ui-monospace, monospace; letter-spacing: 2px; color: #ffe27a; margin: 4px 0; }"
     + ".boardNote { font-weight: 700; min-height: 1.2em; }"
     + "#friendCodeInput { font: inherit; font-size: 16px; width: 100%; box-sizing: border-box; min-height: 44px; padding: 8px; border-radius: 8px; border: 1px solid #fff; color: #111; background: #fff; }"
-    + "#accountPanel .boardOpt { display: flex; align-items: center; gap: 10px; font-weight: 800; margin: 10px 0 4px; }"
-    + "#accountPanel .boardOpt input { width: 22px; height: 22px; min-height: 22px; flex: 0 0 auto; }";
+    + ".kickoffAccount .boardOpt { display: flex; align-items: center; gap: 10px; font-weight: 800; margin: 10px 0 4px; }"
+    + ".kickoffAccount .boardOpt input { width: 22px; height: 22px; min-height: 22px; flex: 0 0 auto; }";
   document.head.appendChild(style);
 
   function paint() {
@@ -576,22 +577,24 @@
     if (typeof showScreen === "function") showScreen("leaderboardScreen");
   }
   function syncCheckbox() {
-    const input = document.getElementById("boardOptIn");
-    if (!input || input.disabled || optTouched) return;
-    input.checked = readOpt();
+    document.querySelectorAll(".boardOptIn").forEach(function (input) {
+      if (!input || input.disabled || optTouched) return;
+      input.checked = readOpt();
+    });
   }
   function mountAccount(box, info) {
     if (!box) return;
-    const old = document.getElementById("boardOptWrap");
+    const old = box.querySelector(".boardOptWrap");
     if (old && old.parentNode) old.parentNode.removeChild(old);
     const wrap = document.createElement("div");
-    wrap.id = "boardOptWrap";
+    wrap.className = "boardOptWrap";
     const signedIn = !!(info && info.signedIn);
-    wrap.innerHTML = accountHtml(signedIn, signedIn && readOpt());
-    const status = box.querySelector("#accountStatus");
+    const inputId = "boardOptIn-" + (box.id || "acct");
+    wrap.innerHTML = accountHtml(signedIn, signedIn && readOpt(), inputId);
+    const status = box.querySelector(".acctStatus");
     if (status) box.insertBefore(wrap, status);
     else box.appendChild(wrap);
-    const input = document.getElementById("boardOptIn");
+    const input = wrap.querySelector("input");
     if (input && signedIn) {
       input.addEventListener("change", function () {
         optTouched = true;

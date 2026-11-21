@@ -332,7 +332,7 @@ function paintSettings() {
     html += "</label>";
     if (f.help) html += "<p class='setHelp'>" + f.help + "</p>";
   }
-  if (tab.id === "account") html += "<div id='accountPanel'></div>";
+  if (tab.id === "account") html += "<div id='accountPanel' class='kickoffAccount' data-kickoff-account='settings'></div>";
   html += "<div class='setReset'><button type='button' id='settingsEditPlayer'>Edit profile</button>";
   if (tab.id !== "account") html += " <button type='button' id='settingsReset'>Reset to defaults</button>";
   html += "</div>";

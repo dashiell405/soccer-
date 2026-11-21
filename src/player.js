@@ -1,5 +1,6 @@
-/* A player name for this device. No password is stored here.
-   An optional parent-email sign-in lives in Settings → Account. */
+/* A player name for this device. The password for a Kickoff account
+   lives in Supabase Auth, not in this file.
+   Sign in from the main menu, or from Settings → Account. */
 (function () {
   const KEY = "soccerPlayer";
   const COLORS = ["#e6b325", "#1f5fd6", "#d62828", "#0b6e4f", "#6b3e1e", "#7b2cbf", "#f4f4f4", "#111111"];
@@ -132,7 +133,7 @@
   gate.innerHTML = `
     <form id="playerCard">
       <h2 id="playerTitle">Create your player</h2>
-      <p id="playerBlurb">Pick a name friends will see. It stays on this phone. No password. A parent can sign in from Settings, then Account, to use the same player on another device.</p>
+      <p id="playerBlurb">Pick a name friends will see. It stays on this phone. Sign in with a username to use the same game on another device.</p>
       <label for="playerName">Player name</label>
       <input id="playerName" maxlength="16" autocomplete="off" autocapitalize="words" placeholder="3 to 16 characters">
       <label for="playerTeam">Favourite team</label>
@@ -143,7 +144,7 @@
       <div class="row">
         <button type="submit" id="playerSave">Start playing</button>
         <button type="button" id="playerCancel" hidden>Cancel</button>
-        <button type="button" id="playerSignIn">Sign in with a parent email</button>
+        <button type="button" id="playerSignIn">Sign in</button>
       </div>
     </form>`;
   document.body.appendChild(gate);
@@ -186,8 +187,8 @@
     color = COLORS.indexOf(current.color) >= 0 ? current.color : COLORS[0];
     document.getElementById("playerTitle").textContent = editing ? "Edit profile" : "Create your player";
     document.getElementById("playerBlurb").textContent = editing
-      ? "This name is what friends see in a room. It stays on this phone. Settings, then Account, can save it with a parent email."
-      : "Pick a name friends will see. It stays on this phone. No password. A parent can sign in from Settings, then Account, to use the same player on another device.";
+      ? "This name is what friends see in a room. It stays on this phone. Account can save it with your username."
+      : "Pick a name friends will see. It stays on this phone. Sign in with a username to use the same game on another device.";
     document.getElementById("playerSave").textContent = editing ? "Save" : "Start playing";
     document.getElementById("playerCancel").hidden = !editing;
     document.getElementById("playerName").value = current.name || "";
@@ -221,7 +222,8 @@
   document.getElementById("playerSignIn").addEventListener("click", () => {
     gate.hidden = true;
     paintChip();
-    if (typeof GameSettings !== "undefined") GameSettings.open("account");
+    if (typeof CloudAccount !== "undefined" && CloudAccount.open) CloudAccount.open();
+    else if (typeof GameSettings !== "undefined") GameSettings.open("account");
   });
 
   function ensure() {

@@ -225,13 +225,21 @@ assert.ok(!/getItem\(\s*["']soccerAdminPlace/.test(cloudSrc));
 assert.ok(!/setItem\(\s*["']soccerAdminPlace/.test(cloudSrc));
 assert.ok(cloudSrc.indexOf("signInWithOtp") >= 0);
 assert.ok(cloudSrc.indexOf("verifyOtp") >= 0);
+assert.ok(cloudSrc.indexOf("signInWithPassword") >= 0);
 assert.ok(cloudSrc.indexOf("exchangeCodeForSession") >= 0);
+assert.ok(cloudSrc.indexOf("username_available") >= 0);
+assert.ok(cloudSrc.indexOf("players.kickoff.invalid") >= 0);
+assert.ok(cloudSrc.indexOf("Sign in with a parent's email instead") >= 0);
+assert.ok(cloudSrc.indexOf("Ask a grown-up to reset it") >= 0);
+assert.ok(cloudSrc.indexOf("Confirm email") >= 0);
+assert.ok(cloudSrc.indexOf("Log out") >= 0);
+assert.ok(cloudSrc.indexOf("Change password") >= 0);
 assert.ok(cloudSrc.indexOf("kickoff://login") >= 0);
 assert.ok(cfg.indexOf("kickoff://login") >= 0);
 
 const sw = fs.readFileSync(path.join(root, "tools/build_pages.py"), "utf8");
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v43") >= 0);
-assert.ok(sw.indexOf("floodlight-kickoff-pages-v42") < 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v44") >= 0);
+assert.ok(sw.indexOf("floodlight-kickoff-pages-v43") < 0);
 const settingsSrc = fs.readFileSync(path.join(root, "src/settings.js"), "utf8");
 assert.ok(settingsSrc.indexOf("touch-action: pan-y") >= 0);
 assert.ok(settingsSrc.indexOf("overscroll-behavior: contain") >= 0);
@@ -248,5 +256,102 @@ assert.ok(pwaSrc.indexOf('location.protocol === "capacitor:"') >= 0);
 const settingsHaptic = fs.readFileSync(path.join(root, "src/settings.js"), "utf8");
 assert.ok(settingsHaptic.indexOf("Capacitor.Plugins.Haptics") >= 0);
 assert.ok(settingsHaptic.indexOf("nativeAppShell") >= 0);
+
+assert.strictEqual(Cloud.usernameError(""), "Type a username.");
+assert.strictEqual(Cloud.usernameError("ab"), "Use 3 to 16 letters, numbers, or underscores.");
+assert.strictEqual(Cloud.usernameError("has space"), "Use 3 to 16 letters, numbers, or underscores.");
+assert.strictEqual(Cloud.usernameError("no-dash"), "Use 3 to 16 letters, numbers, or underscores.");
+assert.strictEqual(Cloud.usernameError("Good_Name1"), "");
+assert.strictEqual(Cloud.playerEmail("Good_Name1"), "good_name1@players.kickoff.invalid");
+assert.strictEqual(Cloud.passwordStrength("short").ok, false);
+assert.strictEqual(Cloud.passwordStrength("longpass").ok, true);
+assert.ok(Cloud.passwordStrength("longpass").label.indexOf("Weak") >= 0);
+assert.ok(Cloud.passwordStrength("Longerpass1").label.indexOf("Okay") >= 0);
+assert.ok(Cloud.passwordStrength("Longer-pass1").label.indexOf("Strong") >= 0);
+
+const stamps = [];
+let clock = 1000;
+for (let i = 0; i < 5; i++) {
+  const gate = Cloud.rateLimitAllow(clock, stamps.slice(), 5, 60000);
+  assert.strictEqual(gate.ok, true);
+  stamps.splice(0, stamps.length, ...gate.stamps);
+  clock += 1000;
+}
+assert.strictEqual(Cloud.rateLimitAllow(clock, stamps, 5, 60000).ok, false);
+assert.strictEqual(Cloud.rateLimitAllow(clock + 60000, stamps, 5, 60000).ok, true);
+
+assert.strictEqual(Cloud.friendlyAuthError({ message: "Invalid login credentials" }, "password"), "That username or password is not right.");
+assert.ok(Cloud.friendlyAuthError({ message: "User already registered" }, "password").indexOf("taken") >= 0);
+assert.ok(Cloud.friendlyAuthError({ message: "Failed to fetch" }, "password").indexOf("internet") >= 0);
+assert.ok(Cloud.friendlyAuthError({ status: 429, message: "too many requests" }, "password").indexOf("Too many tries") >= 0);
+assert.ok(Cloud.friendlyAuthError({ message: "email rate limit exceeded" }).indexOf("another email") >= 0);
+assert.ok(Cloud.confirmEmailMessage().indexOf("Confirm email") >= 0);
+assert.strictEqual(Cloud.signupOutcome({ data: { user: { id: "u" }, session: { access_token: "tok" } } }).ok, true);
+assert.strictEqual(Cloud.signupOutcome({ data: { user: { identities: [] }, session: null } }).reason, "taken");
+assert.strictEqual(Cloud.signupOutcome({
+  data: { user: { email_confirmed_at: null, identities: [{ id: "i" }] }, session: null },
+}).reason, "confirm-email");
+assert.strictEqual(Cloud.usernameFromUser({
+  email: "good_name1@players.kickoff.invalid",
+  user_metadata: { username: "Good_Name1" },
+}), "Good_Name1");
+
+const deviceCoins = { coins: 12, earned: 20 };
+const accountCoins = { coins: 40, earned: 30 };
+const deviceUp = { sprint: 3, shot: 0, pass: 1, stamina: 0 };
+const accountUp = { sprint: 1, shot: 2, pass: 0, stamina: 4 };
+const merged = Cloud.mergeProgress({
+  name: "Device Kid",
+  player: { name: "Device Kid", team: "blue", color: "#e6b325" },
+  coins: deviceCoins,
+  upgrades: deviceUp,
+  trophies: { wins: [{ cupId: "c-device" }] },
+  career: { season: 2, division: 2, matchday: 3, clubName: "Harbor Hawks" },
+  challenges: { date: "2026-11-20", ids: ["win"], progress: {}, paid: {}, streak: 1, lastComplete: "2026-11-20", badges: [{ date: "2026-11-20", name: "Full set" }] },
+}, {
+  name: "Account Kid",
+  player: { name: "Account Kid", team: "red", color: "#d62828" },
+  coins: accountCoins,
+  upgrades: accountUp,
+  trophies: { wins: [{ cupId: "c-account" }] },
+  career: { season: 1, division: 1, matchday: 6, clubName: "Amber Athletic" },
+  challenges: { date: "2026-11-21", ids: ["clean"], progress: {}, paid: {}, streak: 4, lastComplete: "2026-11-21", badges: [{ date: "2026-11-21", name: "Full set" }] },
+}, "merge");
+assert.strictEqual(merged.coins.coins, 40);
+assert.strictEqual(merged.coins.earned, 40);
+assert.strictEqual(merged.upgrades.sprint, 3);
+assert.strictEqual(merged.upgrades.shot, 2);
+assert.strictEqual(merged.upgrades.stamina, 4);
+assert.strictEqual(merged.trophies.wins.length, 2);
+assert.strictEqual(merged.career.clubName, "Harbor Hawks");
+assert.strictEqual(merged.challenges.streak, 4);
+assert.strictEqual(merged.challenges.badges.length, 2);
+const loaded = Cloud.mergeProgress({
+  name: "Device Kid",
+  coins: deviceCoins,
+  career: { season: 2, division: 2, matchday: 1, clubName: "Harbor Hawks" },
+}, {
+  name: "Account Kid",
+  player: { name: "Account Kid", team: "red", color: "#111111" },
+  coins: accountCoins,
+  career: { season: 1, division: 1, matchday: 1, clubName: "Amber Athletic" },
+}, "load");
+assert.strictEqual(loaded.name, "Account Kid");
+assert.strictEqual(loaded.career.clubName, "Amber Athletic");
+assert.strictEqual(loaded.coins.coins, 40);
+assert.ok(Cloud.askMergeMessage().indexOf("Keep this device's progress or load your account's?") >= 0);
+
+const sql = fs.readFileSync(path.join(root, "supabase/migrations/20261121220000_usernames.sql"), "utf8");
+assert.ok(sql.indexOf("username_available") >= 0);
+assert.ok(sql.indexOf("grant execute on function public.username_available(text) to anon, authenticated") >= 0);
+assert.ok(sql.indexOf("enable row level security") >= 0);
+assert.ok(sql.indexOf("profiles_username_lower_key") >= 0);
+assert.ok(sql.indexOf("players.kickoff.invalid") >= 0);
+assert.ok(sql.toLowerCase().indexOf("service_role") < 0);
+const menuHtml = fs.readFileSync(path.join(root, "src/offline_template.html"), "utf8");
+assert.ok(menuHtml.indexOf('id="accountMenuBtn"') >= 0);
+assert.ok(menuHtml.indexOf('id="accountScreen"') >= 0);
+assert.ok(fs.readFileSync(path.join(root, "src/offline_shell.js"), "utf8").indexOf('"accountScreen"') >= 0);
+assert.ok(fs.readFileSync(path.join(root, "src/admin.js"), "utf8").indexOf("const ITERATIONS = 310000") >= 0);
 
 console.log("cloud account sync checks passed");
