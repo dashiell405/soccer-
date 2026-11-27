@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14080a">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="A private help button for one family.">
+<meta name="format-detection" content="telephone=no">
+<title>Family help</title>
+<!-- Owner setup on a phone: open this page with #setup once, pick a code, then send each person their own link. -->
+<style>
+  :root { color-scheme: dark; }
+  html {
+    background: #14080a;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    background: #14080a;
+    color: #fff8f6;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 1.125rem;
+    line-height: 1.4;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { overflow-x: hidden; }
+  .wrap {
+    width: 100%;
+    max-width: 34rem;
+    min-width: 0;
+    margin: 0 auto;
+    padding:
+      max(1rem, env(safe-area-inset-top))
+      max(1rem, env(safe-area-inset-right))
+      max(1.5rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
+  }
+  .denied, .expired {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .denied-msg, .expired-msg {
+    margin: 0;
+    font-size: 1.85rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+  }
+  h1 {
+    margin: 0 0 0.4rem;
+    font-size: 2rem;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    overflow-wrap: anywhere;
+  }
+  h2 { font-size: 1.25rem; margin: 1.3rem 0 0.35rem; }
+  p { margin: 0.4rem 0 0.7rem; }
+  .lead, .hint, .fine, .from { color: #f3cdc8; }
+  .hint, .fine, .from { font-size: 1rem; }
+  .note {
+    padding: 0.8rem 0.9rem;
+    background: #2a1216;
+    border: 2px solid #f3cdc8;
+    border-radius: 0.9rem;
+  }
+  label {
+    display: block;
+    font-weight: 750;
+    margin: 0.85rem 0 0.35rem;
+  }
+  input {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0.8rem 0.85rem;
+    border: 2px solid #1a0a0c;
+    border-radius: 0.8rem;
+    background: #fff;
+    color: #1a0a0c;
+    font: 1.125rem/1.3 inherit;
+    min-width: 0;
+    max-width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  button, .btn, .textbtn { font-family: inherit; cursor: pointer; touch-action: manipulation; }
+  button { -webkit-appearance: none; appearance: none; }
+  .btn, .alert {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 1rem;
+  }
+  .btn {
+    min-height: 3.25rem;
+    margin: 0.55rem 0;
+    padding: 0.75rem 1rem;
+    border: 2px solid #fff8f6;
+    background: transparent;
+    color: #fff8f6;
+    font-size: 1.125rem;
+    font-weight: 800;
+  }
+  .btn.primary, .btn.send {
+    background: #fff8f6;
+    color: #1a0a0c;
+    border-color: #fff8f6;
+  }
+  .alert {
+    min-height: 6.75rem;
+    margin: 0 0 0.85rem;
+    padding: 1rem 1.1rem;
+    border: 0;
+    font-size: 1.7rem;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+  .alert-wrong {
+    background: #9d0014;
+    color: #fff;
+    box-shadow: 0 6px 0 #5c000c;
+  }
+  .alert-help {
+    background: #ffcc00;
+    color: #1a0d00;
+    box-shadow: 0 6px 0 #a07c00;
+  }
+  .alert:active { transform: translateY(2px); box-shadow: 0 3px 0 #5c000c; }
+  .alert-help:active { box-shadow: 0 3px 0 #a07c00; }
+  .alert:disabled, .btn:disabled { opacity: 0.55; transform: none; }
+  .status {
+    margin: 0.3rem 0 0.6rem;
+    padding: 0.9rem 1rem;
+    background: #2c1418;
+    border: 2px solid #f3cdc8;
+    border-radius: 0.9rem;
+    overflow-wrap: anywhere;
+    min-height: 3.4rem;
+  }
+  .error {
+    margin: 0.6rem 0;
+    padding: 0.7rem 0.8rem;
+    background: #4a1020;
+    border-radius: 0.7rem;
+    color: #fff;
+    font-weight: 700;
+  }
+  .card {
+    margin: 0.75rem 0;
+    padding: 0.75rem;
+    border: 2px solid #f3cdc8;
+    border-radius: 1rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .row-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .row-actions .btn { width: auto; flex: 1 1 8rem; margin: 0.4rem 0; }
+  .textbtn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    margin: 0 1rem 0 0;
+    padding: 0.25rem 0.1rem;
+    border: 0;
+    background: transparent;
+    color: #fff8f6;
+    font-size: 1rem;
+    font-weight: 750;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+  .emergency { margin-top: 1.4rem; }
+  a { color: #fff8f6; }
+  a.quiet {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    font-weight: 800;
+    text-underline-offset: 0.18em;
+  }
+  :focus-visible { outline: 3px solid #ffcc00; outline-offset: 3px; }
+  @media (max-width: 340px) {
+    .alert { font-size: 1.45rem; min-height: 5.75rem; }
+    h1, .denied-msg, .expired-msg { font-size: 1.6rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .alert:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+<noscript>
+  <main class="wrap denied"><p class="denied-msg">This page isn't for you.</p></main>
+</noscript>
+<main id="app" class="wrap" hidden></main>
+<script>
+(function () {
+  "use strict";
+
+  var ITERATIONS = 210000;
+  var OWNER_KEY = "familyHelpOwnerV1";
+  var RECIPIENT_KEY = "familyHelpRecipientV1";
+  var UNLOCK_KEY = "familyHelpOwnerUnlocked";
+  var PENDING_KEY = "familyHelpPendingSend";
+  var APP = document.getElementById("app");
+
+  var draft = null;
+  var activeProfile = null;
+  var pendingPayload = null;
+  var sending = false;
+  var setupBusy = false;
+  var removeArmed = false;
+  var removeSetupArmed = false;
+  var forceRenew = {};
+
+  function esc(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function cleanText(raw, max) {
+    var s = String(raw == null ? "" : raw).replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+    if (s.length > max) s = s.slice(0, max).trim();
+    return s;
+  }
+
+  function cleanName(raw) {
+    var name = cleanText(raw, 80);
+    if (!name) return { error: "Enter a name." };
+    return { name: name };
+  }
+
+  function classifyContact(raw) {
+    var value = cleanText(raw, 120);
+    if (!value) return { error: "Enter a phone number or an email." };
+    if (value.indexOf("@") !== -1) {
+      var email = value.toLowerCase();
+      if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)) return { error: "That email doesn't look complete." };
+      return { kind: "email", value: email };
+    }
+    var compact = value.replace(/[\s().-]/g, "");
+    if (!/^\+?\d{7,15}$/.test(compact)) return { error: "Enter a phone number or an email." };
+    return { kind: "phone", value: compact };
+  }
+
+  function contactOk(kind, value) {
+    if (kind === "email") return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(value);
+    if (kind === "phone") return /^\+?\d{7,15}$/.test(value);
+    return false;
+  }
+
+  function parseDays(raw) {
+    var s = String(raw == null ? "" : raw).trim();
+    if (!s) return { days: null };
+    if (!/^\d+$/.test(s)) return { error: "Enter a whole number of days, or leave it blank." };
+    var n = Number(s);
+    if (n < 1 || n > 3650) return { error: "Use between 1 and 3650 days, or leave it blank." };
+    return { days: n };
+  }
+
+  function loadJSON(key) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      return data && typeof data === "object" ? data : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveJSON(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function bytesToB64(bytes) {
+    var bin = "";
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+
+  function b64ToBytes(s) {
+    var bin = atob(s);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function bytesToB64url(bytes) {
+    var bin = "";
+    for (var i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function b64urlToBytes(s) {
+    if (typeof s !== "string" || !s || s.length > 12000 || /[^A-Za-z0-9_-]/.test(s)) throw new Error("bad");
+    var pad = s.length % 4 === 0 ? "" : "====".slice(s.length % 4);
+    var bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + pad);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function sameBytes(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    var diff = 0;
+    for (var i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+    return diff === 0;
+  }
+
+  function cryptoOk() {
+    return !!(window.crypto && crypto.subtle && crypto.getRandomValues);
+  }
+
+  function randomId() {
+    return bytesToB64url(crypto.getRandomValues(new Uint8Array(9)));
+  }
+
+  async function deriveBits(code, salt, iterations) {
+    var material = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(code),
+      "PBKDF2",
+      false,
+      ["deriveBits", "deriveKey"]
+    );
+    var params = { name: "PBKDF2", hash: "SHA-256", salt: salt, iterations: iterations };
+    try {
+      return new Uint8Array(await crypto.subtle.deriveBits(params, material, 256));
+    } catch (e) {
+      var key = await crypto.subtle.deriveKey(
+        params,
+        material,
+        { name: "HMAC", hash: "SHA-256", length: 256 },
+        true,
+        ["sign"]
+      );
+      return new Uint8Array(await crypto.subtle.exportKey("raw", key));
+    }
+  }
+
+  function validSecrets(o) {
+    return !!(o && o.v === 1 && typeof o.salt === "string" && typeof o.hash === "string" &&
+      Number.isInteger(o.iterations) && o.iterations >= 100000 && o.iterations <= 600000);
+  }
+
+  function validStoredContact(c) {
+    return !!(c && (c.kind === "phone" || c.kind === "email") && typeof c.value === "string" && contactOk(c.kind, c.value));
+  }
+
+  function loadOwner() {
+    var data = loadJSON(OWNER_KEY);
+    if (!data) return null;
+    if (!validSecrets(data)) return { damaged: true };
+    var contacts = Array.isArray(data.alertContacts) ? data.alertContacts.filter(validStoredContact) : [];
+    var recipients = Array.isArray(data.recipients) ? data.recipients.filter(function (r) {
+      return r && typeof r.name === "string" && typeof r.contact === "string" && typeof r.link === "string" && r.link.indexOf("#k=") !== -1;
+    }) : [];
+    return {
+      v: 1,
+      iterations: data.iterations,
+      salt: data.salt,
+      hash: data.hash,
+      name: typeof data.name === "string" ? data.name : "",
+      alertContacts: contacts,
+      expireDays: Number.isInteger(data.expireDays) ? data.expireDays : null,
+      recipients: recipients.map(function (r) {
+        return {
+          id: typeof r.id === "string" && r.id ? r.id : randomId(),
+          name: r.name,
+          contact: r.contact,
+          link: r.link,
+          issuedAt: typeof r.issuedAt === "number" ? r.issuedAt : 0,
+          expiresAt: typeof r.expiresAt === "number" ? r.expiresAt : 0,
+          settingsKey: typeof r.settingsKey === "string" ? r.settingsKey : ""
+        };
+      })
+    };
+  }
+
+  function ownerReady(owner) {
+    return !!(owner && !owner.damaged && validSecrets(owner) && cleanText(owner.name, 80) && owner.alertContacts && owner.alertContacts.length);
+  }
+
+  function normalizePayload(p) {
+    if (!p || p.v !== 1) return null;
+    if (typeof p.n !== "string" || typeof p.c !== "string" || typeof p.o !== "string") return null;
+    var name = cleanText(p.n, 80);
+    var ownerName = cleanText(p.o, 80);
+    var contact = cleanText(p.c, 120);
+    if (!name || !ownerName || !contact) return null;
+    var contactKind = contact.indexOf("@") !== -1 ? "email" : "phone";
+    if (!contactOk(contactKind, contact)) return null;
+    if (!Array.isArray(p.a) || p.a.length < 1 || p.a.length > 20) return null;
+    var contacts = [];
+    for (var i = 0; i < p.a.length; i++) {
+      var item = p.a[i];
+      if (!Array.isArray(item) || item.length !== 2) return null;
+      var kind = item[0] === "e" ? "email" : item[0] === "p" ? "phone" : "";
+      if (!kind || typeof item[1] !== "string" || !contactOk(kind, item[1])) return null;
+      contacts.push({ kind: kind, value: item[1] });
+    }
+    if (typeof p.t !== "number" || !isFinite(p.t)) return null;
+    var expiresAt = 0;
+    if (p.x) {
+      if (typeof p.x !== "number" || !isFinite(p.x)) return null;
+      expiresAt = p.x;
+    }
+    return {
+      v: 1,
+      recipientName: name,
+      recipientContact: contact,
+      ownerName: ownerName,
+      alertContacts: contacts,
+      issuedAt: p.t,
+      expiresAt: expiresAt
+    };
+  }
+
+  function loadRecipient() {
+    var data = loadJSON(RECIPIENT_KEY);
+    var payload = normalizePayload(data && {
+      v: data.v,
+      n: data.recipientName,
+      c: data.recipientContact,
+      o: data.ownerName,
+      a: (data.alertContacts || []).map(function (c) { return [c.kind === "email" ? "e" : "p", c.value]; }),
+      t: data.issuedAt,
+      x: data.expiresAt || 0
+    });
+    return payload;
+  }
+
+  function isExpired(rec) {
+    return !!(rec && rec.expiresAt && Date.now() > rec.expiresAt);
+  }
+
+  function sameInvite(a, b) {
+    if (!a || !b) return false;
+    return a.recipientName === b.recipientName && a.recipientContact === b.recipientContact &&
+      a.ownerName === b.ownerName && a.issuedAt === b.issuedAt && (a.expiresAt || 0) === (b.expiresAt || 0) &&
+      JSON.stringify(a.alertContacts) === JSON.stringify(b.alertContacts);
+  }
+
+  function isUnlocked() {
+    try { return sessionStorage.getItem(UNLOCK_KEY) === "1"; } catch (e) { return false; }
+  }
+
+  function setUnlocked() {
+    try { sessionStorage.setItem(UNLOCK_KEY, "1"); } catch (e) {}
+  }
+
+  function clearUnlocked() {
+    try { sessionStorage.removeItem(UNLOCK_KEY); } catch (e) {}
+  }
+
+  function pageBase() {
+    var url = new URL(location.href);
+    url.hash = "";
+    url.search = "";
+    var path = url.pathname;
+    if (path.endsWith("/index.html")) path = path.slice(0, -"index.html".length);
+    if (!path.endsWith("/")) path += "/";
+    url.pathname = path;
+    return url.toString();
+  }
+
+  function readHash() {
+    var raw = location.hash.charAt(0) === "#" ? location.hash.slice(1) : location.hash;
+    if (!raw) return { kind: "none" };
+    if (raw === "setup") return { kind: "setup" };
+    var params = new URLSearchParams(raw);
+    var k = params.get("k") || "";
+    var d = params.get("d") || "";
+    if (k || d) return { kind: "link", k: k, d: d };
+    return { kind: "none" };
+  }
+
+  function stripHash() {
+    if (!location.hash) return;
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+
+  async function encryptPayload(payload) {
+    var keyBytes = crypto.getRandomValues(new Uint8Array(16));
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var key = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["encrypt"]);
+    var plain = new TextEncoder().encode(JSON.stringify(payload));
+    var ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, plain));
+    var packed = new Uint8Array(iv.length + ct.length);
+    packed.set(iv, 0);
+    packed.set(ct, iv.length);
+    return pageBase() + "#k=" + bytesToB64url(keyBytes) + "&d=" + bytesToB64url(packed);
+  }
+
+  async function decryptLink(k, d) {
+    var keyBytes = b64urlToBytes(k);
+    var packed = b64urlToBytes(d);
+    if (keyBytes.length !== 16 || packed.length < 28 || packed.length > 8192) return null;
+    var iv = packed.slice(0, 12);
+    var ct = packed.slice(12);
+    var key = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["decrypt"]);
+    var buf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ct);
+    return normalizePayload(JSON.parse(new TextDecoder().decode(buf)));
+  }
+
+  function isIos() {
+    var ua = navigator.userAgent || "";
+    if (/iPad|iPhone|iPod/i.test(ua)) return true;
+    return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  }
+
+  function smsUrl(numbers, body) {
+    var encodedBody = encodeURIComponent(body);
+    if (isIos()) return "sms:/open?addresses=" + numbers.map(encodeURIComponent).join(",") + "&body=" + encodedBody;
+    return "sms:" + numbers.join(",") + "?body=" + encodedBody;
+  }
+
+  function mailtoUrl(emails, subject, body) {
+    return "mailto:" + emails.join(",") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+  }
+
+  function formatStamp(date) {
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        year: "numeric", month: "short", day: "numeric",
+        hour: "numeric", minute: "2-digit", timeZoneName: "short"
+      }).format(date);
+    } catch (e) {
+      return date.toLocaleString();
+    }
+  }
+
+  function formatDay(ms) {
+    if (!ms) return "";
+    try {
+      return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric" }).format(new Date(ms));
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function locationSentence(loc) {
+    if (!loc || !loc.ok || !isFinite(loc.lat) || !isFinite(loc.lng)) return "Location: not available.";
+    var text = "Location: https://maps.google.com/?q=" + loc.lat.toFixed(6) + "," + loc.lng.toFixed(6);
+    if (loc.accuracy != null) text += " (±" + loc.accuracy + " m)";
+    return text;
+  }
+
+  function buildMessage(name, kind, when, loc) {
+    var what = kind === "help" ? "Can you help me" : "Something's wrong";
+    return name + " needs help. " + what + ". Sent " + when + ". " + locationSentence(loc);
+  }
+
+  function locate() {
+    return new Promise(function (resolve) {
+      if (!navigator.geolocation) {
+        resolve({ ok: false, reason: "unavailable" });
+        return;
+      }
+      var settled = false;
+      var timer = setTimeout(function () { finish({ ok: false, reason: "timeout" }); }, 8000);
+      function finish(value) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      }
+      try {
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          var acc = pos && pos.coords && isFinite(pos.coords.accuracy) ? Math.round(pos.coords.accuracy) : null;
+          finish({ ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: acc });
+        }, function (err) {
+          finish({ ok: false, reason: err && err.code === 1 ? "denied" : "unavailable" });
+        }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+      } catch (e) {
+        finish({ ok: false, reason: "unavailable" });
+      }
+    });
+  }
+
+  function openExternal(url) {
+    if (!url) return;
+    var a = document.createElement("a");
+    a.setAttribute("href", url);
+    a.setAttribute("rel", "noopener");
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function rememberSend(sms, mail, note) {
+    try {
+      sessionStorage.setItem(PENDING_KEY, JSON.stringify({ sms: sms || "", mail: mail || "", note: note || "", at: Date.now() }));
+    } catch (e) {}
+  }
+
+  function loadPendingSend() {
+    try {
+      var data = JSON.parse(sessionStorage.getItem(PENDING_KEY) || "null");
+      if (!data || typeof data.at !== "number" || Date.now() - data.at > 15 * 60 * 1000) return null;
+      if (data.sms && data.sms.indexOf("sms:") !== 0) data.sms = "";
+      if (data.mail && data.mail.indexOf("mailto:") !== 0) data.mail = "";
+      if (!data.sms && !data.mail) return null;
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clearSend() {
+    try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
+  }
+
+  function paint(screen, html, extraClass) {
+    sending = false;
+    removeArmed = false;
+    APP.setAttribute("data-screen", screen);
+    APP.className = "wrap" + (extraClass ? " " + extraClass : "");
+    APP.innerHTML = html;
+    APP.hidden = false;
+  }
+
+  function deniedHtml() {
+    return '<p class="denied-msg">This page isn\'t for you.</p>';
+  }
+
+  function expiredHtml() {
+    return '<p class="expired-msg">This link has expired.</p>';
+  }
+
+  function needsHttpsHtml() {
+    return '<p class="denied-msg">This page needs a secure https connection.</p>';
+  }
+
+  function problemHtml() {
+    return '<h1>Reload this page</h1><p>Something went wrong on this phone. Reload it and try again.</p>';
+  }
+
+  function showFallback(sms, mail) {
+    var box = document.getElementById("send-fallback");
+    var smsLink = document.getElementById("open-messages");
+    var mailLink = document.getElementById("open-mail");
+    if (!box || !smsLink || !mailLink) return;
+    if (sms) {
+      smsLink.setAttribute("href", sms);
+      smsLink.hidden = false;
+    } else {
+      smsLink.hidden = true;
+      smsLink.setAttribute("href", "#");
+    }
+    if (mail) {
+      mailLink.setAttribute("href", mail);
+      mailLink.hidden = false;
+      mailLink.textContent = sms ? "Also send email" : "Open mail";
+    } else {
+      mailLink.hidden = true;
+      mailLink.setAttribute("href", "#");
+    }
+    box.hidden = !(sms || mail);
+  }
+
+  function contactLine(list) {
+    if (!list || !list.length) return "No family contacts are set up.";
+    return "Goes to: " + list.map(function (c) { return c.value; }).join(", ");
+  }
+
+  function mainHtml(profile, note, pending) {
+    var sms = pending && pending.sms || "";
+    var mail = pending && pending.mail || "";
+    var status = note || "Nothing is sent until you tap Send in your messages or mail app.";
+    var from = "";
+    if (profile.role === "recipient" && profile.ownerName && profile.ownerName !== profile.name) {
+      from = '<p class="from">From ' + esc(profile.ownerName) + '\'s family list.</p>';
+    }
+    var edit = profile.role === "owner"
+      ? '<p class="fine"><a href="#setup">Edit contacts</a></p>'
+      : '<p class="fine"><button type="button" class="textbtn" data-action="remove-recipient">Remove from this phone</button></p>';
+    return '<h1 class="hi">Hi ' + esc(profile.name) + '</h1>' + from +
+      '<p class="lead">Press one button if you need your family. You still have to tap Send in your messages app. This page cannot send by itself.</p>' +
+      '<p class="fine">' + esc(contactLine(profile.alertContacts)) + '</p>' +
+      '<button type="button" class="alert alert-wrong" id="btn-wrong" data-action="alert" data-kind="wrong">Something\'s wrong</button>' +
+      '<button type="button" class="alert alert-help" id="btn-help" data-action="alert" data-kind="help">Can you help me</button>' +
+      '<div id="status" class="status" role="status">' + esc(status) + '</div>' +
+      '<div id="send-fallback" class="stack"' + (sms || mail ? "" : " hidden") + '>' +
+        '<a class="btn send" id="open-messages" href="' + esc(sms || "#") + '"' + (sms ? "" : " hidden") + '>Open messages</a>' +
+        '<a class="btn send" id="open-mail" href="' + esc(mail || "#") + '"' + (mail ? "" : " hidden") + '>' + (sms ? "Also send email" : "Open mail") + '</a>' +
+      '</div>' +
+      '<p class="emergency"><a class="quiet" id="call-911" href="tel:911">Call 911</a></p>' +
+      '<p class="fine">Only if you need emergency services.</p>' + edit;
+  }
+
+  function paintMain(profile, note) {
+    activeProfile = profile;
+    pendingPayload = null;
+    var pending = loadPendingSend();
+    var status = note || (pending && pending.note) || "";
+    paint("main", mainHtml(profile, status, pending), "");
+  }
+
+  function profileFromRecipient(rec) {
+    return { role: "recipient", name: rec.recipientName, ownerName: rec.ownerName, alertContacts: rec.alertContacts };
+  }
+
+  function profileFromOwner(owner) {
+    return { role: "owner", name: owner.name, ownerName: owner.name, alertContacts: owner.alertContacts };
+  }
+
+  function createHtml() {
+    return '<h1>Family help setup</h1>' +
+      '<p>Pick a setup code for this phone. It is stored only as a hash, and it cannot be recovered if you forget it.</p>' +
+      '<form id="code-form" data-action="create-code" autocomplete="off" novalidate>' +
+        '<label for="setup-code">Setup code</label>' +
+        '<input id="setup-code" name="code" type="password" maxlength="200" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false">' +
+        '<label for="setup-code-2">Type it again</label>' +
+        '<input id="setup-code-2" name="confirm" type="password" maxlength="200" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false">' +
+        '<p class="hint">Use at least 6 characters. Spaces at the ends are ignored.</p>' +
+        '<p class="error" id="form-error" hidden tabindex="-1"></p>' +
+        '<button type="submit" class="btn primary" id="code-submit">Save code and continue</button>' +
+      '</form>';
+  }
+
+  function unlockHtml() {
+    return '<h1>Family help setup</h1>' +
+      '<p>Enter the setup code for this phone.</p>' +
+      '<form id="code-form" data-action="unlock-code" autocomplete="off" novalidate>' +
+        '<label for="setup-code">Setup code</label>' +
+        '<input id="setup-code" name="code" type="password" maxlength="200" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false">' +
+        '<p class="error" id="form-error" hidden tabindex="-1"></p>' +
+        '<button type="submit" class="btn primary" id="code-submit">Unlock</button>' +
+      '</form>';
+  }
+
+  function damagedHtml() {
+    return '<h1>Setup data can\'t be read</h1>' +
+      '<p>The saved setup on this phone is damaged. Removing it does not cancel links you already sent.</p>' +
+      '<button type="button" class="btn primary" data-action="remove-setup-now">Remove it and start again</button>';
+  }
+
+  function unfinishedHtml() {
+    return '<h1>Setup is not finished</h1>' +
+      '<p>The setup code is saved on this phone, and the contacts are not.</p>' +
+      '<p><a class="btn primary" href="#setup">Continue setup</a></p>';
+  }
+
+  function switchHtml(oldName, newName) {
+    return '<h1>Switch person?</h1>' +
+      '<p>This phone is set up for ' + esc(oldName) + '. The link you opened is for ' + esc(newName) + '.</p>' +
+      '<button type="button" class="btn primary" data-action="accept-link">Save this link instead</button>' +
+      '<button type="button" class="btn" data-action="decline-link">Keep the current person</button>';
+  }
+
+  function blankPerson() {
+    return { id: randomId(), name: "", contact: "", link: "", issuedAt: 0, expiresAt: 0, settingsKey: "", issuedName: "", issuedContact: "" };
+  }
+
+  function blankDraft() {
+    return {
+      name: "", expireDays: "", contacts: [""], contactErrors: [],
+      recipients: [blankPerson()], recipientErrors: [], error: "", notice: ""
+    };
+  }
+
+  function draftFromOwner(owner) {
+    var contacts = (owner.alertContacts || []).map(function (c) { return c.value; });
+    var recipients = (owner.recipients || []).map(function (r) {
+      return {
+        id: r.id || randomId(),
+        name: r.name,
+        contact: r.contact,
+        link: r.link,
+        issuedAt: r.issuedAt || 0,
+        expiresAt: r.expiresAt || 0,
+        settingsKey: r.settingsKey || "",
+        issuedName: r.name,
+        issuedContact: r.contact
+      };
+    });
+    return {
+      name: owner.name || "",
+      expireDays: owner.expireDays ? String(owner.expireDays) : "",
+      contacts: contacts.length ? contacts : [""],
+      contactErrors: [],
+      recipients: recipients.length ? recipients : [blankPerson()],
+      recipientErrors: [],
+      error: "",
+      notice: ""
+    };
+  }
+
+  function setupFormHtml(model) {
+    var busy = setupBusy;
+    var contacts = model.contacts.map(function (value, i) {
+      var err = model.contactErrors && model.contactErrors[i] ? '<p class="error">' + esc(model.contactErrors[i]) + '</p>' : "";
+      return '<div class="card"><label for="contact-' + i + '">Phone or email</label>' +
+        '<input id="contact-' + i + '" data-contact value="' + esc(value) + '" maxlength="120" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false"' + (busy ? " disabled" : "") + '>' +
+        err +
+        '<button type="button" class="textbtn" data-action="remove-contact" data-index="' + i + '"' + (busy ? " disabled" : "") + '>Remove</button></div>';
+    }).join("");
+    var people = model.recipients.map(function (p, i) {
+      var err = model.recipientErrors && model.recipientErrors[i] ? '<p class="error">' + esc(model.recipientErrors[i]) + '</p>' : "";
+      var linkBox = "";
+      if (p.link) {
+        var when = formatDay(p.issuedAt);
+        var exp = p.expiresAt ? " Expires " + formatDay(p.expiresAt) + "." : " No expiry date.";
+        var via = p.contact.indexOf("@") !== -1 ? "Send via email" : "Send via text";
+        linkBox = '<label for="link-' + i + '">Link</label>' +
+          '<input id="link-' + i + '" data-link-field="' + i + '" readonly value="' + esc(p.link) + '">' +
+          '<div class="row-actions">' +
+            '<button type="button" class="btn" data-action="copy-link" data-index="' + i + '">Copy</button>' +
+            '<button type="button" class="btn primary" data-action="send-link" data-index="' + i + '">' + via + '</button>' +
+          '</div>' +
+          '<p class="fine">' + esc((when ? "Made " + when + "." : "") + exp) + '</p>' +
+          '<button type="button" class="textbtn" data-action="renew-link" data-index="' + i + '"' + (busy ? " disabled" : "") + '>Make a new link</button>';
+      }
+      return '<div class="person card" data-id="' + esc(p.id) + '" data-link="' + esc(p.link || "") + '" data-issued="' + esc(p.issuedAt || 0) + '" data-expires="' + esc(p.expiresAt || 0) + '" data-settings="' + esc(p.settingsKey || "") + '" data-issued-name="' + esc(p.issuedName || "") + '" data-issued-contact="' + esc(p.issuedContact || "") + '">' +
+        '<label for="person-name-' + i + '">Name</label>' +
+        '<input id="person-name-' + i + '" data-person-name value="' + esc(p.name) + '" maxlength="80" autocomplete="off"' + (busy ? " disabled" : "") + '>' +
+        '<label for="person-contact-' + i + '">Their phone or email</label>' +
+        '<input id="person-contact-' + i + '" data-person-contact value="' + esc(p.contact) + '" maxlength="120" autocomplete="off" autocapitalize="off" spellcheck="false"' + (busy ? " disabled" : "") + '>' +
+        err + linkBox +
+        '<button type="button" class="textbtn" data-action="remove-person" data-index="' + i + '"' + (busy ? " disabled" : "") + '>Remove</button></div>';
+    }).join("");
+    var top = "";
+    if (model.error) top += '<p class="error" id="form-error" tabindex="-1">' + esc(model.error) + '</p>';
+    if (model.notice) top += '<p class="note" id="form-notice" role="status">' + esc(model.notice) + '</p>';
+    return '<h1>Family help setup</h1>' +
+      '<p class="hint">Names and numbers stay on this phone. A link hides them, so a server never sees them.</p>' + top +
+      '<form id="setup-form" data-action="save-setup" autocomplete="off" novalidate>' +
+        '<label for="owner-name">Your name</label>' +
+        '<input id="owner-name" value="' + esc(model.name) + '" maxlength="80" autocomplete="name"' + (busy ? " disabled" : "") + '>' +
+        '<h2>People who receive the alert</h2>' +
+        '<p class="hint">These phones and emails get the text or email when someone presses a button.</p>' +
+        contacts +
+        '<button type="button" class="btn" data-action="add-contact"' + (busy ? " disabled" : "") + '>Add a number or email</button>' +
+        '<h2>People who can use this page</h2>' +
+        '<p class="hint">Each person gets their own link.</p>' +
+        people +
+        '<button type="button" class="btn" data-action="add-person"' + (busy ? " disabled" : "") + '>Add a person</button>' +
+        '<label for="expire-days">Stop working after (days)</label>' +
+        '<input id="expire-days" value="' + esc(model.expireDays) + '" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="optional"' + (busy ? " disabled" : "") + '>' +
+        '<p class="hint">Leave this blank and the link keeps working until you change it on their phone.</p>' +
+        '<p class="note">A forwarded link works for anyone who has it. If one leaks, tap Make a new link and send that new one. An old link keeps working until it expires. This page has no server to cancel it.</p>' +
+        '<button type="submit" class="btn primary" id="save-links"' + (busy ? " disabled" : "") + '>' + (busy ? "Making links…" : "Save and make links") + '</button>' +
+      '</form>' +
+      '<p class="fine"><button type="button" class="textbtn" data-action="remove-setup">Remove setup from this phone</button></p>';
+  }
+
+  function readDraftFromDom() {
+    var nameInput = document.getElementById("owner-name");
+    if (!nameInput || !draft) return draft;
+    var contacts = Array.prototype.map.call(APP.querySelectorAll("[data-contact]"), function (el) { return el.value; });
+    var recipients = Array.prototype.map.call(APP.querySelectorAll(".person"), function (row) {
+      return {
+        id: row.getAttribute("data-id") || "",
+        name: row.querySelector("[data-person-name]").value,
+        contact: row.querySelector("[data-person-contact]").value,
+        link: row.getAttribute("data-link") || "",
+        issuedAt: Number(row.getAttribute("data-issued") || 0),
+        expiresAt: Number(row.getAttribute("data-expires") || 0),
+        settingsKey: row.getAttribute("data-settings") || "",
+        issuedName: row.getAttribute("data-issued-name") || "",
+        issuedContact: row.getAttribute("data-issued-contact") || ""
+      };
+    });
+    draft = {
+      name: nameInput.value,
+      expireDays: document.getElementById("expire-days").value,
+      contacts: contacts.length ? contacts : [""],
+      contactErrors: [],
+      recipients: recipients.length ? recipients : [blankPerson()],
+      recipientErrors: [],
+      error: "",
+      notice: draft.notice || ""
+    };
+    return draft;
+  }
+
+  function showFormError(msg) {
+    var error = document.getElementById("form-error");
+    if (!error) return;
+    error.hidden = false;
+    error.textContent = msg;
+    error.focus();
+  }
+
+  function fieldValue(form, name) {
+    var el = form.elements[name];
+    return el ? String(el.value || "") : "";
+  }
+
+  async function onCreateCode(form) {
+    if (loadOwner()) return showFormError("This phone already has a setup code.");
+    var code = fieldValue(form, "code").replace(/^\s+|\s+$/g, "");
+    var confirm = fieldValue(form, "confirm").replace(/^\s+|\s+$/g, "");
+    if (code.length < 6) return showFormError("Use at least 6 characters.");
+    if (code.length > 200) return showFormError("That code is too long.");
+    if (code !== confirm) return showFormError("Those codes don't match.");
+    var btn = document.getElementById("code-submit");
+    btn.disabled = true;
+    btn.textContent = "Saving code…";
+    try {
+      var salt = crypto.getRandomValues(new Uint8Array(16));
+      var hash = await deriveBits(code, salt, ITERATIONS);
+      var record = {
+        v: 1, iterations: ITERATIONS, salt: bytesToB64(salt), hash: bytesToB64(hash),
+        name: "", alertContacts: [], expireDays: null, recipients: []
+      };
+      if (!saveJSON(OWNER_KEY, record)) {
+        btn.disabled = false;
+        btn.textContent = "Save code and continue";
+        return showFormError("This phone could not save the code. Turn off private browsing and try again.");
+      }
+      setUnlocked();
+      draft = blankDraft();
+      paint("setup", setupFormHtml(draft), "");
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "Save code and continue";
+      showFormError("This phone could not set up the code. Reload and try again.");
+    }
+  }
+
+  async function onUnlockCode(form) {
+    var code = fieldValue(form, "code").replace(/^\s+|\s+$/g, "");
+    var owner = loadOwner();
+    if (!owner || owner.damaged || !validSecrets(owner)) return showFormError("Setup data on this phone can't be read.");
+    if (!code) return showFormError("Enter your setup code.");
+    var btn = document.getElementById("code-submit");
+    btn.disabled = true;
+    btn.textContent = "Checking code…";
+    try {
+      var actual = await deriveBits(code, b64ToBytes(owner.salt), owner.iterations);
+      if (!sameBytes(actual, b64ToBytes(owner.hash))) {
+        btn.disabled = false;
+        btn.textContent = "Unlock";
+        return showFormError("That code doesn't match.");
+      }
+      setUnlocked();
+      draft = draftFromOwner(owner);
+      paint("setup", setupFormHtml(draft), "");
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "Unlock";
+      showFormError("This phone could not check the code. Reload and try again.");
+    }
+  }
+
+  function makeSettingsKey(name, contacts, days) {
+    return JSON.stringify({
+      n: name,
+      a: contacts.map(function (c) { return c.kind + ":" + c.value; }),
+      d: days || 0
+    });
+  }
+
+  async function saveSetup() {
+    if (setupBusy) return;
+    readDraftFromDom();
+    draft.contactErrors = draft.contacts.map(function () { return ""; });
+    draft.recipientErrors = draft.recipients.map(function () { return ""; });
+    var nameResult = cleanName(draft.name);
+    var dayResult = parseDays(draft.expireDays);
+    var contacts = [];
+    var contactProblem = false;
+    draft.contacts.forEach(function (raw, i) {
+      if (!cleanText(raw, 120)) return;
+      var c = classifyContact(raw);
+      if (c.error) {
+        draft.contactErrors[i] = c.error;
+        contactProblem = true;
+        return;
+      }
+      if (!contacts.some(function (x) { return x.kind === c.kind && x.value === c.value; })) contacts.push(c);
+    });
+    var people = [];
+    var personProblem = false;
+    var seen = {};
+    draft.recipients.forEach(function (person, i) {
+      var name = cleanText(person.name, 80);
+      var contactRaw = cleanText(person.contact, 120);
+      if (!name && !contactRaw) return;
+      if (!name) {
+        draft.recipientErrors[i] = "Enter this person's name.";
+        personProblem = true;
+        return;
+      }
+      var c = classifyContact(person.contact);
+      if (c.error) {
+        draft.recipientErrors[i] = c.error;
+        personProblem = true;
+        return;
+      }
+      if (seen[c.value]) {
+        draft.recipientErrors[i] = "Each person needs their own phone or email.";
+        personProblem = true;
+        return;
+      }
+      seen[c.value] = true;
+      people.push({ index: i, name: cleanName(person.name).name, contact: c.value, prev: person });
+    });
+    if (nameResult.error) draft.error = nameResult.error;
+    else if (dayResult.error) draft.error = dayResult.error;
+    else if (!contacts.length) draft.error = "Add at least one phone number or email to alert.";
+    else if (contactProblem || personProblem) draft.error = "Fix the rows marked below.";
+    else if (!people.length) draft.error = "Add at least one person who can use this page.";
+    else draft.error = "";
+    if (draft.error) {
+      paint("setup", setupFormHtml(draft), "");
+      var el = document.getElementById("form-error");
+      if (el && el.focus) el.focus();
+      return;
+    }
+    setupBusy = true;
+    draft.notice = "Making links…";
+    paint("setup", setupFormHtml(draft), "");
+    var settingsKey = makeSettingsKey(nameResult.name, contacts, dayResult.days);
+    var recipients = [];
+    var renewed = [];
+    try {
+      for (var i = 0; i < people.length; i++) {
+        var person = people[i];
+        var prev = person.prev;
+        var renew = !!(prev.id && forceRenew[prev.id]);
+        var canKeep = !renew && prev.link && prev.issuedName === person.name && prev.issuedContact === person.contact && prev.settingsKey === settingsKey;
+        if (canKeep) {
+          recipients.push({
+            id: prev.id || randomId(), name: person.name, contact: person.contact, link: prev.link,
+            issuedAt: prev.issuedAt, expiresAt: prev.expiresAt || 0, settingsKey: settingsKey
+          });
+          continue;
+        }
+        var issuedAt = Date.now();
+        var expiresAt = dayResult.days ? issuedAt + dayResult.days * 86400000 : 0;
+        var link = await encryptPayload({
+          v: 1, n: person.name, c: person.contact, o: nameResult.name,
+          a: contacts.map(function (c) { return [c.kind === "email" ? "e" : "p", c.value]; }),
+          t: issuedAt, x: expiresAt
+        });
+        if (prev.link) renewed.push(person.name);
+        recipients.push({
+          id: prev.id || randomId(), name: person.name, contact: person.contact, link: link,
+          issuedAt: issuedAt, expiresAt: expiresAt, settingsKey: settingsKey
+        });
+      }
+    } catch (e) {
+      setupBusy = false;
+      draft.error = "This phone could not make the links. Reload and try again.";
+      draft.notice = "";
+      paint("setup", setupFormHtml(draft), "");
+      return;
+    }
+    var owner = loadOwner();
+    if (!owner || owner.damaged) {
+      setupBusy = false;
+      draft.error = "Setup data on this phone can't be read.";
+      draft.notice = "";
+      paint("setup", setupFormHtml(draft), "");
+      return;
+    }
+    var record = {
+      v: 1,
+      iterations: owner.iterations,
+      salt: owner.salt,
+      hash: owner.hash,
+      name: nameResult.name,
+      alertContacts: contacts,
+      expireDays: dayResult.days,
+      recipients: recipients
+    };
+    if (!saveJSON(OWNER_KEY, record)) {
+      setupBusy = false;
+      draft.error = "This phone could not save. Turn off private browsing and try again.";
+      draft.notice = "";
+      paint("setup", setupFormHtml(draft), "");
+      return;
+    }
+    forceRenew = {};
+    setupBusy = false;
+    draft = draftFromOwner(record);
+    draft.notice = renewed.length
+      ? "New links were made for " + renewed.join(", ") + ". Send those again. An old link still opens until it expires."
+      : "Links are ready.";
+    paint("setup", setupFormHtml(draft), "");
+    var notice = document.getElementById("form-notice");
+    if (notice && notice.scrollIntoView) notice.scrollIntoView({ block: "nearest" });
+  }
+
+  function setStatus(text) {
+    var el = document.getElementById("status");
+    if (el) el.textContent = text;
+  }
+
+  async function startAlert(kind) {
+    if (sending || !activeProfile) return;
+    removeArmed = false;
+    var profile = activeProfile;
+    sending = true;
+    var wrong = document.getElementById("btn-wrong");
+    var help = document.getElementById("btn-help");
+    if (wrong) wrong.disabled = true;
+    if (help) help.disabled = true;
+    setStatus("Getting your location. This can take up to 8 seconds.");
+    var loc = await locate();
+    if (activeProfile !== profile || APP.getAttribute("data-screen") !== "main") {
+      sending = false;
+      return;
+    }
+    var message = buildMessage(profile.name, kind, formatStamp(new Date()), loc);
+    var phones = profile.alertContacts.filter(function (c) { return c.kind === "phone"; }).map(function (c) { return c.value; });
+    var emails = profile.alertContacts.filter(function (c) { return c.kind === "email"; }).map(function (c) { return c.value; });
+    var subject = profile.name + " needs help";
+    var sms = phones.length ? smsUrl(phones, message) : "";
+    var mail = emails.length ? mailtoUrl(emails, subject, message) : "";
+    var bits = [];
+    if (loc.ok && loc.accuracy != null) bits.push("Map link added (±" + loc.accuracy + " m).");
+    else if (loc.ok) bits.push("Map link added.");
+    else if (loc.reason === "denied") bits.push("Location is off, so the message has no map link.");
+    else bits.push("Location wasn't available, so the message has no map link.");
+    if (phones.length && emails.length) {
+      bits.push("Tap Send in your messages app. If it did not open, tap Open messages, then tap Send. Then tap Also send email and tap Send in mail. This page cannot send by itself.");
+    } else if (phones.length) {
+      bits.push("Tap Send in your messages app. If it did not open, tap Open messages, then tap Send. This page cannot send by itself.");
+    } else if (emails.length) {
+      bits.push("Tap Send in your mail app. If it did not open, tap Open mail, then tap Send. This page cannot send by itself.");
+    } else {
+      bits.push("No phone numbers or emails are set up, so there is nowhere to send this.");
+    }
+    var note = bits.join(" ");
+    setStatus(note);
+    if (sms || mail) {
+      rememberSend(sms, mail, note);
+      showFallback(sms, mail);
+      openExternal(sms || mail);
+    } else {
+      clearSend();
+      showFallback("", "");
+    }
+    if (wrong) wrong.disabled = false;
+    if (help) help.disabled = false;
+    sending = false;
+  }
+
+  function showSetup() {
+    var owner = loadOwner();
+    if (owner && owner.damaged) {
+      paint("setup-damaged", damagedHtml(), "");
+      return;
+    }
+    if (owner && !isUnlocked()) {
+      draft = null;
+      paint("setup-unlock", unlockHtml(), "");
+      return;
+    }
+    if (!owner) {
+      draft = null;
+      paint("setup-create", createHtml(), "");
+      return;
+    }
+    if (!draft) draft = draftFromOwner(owner);
+    paint("setup", setupFormHtml(draft), "");
+  }
+
+  async function showLink(k, d) {
+    var payload = null;
+    try { payload = await decryptLink(k, d); } catch (e) { payload = null; }
+    if (!payload) {
+      paint("denied", deniedHtml(), "denied");
+      return;
+    }
+    if (isExpired(payload)) {
+      paint("expired", expiredHtml(), "expired");
+      return;
+    }
+    var saved = loadRecipient();
+    if (saved && isExpired(saved)) {
+      try { localStorage.removeItem(RECIPIENT_KEY); } catch (e) {}
+      saved = null;
+    }
+    if (saved && !sameInvite(saved, payload)) {
+      pendingPayload = payload;
+      paint("switch", switchHtml(saved.recipientName, payload.recipientName), "");
+      return;
+    }
+    var stored = saveJSON(RECIPIENT_KEY, payload);
+    if (stored) stripHash();
+    paintMain(profileFromRecipient(payload), stored
+      ? "Saved on this phone. Nothing is sent until you tap Send in your messages or mail app."
+      : "This phone could not save the page. You can still send now. Turn off private browsing and open your link again if you want it remembered.");
+  }
+
+  async function route() {
+    try {
+      var hash = readHash();
+      if (!cryptoOk() && (hash.kind === "setup" || hash.kind === "link")) {
+        paint("needs-https", needsHttpsHtml(), "denied");
+        return;
+      }
+      if (hash.kind === "setup") {
+        showSetup();
+        return;
+      }
+      if (hash.kind === "link") {
+        await showLink(hash.k, hash.d);
+        return;
+      }
+      var saved = loadRecipient();
+      var owner = loadOwner();
+      if (saved && isExpired(saved)) {
+        if (ownerReady(owner)) {
+          try { localStorage.removeItem(RECIPIENT_KEY); } catch (e) {}
+          paintMain(profileFromOwner(owner), "");
+          return;
+        }
+        paint("expired", expiredHtml(), "expired");
+        return;
+      }
+      if (saved) {
+        paintMain(profileFromRecipient(saved), "");
+        return;
+      }
+      if (ownerReady(owner)) {
+        paintMain(profileFromOwner(owner), "");
+        return;
+      }
+      if (owner && !owner.damaged && validSecrets(owner)) {
+        paint("unfinished", unfinishedHtml(), "");
+        return;
+      }
+      paint("denied", deniedHtml(), "denied");
+    } catch (e) {
+      paint("problem", problemHtml(), "");
+    }
+  }
+
+  function removeRecipientNow() {
+    try { localStorage.removeItem(RECIPIENT_KEY); } catch (e) {}
+    clearSend();
+    activeProfile = null;
+    pendingPayload = null;
+    stripHash();
+    route();
+  }
+
+  function removeSetupNow() {
+    try { localStorage.removeItem(OWNER_KEY); } catch (e) {}
+    clearUnlocked();
+    draft = null;
+    forceRenew = {};
+    stripHash();
+    route();
+  }
+
+  async function copyText(text, field) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) {}
+    try {
+      if (field) { field.focus(); field.select(); }
+      return document.execCommand("copy");
+    } catch (e2) {
+      return false;
+    }
+  }
+
+  APP.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-action]");
+    if (!btn || btn.disabled) return;
+    var action = btn.getAttribute("data-action");
+    var index = Number(btn.getAttribute("data-index") || 0);
+    if (action === "alert") {
+      startAlert(btn.getAttribute("data-kind") || "wrong");
+      return;
+    }
+    if (action === "remove-recipient") {
+      if (!removeArmed) {
+        removeArmed = true;
+        btn.textContent = "Tap again to remove";
+        return;
+      }
+      removeRecipientNow();
+      return;
+    }
+    if (action === "remove-setup") {
+      if (!removeSetupArmed) {
+        removeSetupArmed = true;
+        btn.textContent = "Tap again to remove setup";
+        return;
+      }
+      removeSetupNow();
+      return;
+    }
+    if (action === "remove-setup-now") {
+      removeSetupNow();
+      return;
+    }
+    if (action === "accept-link") {
+      var payload = pendingPayload;
+      if (!payload || isExpired(payload)) {
+        paint("denied", deniedHtml(), "denied");
+        return;
+      }
+      var stored = saveJSON(RECIPIENT_KEY, payload);
+      pendingPayload = null;
+      if (stored) stripHash();
+      paintMain(profileFromRecipient(payload), stored
+        ? "Saved on this phone. Nothing is sent until you tap Send in your messages or mail app."
+        : "This phone could not save the page. You can still send now.");
+      return;
+    }
+    if (action === "decline-link") {
+      pendingPayload = null;
+      stripHash();
+      route();
+      return;
+    }
+    if (setupBusy) return;
+    if (action === "add-contact") {
+      readDraftFromDom();
+      draft.contacts.push("");
+      paint("setup", setupFormHtml(draft), "");
+      var added = APP.querySelectorAll("[data-contact]");
+      if (added.length) added[added.length - 1].focus();
+      return;
+    }
+    if (action === "remove-contact") {
+      readDraftFromDom();
+      draft.contacts.splice(index, 1);
+      if (!draft.contacts.length) draft.contacts.push("");
+      paint("setup", setupFormHtml(draft), "");
+      return;
+    }
+    if (action === "add-person") {
+      readDraftFromDom();
+      draft.recipients.push(blankPerson());
+      paint("setup", setupFormHtml(draft), "");
+      var names = APP.querySelectorAll("[data-person-name]");
+      if (names.length) names[names.length - 1].focus();
+      return;
+    }
+    if (action === "remove-person") {
+      readDraftFromDom();
+      draft.recipients.splice(index, 1);
+      if (!draft.recipients.length) draft.recipients.push(blankPerson());
+      paint("setup", setupFormHtml(draft), "");
+      return;
+    }
+    if (action === "renew-link") {
+      readDraftFromDom();
+      var id = draft.recipients[index] && draft.recipients[index].id;
+      if (id) forceRenew[id] = true;
+      saveSetup();
+      return;
+    }
+    if (action === "copy-link") {
+      var person = draft && draft.recipients[index];
+      if (!person || !person.link) return;
+      var field = APP.querySelector('[data-link-field="' + index + '"]');
+      copyText(person.link, field).then(function (ok) {
+        btn.textContent = ok ? "Copied" : "Select the link and copy it";
+      });
+      return;
+    }
+    if (action === "send-link") {
+      var invite = draft && draft.recipients[index];
+      if (!invite || !invite.link) return;
+      var text = "Hi " + invite.name + ". This is your private family help button. Open it and save it on your phone:\n" + invite.link;
+      if (invite.contact.indexOf("@") !== -1) openExternal(mailtoUrl([invite.contact], "Your family help button", text));
+      else openExternal(smsUrl([invite.contact], text));
+    }
+  });
+
+  APP.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var action = e.target.getAttribute("data-action");
+    if (action === "create-code") onCreateCode(e.target);
+    else if (action === "unlock-code") onUnlockCode(e.target);
+    else if (action === "save-setup") saveSetup();
+  });
+
+  window.addEventListener("hashchange", function () { route(); });
+  route();
+})();
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@
    This worker must not intercept those requests, or phones cannot connect.
    Change VERSION when you change the list of files below.
    ===================================================================== */
-const VERSION = "floodlight-kickoff-pages-v45";
+const VERSION = "floodlight-kickoff-pages-v46";
 const NATIVE_APP = self.location && (self.location.protocol === "capacitor:" || self.location.protocol === "ionic:");
 const APP_SHELL = [
   "./",
@@ -73,6 +73,9 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.protocol !== "http:" && url.protocol !== "https:") return;
   if (url.pathname.endsWith("/ws") || url.pathname.includes("/debug/") || url.pathname.endsWith("/healthz")) return;
+  // Family help (/help/) is a separate page. Do not cache it, and do not
+  // answer it with the game when the network fails.
+  if (url.pathname.includes("/help/") || url.pathname.endsWith("/help")) return;
 
   const isPage = req.mode === "navigate";
   event.respondWith((async () => {
