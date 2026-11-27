@@ -181,14 +181,14 @@ assert.strictEqual(admin.indexOf("const ITERATIONS = 310000") >= 0, true);
 assert.ok(build.indexOf('read("leaderboard.js")') >= 0);
 assert.ok(read("src/offline_shell.js").indexOf('"leaderboardScreen"') >= 0);
 assert.ok(read("src/cloud_account.js").indexOf("KickoffLeaderboard.mountAccount") >= 0);
-assert.ok(read("tools/build_pages.py").indexOf("floodlight-kickoff-pages-v46") >= 0);
+assert.ok(read("tools/build_pages.py").indexOf("floodlight-kickoff-pages-v47") >= 0);
 
 const pages = read("index.html");
 assert.ok(pages.indexOf("Leaderboard") >= 0);
 assert.ok(pages.indexOf("Show me on the leaderboard") >= 0);
 assert.ok(pages.indexOf("record_device") >= 0);
 assert.ok(pages.indexOf("service_role") < 0);
-assert.ok(read("sw.js").indexOf("floodlight-kickoff-pages-v46") >= 0);
+assert.ok(read("sw.js").indexOf("floodlight-kickoff-pages-v47") >= 0);
 assert.ok(read("soccer.html").indexOf("id=\"boardBtn\"") >= 0 || read("soccer.html").indexOf("Leaderboard") >= 0);
 
 console.log("leaderboard checks passed");

@@ -22,12 +22,12 @@ fs.writeFileSync("/tmp/help-page.js", scriptMatch[1]);
 child.execFileSync(process.execPath, ["--check", "/tmp/help-page.js"]);
 
 assert.strictEqual(sw, iosSw, "iOS copy of sw.js must match the Pages worker");
-assert.strictEqual(sw.split("floodlight-kickoff-pages-v46").length - 1, 1);
-assert.ok(!sw.includes("floodlight-kickoff-pages-v45"));
+assert.strictEqual(sw.split("floodlight-kickoff-pages-v47").length - 1, 1);
+assert.ok(!sw.includes("floodlight-kickoff-pages-v46"));
 assert.ok(sw.includes('url.pathname.includes("/help/")'));
 assert.ok(sw.includes('url.pathname.endsWith("/help")'));
-assert.ok(swPy.includes("floodlight-kickoff-pages-v46"));
-assert.ok(!swPy.includes("floodlight-kickoff-pages-v45"));
+assert.ok(swPy.includes("floodlight-kickoff-pages-v47"));
+assert.ok(!swPy.includes("floodlight-kickoff-pages-v46"));
 assert.ok(swPy.includes('includes("/help/")'));
 assert.ok(!/<script\b[^>]*\bsrc\s*=/i.test(html), "help page must not load an external script");
 assert.ok(!/<link\b[^>]*\bhref\s*=\s*["']https?:/i.test(html), "help page must not load an external stylesheet");
@@ -37,6 +37,11 @@ assert.ok(html.includes("sms:/open?addresses="));
 assert.ok(html.includes("Something's wrong") && html.includes("Can you help me"));
 assert.ok(html.includes("Also send email") && html.includes("This page isn't for you."));
 assert.ok(html.includes('href="tel:911"') && html.includes("localStorage"));
+assert.ok(html.includes("Forgot code? Reset setup"));
+assert.ok(html.includes("That code doesn't match the one saved on this phone."));
+assert.ok(html.includes("This erases the setup on this phone. Links you already sent keep working until you make new ones."));
+assert.ok(html.includes("too short") && html.includes("don't match"));
+assert.ok(!html.includes("new-password") && !html.includes("current-password"));
 const urls = html.match(/https?:\/\/[^"'\\\s)]+/g) || [];
 assert.deepStrictEqual(urls, ["https://maps.google.com/?q="]);
 
@@ -204,15 +209,31 @@ async function main() {
     await openHelp(owner, BASE + "/help/#setup");
     view = await screen(owner);
     assert.strictEqual(view.name, "setup-create");
+    assert.strictEqual(await owner.getAttribute("#setup-code", "type"), "password");
+    assert.strictEqual(await owner.getAttribute("#setup-code", "autocomplete"), "off");
+    assert.strictEqual(await owner.getAttribute("#setup-code", "autocapitalize"), "none");
+    await owner.click("#toggle-code");
+    assert.strictEqual(await owner.getAttribute("#setup-code", "type"), "text");
+    assert.strictEqual(await owner.getAttribute("#setup-code-2", "type"), "text");
+    await owner.fill("#setup-code", "abc");
+    await owner.click("#toggle-code");
+    assert.strictEqual(await owner.inputValue("#setup-code"), "abc");
+    assert.strictEqual(await owner.getAttribute("#setup-code", "type"), "password");
     await owner.fill("#setup-code", "short");
     await owner.fill("#setup-code-2", "short");
     await owner.click("#code-submit");
     await owner.waitForSelector("#form-error:not([hidden])");
-    assert.match(await owner.textContent("#form-error"), /at least 6/);
+    assert.match(await owner.textContent("#form-error"), /too short/);
     await owner.fill("#setup-code", CODE);
     await owner.fill("#setup-code-2", CODE + "s");
     await owner.click("#code-submit");
     assert.match(await owner.textContent("#form-error"), /don't match/);
+    await owner.fill("#setup-code", "River1");
+    await owner.fill("#setup-code-2", "river1");
+    await owner.click("#code-submit");
+    assert.match(await owner.textContent("#form-error"), /don't match/);
+    assert.match(await owner.textContent("#form-error"), /capital letters/);
+    await owner.fill("#setup-code", CODE);
     await owner.fill("#setup-code-2", CODE);
     await owner.click("#code-submit");
     await owner.waitForSelector("#owner-name", { timeout: 20000 });
@@ -467,12 +488,61 @@ async function main() {
     await owner.fill("#setup-code", "not-the-code");
     await owner.click("#code-submit");
     await owner.waitForSelector("#form-error:not([hidden])", { timeout: 20000 });
-    assert.match(await owner.textContent("#form-error"), /doesn't match/);
+    assert.match(await owner.textContent("#form-error"), /doesn't match the one saved on this phone/);
     assert.strictEqual((await screen(owner)).name, "setup-unlock");
-    await owner.fill("#setup-code", CODE);
+    const forgot = await owner.locator("#forgot-code").boundingBox();
+    assert.ok(forgot && forgot.height >= 48 && forgot.width >= 250, JSON.stringify(forgot));
+    await owner.fill("#setup-code", "  " + CODE + "\u00a0");
     await owner.click("#code-submit");
     await owner.waitForSelector("#owner-name", { timeout: 20000 });
     assert.strictEqual(await owner.inputValue("#owner-name"), "Jordan");
+
+    const savedOwner = await owner.evaluate(() => localStorage.getItem("familyHelpOwnerV1"));
+    const resetCtx = await newPhone(IPHONE, 390, 844);
+    const resetPage = await resetCtx.newPage();
+    await openHelp(resetPage, BASE + "/help/");
+    await resetPage.evaluate((raw) => {
+      localStorage.setItem("familyHelpOwnerV1", raw);
+      localStorage.setItem("familyHelpRecipientV1", "keep-this-recipient");
+    }, savedOwner);
+    await openHelp(resetPage, BASE + "/help/#setup");
+    view = await screen(resetPage);
+    assert.strictEqual(view.name, "setup-unlock", view.text);
+    assert.match(view.text, /already has a setup code/);
+    assert.ok(view.text.includes("Forgot code? Reset setup"));
+    await resetPage.fill("#setup-code", "brand-new-code");
+    await resetPage.click("#code-submit");
+    await resetPage.waitForSelector("#form-error:not([hidden])", { timeout: 20000 });
+    assert.match(await resetPage.textContent("#form-error"), /doesn't match the one saved on this phone/);
+    assert.ok(await resetPage.locator("#forgot-code").isVisible());
+    await noOverflow(resetPage, "unlock 390");
+    await resetPage.setViewportSize({ width: 320, height: 568 });
+    await noOverflow(resetPage, "unlock 320");
+    await resetPage.setViewportSize({ width: 390, height: 844 });
+    await resetPage.screenshot({ path: path.join(shots, "help-unlock-iphone.png") });
+    await resetPage.click("#forgot-code");
+    await resetPage.waitForFunction(() => document.getElementById("app").getAttribute("data-screen") === "setup-reset");
+    view = await screen(resetPage);
+    assert.ok(view.text.includes("This erases the setup on this phone. Links you already sent keep working until you make new ones."));
+    await noOverflow(resetPage, "reset 390");
+    await resetPage.screenshot({ path: path.join(shots, "help-reset-iphone.png") });
+    await resetPage.click("#cancel-reset");
+    await resetPage.waitForFunction(() => document.getElementById("app").getAttribute("data-screen") === "setup-unlock");
+    assert.ok(await resetPage.evaluate(() => !!localStorage.getItem("familyHelpOwnerV1")));
+    await openHelp(resetPage, BASE + "/help/#reset");
+    assert.strictEqual((await screen(resetPage)).name, "setup-reset");
+    await resetPage.setViewportSize({ width: 320, height: 568 });
+    await noOverflow(resetPage, "reset 320");
+    await resetPage.click("#confirm-reset");
+    await resetPage.waitForSelector("#setup-code-2");
+    view = await screen(resetPage);
+    assert.strictEqual(view.name, "setup-create", view.text);
+    const left = await resetPage.evaluate(() => ({
+      owner: localStorage.getItem("familyHelpOwnerV1"),
+      recipient: localStorage.getItem("familyHelpRecipientV1"),
+    }));
+    assert.strictEqual(left.owner, null);
+    assert.strictEqual(left.recipient, "keep-this-recipient");
 
     assert.deepStrictEqual(pageErrors, []);
 
@@ -502,7 +572,7 @@ async function main() {
       }
       return { keys: keys, names: names };
     });
-    assert.ok(cacheInfo.keys.some((key) => key.includes("floodlight-kickoff-pages-v46")), cacheInfo.keys.join(","));
+    assert.ok(cacheInfo.keys.some((key) => key.includes("floodlight-kickoff-pages-v47")), cacheInfo.keys.join(","));
     assert.ok(!cacheInfo.names.some((name) => name.includes("/help")), cacheInfo.names.filter((name) => name.includes("help")).join(","));
     assert.ok(cacheInfo.names.some((name) => name.includes("index.html")), "game shell was not cached");
     await swCtx.setOffline(true);

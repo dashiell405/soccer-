@@ -10,7 +10,7 @@
 <meta name="description" content="A private help button for one family.">
 <meta name="format-detection" content="telephone=no">
 <title>Family help</title>
-<!-- Owner setup on a phone: open this page with #setup once, pick a code, then send each person their own link. -->
+<!-- Owner setup on a phone: open this page with #setup once, pick a code, then send each person their own link. Forgot that code: open #reset. -->
 <style>
   :root { color-scheme: dark; }
   html {
@@ -111,11 +111,12 @@
     font-size: 1.125rem;
     font-weight: 800;
   }
-  .btn.primary, .btn.send {
+  .btn.primary, .btn.send, .btn.danger {
     background: #fff8f6;
     color: #1a0a0c;
     border-color: #fff8f6;
   }
+  .btn.danger { color: #9d0014; }
   .alert {
     min-height: 6.75rem;
     margin: 0 0 0.85rem;
@@ -222,6 +223,8 @@
   var setupBusy = false;
   var removeArmed = false;
   var removeSetupArmed = false;
+  var codeVisible = false;
+  var holdRoute = false;
   var forceRenew = {};
 
   function esc(value) {
@@ -339,26 +342,27 @@
   }
 
   async function deriveBits(code, salt, iterations) {
-    var material = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(code),
-      "PBKDF2",
-      false,
-      ["deriveBits", "deriveKey"]
-    );
-    var params = { name: "PBKDF2", hash: "SHA-256", salt: salt, iterations: iterations };
+    // iOS Safari throws if one PBKDF2 key lists both deriveBits and deriveKey.
+    // Import once for each, and use deriveKey when deriveBits is missing.
+    var bytes = new TextEncoder().encode(code);
+    var saltBytes = new Uint8Array(salt);
+    var params = { name: "PBKDF2", hash: "SHA-256", salt: saltBytes, iterations: iterations | 0 };
     try {
-      return new Uint8Array(await crypto.subtle.deriveBits(params, material, 256));
-    } catch (e) {
-      var key = await crypto.subtle.deriveKey(
-        params,
-        material,
-        { name: "HMAC", hash: "SHA-256", length: 256 },
-        true,
-        ["sign"]
-      );
-      return new Uint8Array(await crypto.subtle.exportKey("raw", key));
-    }
+      var forBits = await crypto.subtle.importKey("raw", bytes, "PBKDF2", false, ["deriveBits"]);
+      var bits = new Uint8Array(await crypto.subtle.deriveBits(params, forBits, 256));
+      if (bits.length === 32) return bits;
+    } catch (e) {}
+    var forKey = await crypto.subtle.importKey("raw", bytes, "PBKDF2", false, ["deriveKey"]);
+    var key = await crypto.subtle.deriveKey(
+      params,
+      forKey,
+      { name: "HMAC", hash: "SHA-256", length: 256 },
+      true,
+      ["sign"]
+    );
+    var raw = new Uint8Array(await crypto.subtle.exportKey("raw", key));
+    if (raw.length !== 32) throw new Error("short hash");
+    return raw;
   }
 
   function validSecrets(o) {
@@ -491,6 +495,7 @@
     var raw = location.hash.charAt(0) === "#" ? location.hash.slice(1) : location.hash;
     if (!raw) return { kind: "none" };
     if (raw === "setup") return { kind: "setup" };
+    if (raw === "reset") return { kind: "reset" };
     var params = new URLSearchParams(raw);
     var k = params.get("k") || "";
     var d = params.get("d") || "";
@@ -728,15 +733,27 @@
     return { role: "owner", name: owner.name, ownerName: owner.name, alertContacts: owner.alertContacts };
   }
 
+  function codeType() {
+    return codeVisible ? "text" : "password";
+  }
+
+  function codeField(id, name, label) {
+    return '<label for="' + id + '">' + label + '</label>' +
+      '<input id="' + id + '" name="' + name + '" type="' + codeType() + '" maxlength="200" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="text" data-1p-ignore="true" data-lpignore="true">';
+  }
+
+  function showCodeButton() {
+    return '<button type="button" class="btn" id="toggle-code" data-action="toggle-code">' + (codeVisible ? "Hide code" : "Show code") + '</button>';
+  }
+
   function createHtml() {
     return '<h1>Family help setup</h1>' +
       '<p>Pick a setup code for this phone. It is stored only as a hash, and it cannot be recovered if you forget it.</p>' +
       '<form id="code-form" data-action="create-code" autocomplete="off" novalidate>' +
-        '<label for="setup-code">Setup code</label>' +
-        '<input id="setup-code" name="code" type="password" maxlength="200" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false">' +
-        '<label for="setup-code-2">Type it again</label>' +
-        '<input id="setup-code-2" name="confirm" type="password" maxlength="200" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false">' +
-        '<p class="hint">Use at least 6 characters. Spaces at the ends are ignored.</p>' +
+        codeField("setup-code", "fh-setup-code", "Setup code") +
+        codeField("setup-code-2", "fh-setup-again", "Type it again") +
+        showCodeButton() +
+        '<p class="hint">Use at least 6 characters. Spaces at the ends are ignored. Tap Show code to check both boxes. If your phone filled in its own password, clear it and type a code you choose.</p>' +
         '<p class="error" id="form-error" hidden tabindex="-1"></p>' +
         '<button type="submit" class="btn primary" id="code-submit">Save code and continue</button>' +
       '</form>';
@@ -745,12 +762,21 @@
   function unlockHtml() {
     return '<h1>Family help setup</h1>' +
       '<p>Enter the setup code for this phone.</p>' +
+      '<p class="hint">This phone already has a setup code. A new code will not work until you reset.</p>' +
       '<form id="code-form" data-action="unlock-code" autocomplete="off" novalidate>' +
-        '<label for="setup-code">Setup code</label>' +
-        '<input id="setup-code" name="code" type="password" maxlength="200" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false">' +
+        codeField("setup-code", "fh-setup-code", "Setup code") +
+        showCodeButton() +
         '<p class="error" id="form-error" hidden tabindex="-1"></p>' +
         '<button type="submit" class="btn primary" id="code-submit">Unlock</button>' +
+        '<button type="button" class="btn danger" id="forgot-code" data-action="start-reset">Forgot code? Reset setup</button>' +
       '</form>';
+  }
+
+  function resetHtml() {
+    return '<h1>Reset setup on this phone?</h1>' +
+      '<p>This erases the setup on this phone. Links you already sent keep working until you make new ones.</p>' +
+      '<button type="button" class="btn danger" id="confirm-reset" data-action="confirm-reset">Erase setup</button>' +
+      '<button type="button" class="btn" id="cancel-reset" data-action="cancel-reset">Cancel</button>';
   }
 
   function damagedHtml() {
@@ -911,13 +937,23 @@
     return el ? String(el.value || "") : "";
   }
 
+  function normalizeCode(raw) {
+    return String(raw == null ? "" : raw)
+      .replace(/[\u200B-\u200D\uFEFF]/g, "")
+      .replace(/\u00a0/g, " ")
+      .replace(/^\s+|\s+$/g, "");
+  }
+
   async function onCreateCode(form) {
     if (loadOwner()) return showFormError("This phone already has a setup code.");
-    var code = fieldValue(form, "code").replace(/^\s+|\s+$/g, "");
-    var confirm = fieldValue(form, "confirm").replace(/^\s+|\s+$/g, "");
-    if (code.length < 6) return showFormError("Use at least 6 characters.");
-    if (code.length > 200) return showFormError("That code is too long.");
-    if (code !== confirm) return showFormError("Those codes don't match.");
+    var code = normalizeCode(fieldValue(form, "fh-setup-code"));
+    var confirm = normalizeCode(fieldValue(form, "fh-setup-again"));
+    if (code.length < 6 || confirm.length < 6) return showFormError("That code is too short. Use at least 6 characters.");
+    if (code.length > 200 || confirm.length > 200) return showFormError("That code is too long.");
+    if (code !== confirm) {
+      if (code.toLowerCase() === confirm.toLowerCase()) return showFormError("Those codes don't match. Check capital letters. They have to be the same in both boxes.");
+      return showFormError("Those codes don't match. Type the same code in both boxes.");
+    }
     var btn = document.getElementById("code-submit");
     btn.disabled = true;
     btn.textContent = "Saving code…";
@@ -944,7 +980,7 @@
   }
 
   async function onUnlockCode(form) {
-    var code = fieldValue(form, "code").replace(/^\s+|\s+$/g, "");
+    var code = normalizeCode(fieldValue(form, "fh-setup-code"));
     var owner = loadOwner();
     if (!owner || owner.damaged || !validSecrets(owner)) return showFormError("Setup data on this phone can't be read.");
     if (!code) return showFormError("Enter your setup code.");
@@ -956,7 +992,7 @@
       if (!sameBytes(actual, b64ToBytes(owner.hash))) {
         btn.disabled = false;
         btn.textContent = "Unlock";
-        return showFormError("That code doesn't match.");
+        return showFormError("That code doesn't match the one saved on this phone.");
       }
       setUnlocked();
       draft = draftFromOwner(owner);
@@ -1218,6 +1254,10 @@
         paint("needs-https", needsHttpsHtml(), "denied");
         return;
       }
+      if (hash.kind === "reset") {
+        paint("setup-reset", resetHtml(), "");
+        return;
+      }
       if (hash.kind === "setup") {
         showSetup();
         return;
@@ -1273,6 +1313,39 @@
     route();
   }
 
+  function confirmReset() {
+    holdRoute = true;
+    try { localStorage.removeItem(OWNER_KEY); } catch (e) {}
+    clearUnlocked();
+    draft = null;
+    forceRenew = {};
+    codeVisible = false;
+    stripHash();
+    paint("setup-create", createHtml(), "");
+    holdRoute = false;
+  }
+
+  function cancelReset() {
+    var owner = loadOwner();
+    if (owner && !owner.damaged && validSecrets(owner) && !isUnlocked()) {
+      location.hash = "setup";
+      return;
+    }
+    stripHash();
+    route();
+  }
+
+  function toggleCode() {
+    codeVisible = !codeVisible;
+    var type = codeType();
+    ["setup-code", "setup-code-2"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.type = type;
+    });
+    var btn = document.getElementById("toggle-code");
+    if (btn) btn.textContent = codeVisible ? "Hide code" : "Show code";
+  }
+
   async function copyText(text, field) {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1317,6 +1390,22 @@
     }
     if (action === "remove-setup-now") {
       removeSetupNow();
+      return;
+    }
+    if (action === "start-reset") {
+      location.hash = "reset";
+      return;
+    }
+    if (action === "confirm-reset") {
+      confirmReset();
+      return;
+    }
+    if (action === "cancel-reset") {
+      cancelReset();
+      return;
+    }
+    if (action === "toggle-code") {
+      toggleCode();
       return;
     }
     if (action === "accept-link") {
@@ -1403,7 +1492,7 @@
     else if (action === "save-setup") saveSetup();
   });
 
-  window.addEventListener("hashchange", function () { route(); });
+  window.addEventListener("hashchange", function () { if (!holdRoute) route(); });
   route();
 })();
 </script>
